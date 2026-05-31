@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────
+# Gradle (multi-module: ignores build/ in every module, not just root)
+# ─────────────────────────────────────────────────────────────
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# ─────────────────────────────────────────────────────────────
+# Kotlin
+# ─────────────────────────────────────────────────────────────
+.kotlin/
+
+# ─────────────────────────────────────────────────────────────
+# Android build outputs & intermediates
+# ─────────────────────────────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.aar
+*.dex
+*.class
+bin/
+gen/
+out/
+release/
+/captures
+.externalNativeBuild/
+.cxx/
+
+# ─────────────────────────────────────────────────────────────
+# Local / machine-specific configuration (never commit)
+# ─────────────────────────────────────────────────────────────
+local.properties
+
+# ─────────────────────────────────────────────────────────────
+# Signing & secrets
+# ─────────────────────────────────────────────────────────────
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+google-services.json
+
+# ─────────────────────────────────────────────────────────────
+# IDE — Android Studio / IntelliJ
+# ─────────────────────────────────────────────────────────────
+*.iml
+.idea/
+
+# ─────────────────────────────────────────────────────────────
+# Claude Code — keep shared skills/commands, ignore local settings
+# ─────────────────────────────────────────────────────────────
+.claude/settings.local.json
+.mcp.json
+
+# ─────────────────────────────────────────────────────────────
+# OS & misc
+# ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log

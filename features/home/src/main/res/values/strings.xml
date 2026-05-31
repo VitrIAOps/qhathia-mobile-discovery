@@ -1,0 +1,44 @@
+<resources>
+    <!-- Store identity slot (top-left). Falls back to this when the session has no store name. -->
+    <string name="home_store_name_placeholder">TIENDA</string>
+
+    <!-- Idle hero copy -->
+    <string name="home_title">Encuentra lo que necesitas</string>
+    <string name="home_subtitle">Presiona aquí y describe lo que buscas, por nombre o detalles</string>
+
+    <!-- Listening (the trailing dots are animated in code) -->
+    <string name="home_listening_label">Escuchando</string>
+
+    <!-- Search -->
+    <string name="home_search_placeholder">Describe lo que buscas (taladro de la marca bosch)</string>
+    <string name="home_search_icon_cd">Buscar</string>
+
+    <!-- Controls -->
+    <string name="home_catalog">Ir al catálogo</string>
+    <string name="home_catalog_cd">Ir al catálogo</string>
+    <string name="home_settings_cd">Ajustes</string>
+
+    <!-- Microphone content descriptions -->
+    <string name="home_mic_cd">Buscar por voz</string>
+    <string name="home_mic_listening_cd">Escuchando, toca para detener</string>
+    <string name="home_mic_retry_cd">Toca para intentar de nuevo</string>
+
+    <!-- Footer -->
+    <string name="home_powered_by">powered by</string>
+    <string name="home_brand">Qhathia</string>
+
+    <!-- Multiple retry titles the assistant cycles through when no audio is detected. -->
+    <string-array name="home_retry_titles">
+        <item>No te escuché…</item>
+        <item>Sigo sin escucharte…</item>
+        <item>¿Probamos otra vez?</item>
+        <item>No capté el audio…</item>
+    </string-array>
+    <!-- Subtitles aligned by index with home_retry_titles. -->
+    <string-array name="home_retry_subtitles">
+        <item>Inténtalo de nuevo, describe lo que buscas por nombre o detalles</item>
+        <item>Acércate y describe lo que buscas, por nombre o detalles</item>
+        <item>Toca el micrófono y dime qué producto necesitas</item>
+        <item>Vuelve a intentarlo: ¿qué producto estás buscando?</item>
+    </string-array>
+</resources>
