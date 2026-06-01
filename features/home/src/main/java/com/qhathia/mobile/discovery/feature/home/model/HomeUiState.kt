@@ -5,7 +5,7 @@ package com.qhathia.mobile.discovery.feature.home.model
  *
  * @property storeName the operating store's name, or `null` when not yet available.
  * @property query the current search-bar text.
- * @property micState the microphone interaction state.
+ * @property micState the voice-search interaction state.
  */
 data class HomeUiState(
     val storeName: String? = null,
@@ -13,9 +13,22 @@ data class HomeUiState(
     val micState: MicState = MicState.Idle,
 ) {
     /**
-     * Business rule: the search bar and the catalog/settings controls are hidden only while the
-     * app is actively listening ("Escuchando…"). They remain visible in the idle and no-audio
-     * retry states, matching the Figma flow (node 286-9269).
+     * The search bar and the catalog/settings controls are hidden only while a voice-search attempt
+     * is actively capturing or processing ([MicState.Listening], [MicState.Transcribing],
+     * [MicState.SlowResponse]). They are visible in the resting states — including the error screen,
+     * which mirrors the no-audio-retry layout (headline + mic + search bar).
      */
-    val areControlsVisible: Boolean get() = micState !is MicState.Listening
+    val areControlsVisible: Boolean
+        get() = when (micState) {
+            is MicState.Listening,
+            MicState.Transcribing,
+            MicState.SlowResponse,
+            -> false
+
+            MicState.Idle,
+            is MicState.NoAudioRetry,
+            is MicState.Success,
+            is MicState.Error,
+            -> true
+        }
 }

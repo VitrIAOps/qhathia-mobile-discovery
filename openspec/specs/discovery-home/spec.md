@@ -49,36 +49,84 @@ The search bar and the catalog and settings buttons SHALL be visible only when t
 
 ### Requirement: Microphone listening window
 
-When the consumer activates the microphone, the app SHALL enter a listening state that lasts at most 30 seconds. If the listening window elapses without captured audio input, the listening state SHALL end. Real speech-to-text transcription is out of scope; the microphone drives UI state only.
+When the consumer activates the microphone, the app SHALL enter a listening state that captures microphone audio and lasts at most 30 seconds while waiting for the consumer to start providing audio. When the consumer finishes speaking (or the recording reaches its maximum length), the app SHALL proceed to transcribe the captured audio through the speech-to-text pipeline. The microphone drives the real speech-to-text flow defined by the `voice-search-stt` capability.
 
 #### Scenario: Listening starts on activation
 
 - **WHEN** the consumer activates the microphone button
-- **THEN** the app enters the listening state and shows listening feedback
+- **THEN** the app enters the listening state, begins capturing audio, and shows listening feedback
 
 #### Scenario: Listening times out after 30 seconds
 
-- **WHEN** the app has been in the listening state for 30 seconds without captured audio input
+- **WHEN** the app has been waiting in the listening state for 30 seconds without captured audio input
 - **THEN** the listening window ends and the app stops listening
+
+#### Scenario: Consumer finishes speaking
+
+- **WHEN** the consumer finishes providing audio before the timeout
+- **THEN** the app leaves the listening state and begins transcribing the captured audio
 
 #### Scenario: Consumer cancels listening
 
-- **WHEN** the consumer dismisses or cancels the microphone interaction before the timeout
+- **WHEN** the consumer dismisses or cancels the microphone interaction before transcription begins
 - **THEN** the app leaves the listening state and returns to the idle Home state
 
 ### Requirement: Retry prompts when no audio is detected
 
-When a listening window ends without detected audio, the assistant SHALL ask the consumer to try again, drawing from a set of multiple distinct retry messages rather than repeating a single fixed message.
+When a listening window ends without detected audio (an empty/no-audio outcome from the speech-to-text pipeline), the assistant SHALL ask the consumer to try again, drawing from a set of multiple distinct retry messages rather than repeating a single fixed message.
 
-#### Scenario: First no-audio timeout shows a retry prompt
+#### Scenario: First no-audio outcome shows a retry prompt
 
-- **WHEN** a listening window ends with no detected audio
+- **WHEN** a voice-search attempt ends with no detected audio
 - **THEN** the app shows a retry prompt inviting the consumer to try speaking again
 
-#### Scenario: Repeated no-audio timeouts vary the prompt
+#### Scenario: Repeated no-audio outcomes vary the prompt
 
-- **WHEN** consecutive listening windows end with no detected audio
+- **WHEN** consecutive voice-search attempts end with no detected audio
 - **THEN** the retry prompt shown varies across the available set of retry messages rather than repeating the same message every time
+
+### Requirement: Voice-search processing feedback
+
+While a voice-search attempt is in progress, the Home screen SHALL show the design-system processing message that matches the current phase: a listening message while recording, an organizing message while uploading/transcribing, and a slow-response message when a transcription response has not arrived after 30 seconds. Processing messages SHALL display the animated three-dot ("…") indicator; non-processing messages SHALL NOT.
+
+#### Scenario: Listening message while recording
+
+- **WHEN** the app is capturing microphone audio
+- **THEN** the Home screen shows the listening processing message with the animated three dots
+
+#### Scenario: Organizing message while transcribing
+
+- **WHEN** the app is uploading the captured audio and awaiting transcription
+- **THEN** the Home screen shows the organizing processing message with the animated three dots
+
+#### Scenario: Slow-response message
+
+- **WHEN** a transcription response has not been received after 30 seconds
+- **THEN** the Home screen shows the slow-response processing message with the animated three dots
+
+### Requirement: Speech-to-text error screens
+
+When a voice-search attempt fails, the Home screen SHALL present an error screen whose title and message match the failure category from the `voice-search-stt` error taxonomy (network, audio-too-long, transcription-response, empty/no-audio, timeout, or generic). The error screen SHALL use the same layout as the no-audio-retry screen — the error title and message as the headline, with the microphone button and the search bar — so the consumer can retry by voice (the microphone) or type their query. If an error screen remains without consumer activity for 30 seconds, the app SHALL return to the Home idle screen.
+
+#### Scenario: Error category maps to its message
+
+- **WHEN** a voice-search attempt fails with a given error category
+- **THEN** the Home screen shows the error title and message that correspond to that category
+
+#### Scenario: Error screen uses the no-audio-retry layout
+
+- **WHEN** an error screen is shown
+- **THEN** it presents the microphone button and the search bar (the same layout as the no-audio-retry screen)
+
+#### Scenario: Error screen auto-returns to idle
+
+- **WHEN** an error screen has been shown with no consumer activity for 30 seconds
+- **THEN** the app returns to the Home idle screen
+
+#### Scenario: Consumer retries from an error screen
+
+- **WHEN** the consumer taps the microphone on an error screen
+- **THEN** the app starts a new voice-search attempt
 
 ### Requirement: Navigation intents from Home
 

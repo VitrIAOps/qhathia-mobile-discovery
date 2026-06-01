@@ -61,12 +61,17 @@ While a voice-search attempt is in progress, the Home screen SHALL show the desi
 
 ### Requirement: Speech-to-text error screens
 
-When a voice-search attempt fails, the Home screen SHALL present an error screen whose title and message match the failure category from the `voice-search-stt` error taxonomy (network, audio-too-long, transcription-response, empty/no-audio, timeout, or generic). The error screen SHALL follow the app's design system and offer the consumer a way to try again. If an error screen remains without consumer activity for 30 seconds, the app SHALL return to the Home idle screen.
+When a voice-search attempt fails, the Home screen SHALL present an error screen whose title and message match the failure category from the `voice-search-stt` error taxonomy (network, audio-too-long, transcription-response, empty/no-audio, timeout, or generic). The error screen SHALL use the same layout as the no-audio-retry screen — the error title and message as the headline, with the microphone button and the search bar — so the consumer can retry by voice (the microphone) or type their query. If an error screen remains without consumer activity for 30 seconds, the app SHALL return to the Home idle screen.
 
 #### Scenario: Error category maps to its message
 
 - **WHEN** a voice-search attempt fails with a given error category
 - **THEN** the Home screen shows the error title and message that correspond to that category
+
+#### Scenario: Error screen uses the no-audio-retry layout
+
+- **WHEN** an error screen is shown
+- **THEN** it presents the microphone button and the search bar (the same layout as the no-audio-retry screen)
 
 #### Scenario: Error screen auto-returns to idle
 
@@ -75,5 +80,5 @@ When a voice-search attempt fails, the Home screen SHALL present an error screen
 
 #### Scenario: Consumer retries from an error screen
 
-- **WHEN** the consumer chooses to try again from an error screen
+- **WHEN** the consumer taps the microphone on an error screen
 - **THEN** the app starts a new voice-search attempt

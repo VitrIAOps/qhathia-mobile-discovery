@@ -29,24 +29,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
+import com.qhathia.mobile.discovery.core.ui.component.ProcessingMessage
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -56,12 +51,12 @@ import com.qhathia.mobile.discovery.feature.home.model.HomeUiState
 import com.qhathia.mobile.discovery.feature.home.model.MicState
 
 /**
- * Stateless Home UI — a pure function of [HomeUiState], built from the Qhathia design system to
- * match the Figma Home flow (node 286-9269).
+ * Stateless Home UI — a pure function of [HomeUiState], built from the Qhathia design system.
  *
- * Layout: "TIENDA" + "Ir al catálogo" top bar, a centered hero (title + subtitle + mic + search),
- * a settings gear bottom-start, and a "powered by Qhathia" footer. The search bar, catalog link and
- * gear are hidden only while actively listening ([HomeUiState.areControlsVisible]).
+ * The hero swaps by [MicState]: idle/retry/success show the title + mic + search; listening,
+ * transcribing, and slow-response show the mic with an animated processing message; an error shows
+ * the [SttErrorContent] screen. The search bar, catalog link, and gear are hidden whenever a
+ * voice-search attempt is active or an error screen is shown ([HomeUiState.areControlsVisible]).
  */
 @Composable
 fun HomeContent(
@@ -176,64 +171,95 @@ private fun HeroSection(
     onEvent: (HomeUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val micState = uiState.micState
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (micState is MicState.Listening) {
-            MicButton(
-                isListening = true,
-                contentDescription = stringResource(R.string.home_mic_listening_cd),
-                onClick = { onEvent(HomeUiEvent.CancelMic) },
-            )
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            ListeningLabel(
+        when (val micState = uiState.micState) {
+            is MicState.Listening -> ProcessingHero(
                 baseText = stringResource(R.string.home_listening_label),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                micContentDescription = stringResource(R.string.home_mic_listening_cd),
+                onMicClick = { onEvent(HomeUiEvent.StopRecording) },
             )
-        } else {
-            val isRetry = micState is MicState.NoAudioRetry
-            val (title, subtitle) = headlineFor(micState)
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineLarge,
-                color = DiscoveryColors.Blue600,
-                textAlign = TextAlign.Center,
+            MicState.Transcribing -> ProcessingHero(
+                baseText = stringResource(R.string.home_processing_organizing),
+                micContentDescription = stringResource(R.string.home_mic_processing_cd),
+                onMicClick = { onEvent(HomeUiEvent.CancelMic) },
             )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 576.dp),
+            MicState.SlowResponse -> ProcessingHero(
+                baseText = stringResource(R.string.home_processing_slow),
+                micContentDescription = stringResource(R.string.home_mic_processing_cd),
+                onMicClick = { onEvent(HomeUiEvent.CancelMic) },
             )
-            Spacer(modifier = Modifier.height(Spacing.xl))
-            MicButton(
-                isListening = false,
-                contentDescription = stringResource(
-                    if (isRetry) R.string.home_mic_retry_cd else R.string.home_mic_cd,
-                ),
-                onClick = {
-                    onEvent(if (isRetry) HomeUiEvent.RetryMic else HomeUiEvent.ActivateMic)
-                },
-            )
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            DiscoverySearchBar(
-                query = uiState.query,
-                onQueryChange = { onEvent(HomeUiEvent.QueryChanged(it)) },
-                onSearch = { onEvent(HomeUiEvent.SubmitSearch) },
-                placeholder = stringResource(R.string.home_search_placeholder),
-                searchIconContentDescription = stringResource(R.string.home_search_icon_cd),
-                modifier = Modifier.width(600.dp),
-            )
+            // Idle, NoAudioRetry, Success, and Error all use the same hero layout (headline + mic +
+            // search bar). Error and retry both reactivate voice search via the mic.
+            else -> IdleHero(micState = micState, query = uiState.query, onEvent = onEvent)
         }
     }
 }
 
-/** Resolves the hero (title, subtitle) pair for the idle and no-audio-retry states. */
+@Composable
+private fun ProcessingHero(
+    baseText: String,
+    micContentDescription: String,
+    onMicClick: () -> Unit,
+) {
+    MicButton(
+        isListening = true,
+        contentDescription = micContentDescription,
+        onClick = onMicClick,
+    )
+    Spacer(modifier = Modifier.height(Spacing.lg))
+    ProcessingMessage(
+        baseText = baseText,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+}
+
+@Composable
+private fun IdleHero(
+    micState: MicState,
+    query: String,
+    onEvent: (HomeUiEvent) -> Unit,
+) {
+    // Both the no-audio retry and the error screen re-trigger voice search via the mic.
+    val isRetry = micState is MicState.NoAudioRetry || micState is MicState.Error
+    val (title, subtitle) = headlineFor(micState)
+    Text(
+        text = title,
+        style = MaterialTheme.typography.headlineLarge,
+        color = DiscoveryColors.Blue600,
+        textAlign = TextAlign.Center,
+    )
+    Spacer(modifier = Modifier.height(Spacing.sm))
+    Text(
+        text = subtitle,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.widthIn(max = 576.dp),
+    )
+    Spacer(modifier = Modifier.height(Spacing.xl))
+    MicButton(
+        isListening = false,
+        contentDescription = stringResource(
+            if (isRetry) R.string.home_mic_retry_cd else R.string.home_mic_cd,
+        ),
+        onClick = { onEvent(if (isRetry) HomeUiEvent.RetryMic else HomeUiEvent.ActivateMic) },
+    )
+    Spacer(modifier = Modifier.height(Spacing.lg))
+    DiscoverySearchBar(
+        query = query,
+        onQueryChange = { onEvent(HomeUiEvent.QueryChanged(it)) },
+        onSearch = { onEvent(HomeUiEvent.SubmitSearch) },
+        placeholder = stringResource(R.string.home_search_placeholder),
+        searchIconContentDescription = stringResource(R.string.home_search_icon_cd),
+        modifier = Modifier.width(600.dp),
+    )
+}
+
+/** Resolves the hero (title, subtitle) pair for the idle / no-audio-retry / error / success states. */
 @Composable
 private fun headlineFor(micState: MicState): Pair<String, String> = when (micState) {
     is MicState.NoAudioRetry -> {
@@ -242,42 +268,11 @@ private fun headlineFor(micState: MicState): Pair<String, String> = when (micSta
         val i = micState.promptIndex % titles.size
         titles[i] to subtitles[i % subtitles.size]
     }
+    is MicState.Error -> {
+        val copy = micState.category.toCopy()
+        stringResource(copy.titleRes) to stringResource(copy.messageRes)
+    }
     else -> stringResource(R.string.home_title) to stringResource(R.string.home_subtitle)
-}
-
-/**
- * "Escuchando" with recursively animated trailing dots: 0 → 1 → 2 → 3 → 0… Three dots are always
- * laid out (inactive ones are transparent) so the centered label keeps a constant width and does
- * not jump as the dots cycle.
- */
-@Composable
-private fun ListeningLabel(
-    baseText: String,
-    style: TextStyle,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    val dotCount by produceState(initialValue = 0) {
-        while (true) {
-            kotlinx.coroutines.delay(400L)
-            value = (value + 1) % 4
-        }
-    }
-    val text = buildAnnotatedString {
-        append(baseText)
-        repeat(3) { index ->
-            withStyle(SpanStyle(color = if (index < dotCount) color else Color.Transparent)) {
-                append(".")
-            }
-        }
-    }
-    Text(
-        text = text,
-        style = style,
-        color = color,
-        textAlign = TextAlign.Center,
-        modifier = modifier,
-    )
 }
 
 @Composable
@@ -285,12 +280,12 @@ private fun PoweredByFooter(modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = stringResource(R.string.home_powered_by),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = DiscoveryColors.Footer,
         )
         Text(
             text = stringResource(R.string.home_brand),
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.headlineMedium,
             color = DiscoveryColors.Footer,
         )
     }
@@ -314,7 +309,29 @@ private fun HomeContentIdleLightPreview() {
 private fun HomeContentListeningPreview() {
     DiscoveryTheme(darkTheme = false) {
         HomeContent(
-            uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Listening(30)),
+            uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Listening(45)),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Home transcribing — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentTranscribingPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        HomeContent(
+            uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Transcribing),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Home slow response — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentSlowResponsePreview() {
+    DiscoveryTheme(darkTheme = false) {
+        HomeContent(
+            uiState = HomeUiState(storeName = "Joyería María", micState = MicState.SlowResponse),
             onEvent = {},
         )
     }
@@ -326,6 +343,34 @@ private fun HomeContentRetryPreview() {
     DiscoveryTheme(darkTheme = false) {
         HomeContent(
             uiState = HomeUiState(storeName = "Joyería María", micState = MicState.NoAudioRetry(0)),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Home error — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentErrorPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        HomeContent(
+            uiState = HomeUiState(
+                storeName = "Joyería María",
+                micState = MicState.Error(com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory.Network),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Home error — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        HomeContent(
+            uiState = HomeUiState(
+                storeName = "Joyería María",
+                micState = MicState.Error(com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory.Timeout),
+            ),
             onEvent = {},
         )
     }
