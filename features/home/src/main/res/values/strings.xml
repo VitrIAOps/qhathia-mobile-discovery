@@ -22,6 +22,34 @@
     <string name="home_mic_cd">Buscar por voz</string>
     <string name="home_mic_listening_cd">Escuchando, toca para detener</string>
     <string name="home_mic_retry_cd">Toca para intentar de nuevo</string>
+    <string name="home_mic_processing_cd">Procesando, toca para cancelar</string>
+
+    <!-- Voice-search processing messages (the trailing dots are animated in code) -->
+    <string name="home_processing_organizing">Organizando ideas</string>
+    <string name="home_processing_slow">Está tardando más de lo que esperaba</string>
+
+    <!-- Microphone permission -->
+    <string name="home_mic_permission_required">Necesitamos acceso al micrófono para la búsqueda por voz</string>
+
+    <!-- Voice-search error screens (rendered with the same headline + mic + search layout as the
+         no-audio retry; the mic re-triggers the search) -->
+    <string name="stt_error_network_title">Perdí la conexión…</string>
+    <string name="stt_error_network_message">Parece que la red está inestable. Verifica tu internet e intenta nuevamente.</string>
+
+    <string name="stt_error_audio_too_long_title">¿Podrías resumir?</string>
+    <string name="stt_error_audio_too_long_message">Las grabaciones breves funcionan mejor. Intenta resumir tu búsqueda unos segundos.</string>
+
+    <string name="stt_error_transcription_title">No alcancé a entender…</string>
+    <string name="stt_error_transcription_message">Hubo un problema al procesar la idea. Intenta hablar más claro cuando grabes.</string>
+
+    <string name="stt_error_empty_audio_title">No te escuché…</string>
+    <string name="stt_error_empty_audio_message">Intenta hablar un poco más cerca del micrófono y vuelve a grabar.</string>
+
+    <string name="stt_error_timeout_title">La respuesta está tardando demasiado</string>
+    <string name="stt_error_timeout_message">Al parecer hay demoras al procesar la idea. Intenta nuevamente en unos momentos.</string>
+
+    <string name="stt_error_generic_title">Algo salió mal</string>
+    <string name="stt_error_generic_message">No pude completar tu solicitud. Por favor intenta nuevamente.</string>
 
     <!-- Footer -->
     <string name="home_powered_by">powered by</string>

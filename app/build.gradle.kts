@@ -45,9 +45,10 @@ dependencies {
     // Feature + design-system modules
     implementation(project(":features:home"))
     implementation(project(":core:ui"))
-    // Data layer — included by the app shell so its Hilt bindings (StoreSessionRepository) are
-    // aggregated into the dependency graph.
+    // Data + network layers — included by the app shell so their Hilt bindings (StoreSessionRepository,
+    // SpeechToTextRepository, AudioRecorder, HttpClient) are aggregated into the dependency graph.
     implementation(project(":core:data"))
+    implementation(project(":core:network"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

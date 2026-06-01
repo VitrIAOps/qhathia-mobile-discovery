@@ -40,6 +40,20 @@ When voice search is activated, the app SHALL capture the consumer's microphone 
 - **THEN** the app stops the recording automatically
 - **AND** proceeds to transcribe the captured audio
 
+### Requirement: Automatic stop on end-of-speech silence
+
+Once speech has been detected during a recording, a short period of continuous silence SHALL end the recording automatically and trigger transcription immediately, without waiting for the maximum recording length. The trailing-silence threshold SHALL be **1 second**. Silence before any speech is detected SHALL NOT end the recording (the input-wait window governs that case).
+
+#### Scenario: Trailing silence ends the recording
+
+- **WHEN** the consumer has been speaking and then stays silent for 1 second
+- **THEN** the app stops the recording and immediately requests transcription of the captured audio
+
+#### Scenario: Silence before speaking does not end the recording
+
+- **WHEN** the recording has started but no speech has been detected yet
+- **THEN** the trailing-silence auto-stop does not apply, and the input-wait window continues to govern the no-audio outcome
+
 ### Requirement: Transcription invoked only after the consumer finishes speaking
 
 The app SHALL send audio to the speech-to-text provider (Deepgram) only after the consumer finishes providing their audio. The app SHALL NOT stream audio for live transcription while the consumer is still speaking. Audio SHALL be sent using a lightweight audio format suitable for low-bandwidth upload.

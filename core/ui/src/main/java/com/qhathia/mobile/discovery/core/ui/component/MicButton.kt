@@ -23,6 +23,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
@@ -36,7 +38,8 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
  * (button-animation.gif). The disc stays fixed; the rings grow outward from its edge and fade.
  *
  * The ripple runs on its own (idle, no tap required); while [isListening] it pulses faster and the
- * icon switches to sound waves. Stateless — the listening lifecycle is owned by the caller.
+ * mic icon switches to an animated [VoiceWaveform]. Stateless — the listening lifecycle is owned by
+ * the caller.
  *
  * Note: this is a runtime animation; it plays on device / in interactive preview, not in a static
  * `@Preview` snapshot.
@@ -87,7 +90,7 @@ fun MicButton(
                     // Steady base glow hugging the disc.
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(DiscoveryColors.MicGlow.copy(alpha = 0.42f), Color.Transparent),
+                            colors = listOf(DiscoveryColors.MicGlow.copy(alpha = 0.8f), Color.Transparent),
                             center = center,
                             radius = discRadius * 1.4f,
                         ),
@@ -130,14 +133,22 @@ fun MicButton(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(
-                    if (isListening) R.drawable.ic_sound_waves else R.drawable.ic_mic,
-                ),
-                contentDescription = contentDescription,
-                tint = Color.White,
-                modifier = Modifier.size(if (isListening) 68.dp else 48.dp),
-            )
+            if (isListening) {
+                val waveformDescription = contentDescription
+                VoiceWaveform(
+                    barColor = Color.White,
+                    modifier = Modifier
+                        .size(68.dp)
+                        .semantics { this.contentDescription = waveformDescription },
+                )
+            } else {
+                Icon(
+                    painter = painterResource(R.drawable.ic_mic),
+                    contentDescription = contentDescription,
+                    tint = Color.White,
+                    modifier = Modifier.size(48.dp),
+                )
+            }
         }
     }
 }

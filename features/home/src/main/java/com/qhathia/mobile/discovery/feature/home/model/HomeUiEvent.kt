@@ -2,13 +2,16 @@ package com.qhathia.mobile.discovery.feature.home.model
 
 /** User-driven intents on the Home screen. */
 sealed interface HomeUiEvent {
-    /** Start a voice-search listening window. */
+    /** Start a voice-search attempt (microphone permission already granted). */
     data object ActivateMic : HomeUiEvent
 
-    /** Cancel the current microphone interaction and return to idle. */
+    /** The consumer finished speaking — stop recording and transcribe. */
+    data object StopRecording : HomeUiEvent
+
+    /** Cancel the current voice-search interaction and return to idle. */
     data object CancelMic : HomeUiEvent
 
-    /** Retry listening after a no-audio timeout. */
+    /** Retry a voice-search attempt after a no-audio outcome or an error screen. */
     data object RetryMic : HomeUiEvent
 
     /** The search query text changed. */

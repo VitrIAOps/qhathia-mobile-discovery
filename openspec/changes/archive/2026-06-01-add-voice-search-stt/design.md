@@ -33,7 +33,7 @@ Constraints (from the ClickUp story):
 
 | Module | Type | Change | Responsibility |
 |---|---|---|---|
-| `core:network` | **New** Android library + Hilt + serialization | created | Ktor `HttpClient` singleton (CIO), `SttTokenApiService` (`POST /api/v1/stt/token`), `DeepgramClient` (transcription call), `@Serializable` DTOs, `NetworkResult` + `toNetworkResult()`, `NetworkModule`. `BASE_URL` via build config. |
+| `core:network` | **New** Android library + Hilt + serialization | created | Ktor `HttpClient` singleton (CIO), `AuthApiService` (`POST /api/v1/auth/login`), `SttTokenApiService` (`POST /api/v1/stt/token`), `DeepgramClient` (`POST api.deepgram.com/v1/listen`), `@Serializable` DTOs, `NetworkResult` + `toNetworkResult()`, `NetworkModule`. Qhathia `BASE_URL` + Deepgram base URL via build config. |
 | `core:domain` | Pure Kotlin | modified | `VoiceSearchResult`/`SttError` domain models, `SttTokenRepository` + `SpeechToTextRepository` ports, `TranscribeVoiceSearchUseCase`, and STT constants (caps/budgets) alongside `HomeConstants`. Zero Android deps. |
 | `core:data` | Android library + Hilt | modified | `SpeechToTextRepositoryImpl` (orchestrates token → Deepgram, maps `NetworkResult` → `Result`/`SttError`), audio-format handling, Hilt bindings. Depends on `core:network` + `core:domain`. |
 | `core:ui` | Android library + Compose | modified | Reuse the existing 3-dot animated label as a shared `ProcessingMessage` component; add an `SttErrorContent` component + design tokens/strings for the processing and error copy. |
@@ -44,11 +44,42 @@ Dependency directions stay legal: `core:data → core:network, core:domain`; `co
 
 **Alternative considered:** put the Ktor client + Deepgram call directly in `core:data`. Rejected — the standards require the HTTP client and API services to live in `core:network`, and `core:network` must not know domain types.
 
-### Audio capture: `MediaRecorder` to a temp file, lightweight format
+### Audio capture: `MediaRecorder` to a temp file, lightweight format (resolved)
 
-Record with Android `MediaRecorder` to an app-private temp file using a lightweight container/codec suitable for Deepgram batch upload (e.g. OGG/Opus on API 29+, falling back to AAC/M4A on API 26–28, since `minSdk = 26`). The file is uploaded once recording ends, then deleted. The recorder is owned by a `core:data` (or `core:common`) `AudioRecorder` abstraction behind a domain port so the ViewModel and use case stay testable with a fake.
+Record with Android `MediaRecorder` to an app-private temp file, then upload the bytes once recording ends and delete the file. The recorder is owned by an `AudioRecorderImpl` in `core:data` behind a domain `AudioRecorder` port so the ViewModel and use case stay testable with a fake.
 
-**Rationale:** the story mandates "lightweight audio formats" and "transcribe only after the user finishes" — a batch file upload fits exactly and avoids a streaming socket. `AudioRecord` (raw PCM) would force us to encode ourselves; `MediaRecorder` gives compressed output directly. **Alternative considered:** Deepgram live WebSocket — rejected, contradicts the "invoke only when the user finishes" rule and adds streaming complexity.
+Format: **AAC in an MP4/M4A container (`audio/mp4`) on every API level** (mono, 16 kHz, 64 kbps). For batch transcription Deepgram **infers the codec from the file headers**, so no `encoding` query param is sent.
+
+> **Apply note:** the original plan was Ogg/Opus on API ≥29 with an AAC/M4A fallback for 26–28. During device testing the Opus path produced empty/invalid `MediaRecorder` files ("No te escuché"), a known cross-device issue. AAC is the most reliable `MediaRecorder` codec and is equally supported by Deepgram, so it is now used universally — which also removes the API branch. `minSdk` stays at 26.
+
+Audio detection uses `getMaxAmplitude()`, which returns the peak since the previous call (0 on the first call), so the recorder exposes a per-sample `pollLevel(): AudioLevel` and the ViewModel **polls it every 200 ms** to drive both detection and end-of-speech.
+
+### End-of-speech auto-stop & error-screen layout (post-apply enhancements)
+
+Two requirements were added after the initial implementation:
+
+- **Endpointing:** the ViewModel's listening loop polls `pollLevel()` every 200 ms; once `Speech` has been seen, **1 s of continuous `Silence`** ends the recording and triggers transcription immediately (`SILENCE_AUTO_STOP_MS`). The 30 s input-wait (no speech at all) and 45 s hard cap remain. This keeps all timing in the testable VM loop; the recorder only classifies samples (threshold stays in `core:data`).
+- **Error screen layout:** error screens reuse the no-audio-retry hero (error title/message as headline + `MicButton` + `DiscoverySearchBar`) instead of a dedicated title/message/button component, so the consumer retries by voice or types. `MicState.Error` now keeps the bottom controls visible, and the standalone `SttErrorContent` component was removed as unused; the category→copy resolver (`toCopy`) still drives the headline.
+
+**Rationale:** the story mandates "lightweight audio formats" and "transcribe only after the user finishes" — a batch file upload fits exactly and avoids a streaming socket. `AudioRecord` (raw PCM) would force us to encode ourselves; `MediaRecorder` gives compressed Opus/AAC output directly. **Alternative considered:** Deepgram live WebSocket — rejected, contradicts the "invoke only when the user finishes" rule and adds streaming complexity.
+
+### Deepgram transcription call (resolved)
+
+`DeepgramClient` issues `POST https://api.deepgram.com/v1/listen` with the recorded audio as the **raw request body** (`--data-binary` style; never base64 or a JSON wrapper — that path returns `400`), `Content-Type` set to the format's mime above, and the transcription options as **query parameters**: `model=nova-3`, `smart_format=true`, `language=es`, `punctuate=true`. The Deepgram base URL is a build-config field so it can be pointed at a proxy later.
+
+Response parsing reads `results.channels[0].alternatives[0].transcript` (and `.confidence`); `metadata.request_id`/`duration` are logged for debug. A successful HTTP 200 whose `transcript` is blank is the **empty-audio** outcome.
+
+### Token handling & Deepgram auth scheme (resolved)
+
+`SpeechToTextRepositoryImpl` calls `SttTokenApiService.getToken()` immediately before each transcription, uses the returned ephemeral credential as the Deepgram `Authorization` header, and discards it after the call — no caching beyond the single operation (TTL ~60s makes caching pointless and risky).
+
+**Auth scheme nuance:** Deepgram accepts two header forms — a (temporary) **API key** via `Authorization: Token <key>`, and a granted **access-token JWT** via `Authorization: Bearer <jwt>`. Two signals point to `Token`: the Qhathia endpoint documents its output as "una API key temporal de Deepgram", and its example response token is `"dg_temp_key_..."` — an API-key shape, not a JWT (a JWT would start with `eyJ...`). So the default is the **`Token`** scheme. `DeepgramClient` keeps the scheme in one place so flipping to `Bearer` is a one-line change if a live token turns out to be a granted JWT (a `401` from Deepgram is the signal).
+
+### Qhathia authentication for the STT token (interim dev credentials)
+
+`POST /api/v1/stt/token` requires a Qhathia Bearer JWT. Until device pairing/auth lands, the app obtains that JWT from `POST /api/v1/auth/login` and uses the `accessToken` from the response. For this change the login uses the seeded development credentials **`juan@tienda.com` / `mipass123`** (kept as build-config fields, not hardcoded in source), exchanged once and held in memory (in the store session) for the `stt/token` call. An `AuthApiService` + `LoginRequestDto`/`LoginResponseDto` live in `core:network`; the access token is provided to `SttTokenApiService` as the `Authorization` header.
+
+**Rationale:** the token endpoint is unusable without a JWT and pairing is out of scope; logging in with the known dev account unblocks the end-to-end flow now and is replaced wholesale when the real session/pairing exists (the `StoreSessionRepository` already exists as the seam to hold the token). **Alternative considered:** hardcode a long-lived JWT — rejected, JWTs expire (24h) and embedding one is worse than a login call behind build-config creds.
 
 ### Voice-search state machine in the ViewModel
 
@@ -79,9 +110,9 @@ A debug-only log (guarded by `BuildConfig.DEBUG`) records the query (e.g. audio 
 
 ## Risks / Trade-offs
 
-- **`minSdk = 26` audio codec availability** → OGG/Opus via `MediaRecorder` is reliable from API 29; API 26–28 needs AAC/M4A. *Mitigation:* select the container by `Build.VERSION.SDK_INT` behind the `AudioRecorder` abstraction; verify Deepgram accepts the chosen mime type.
-- **Token endpoint depends on a session JWT that pairing/auth has not delivered yet** → in the current build the store session is locally seeded and may lack a JWT. *Mitigation:* treat a missing/invalid JWT as a token failure → `Generic`/`Network` error screen; wire the real JWT when pairing lands. Flagged as an open question.
-- **Deepgram request shape not in `api-contract.md`** → only the Qhathia token endpoint is documented; the Deepgram call contract must come from Deepgram's docs. *Mitigation:* isolate it in `DeepgramClient` so the exact endpoint/params are a single, swappable surface; confirm during apply.
+- **`minSdk = 26` audio codec availability** → resolved: OGG/Opus on API ≥29, AAC/M4A (`MPEG_4`) on 26–28, selected by `Build.VERSION.SDK_INT` behind the `AudioRecorder` abstraction; both mimes are in Deepgram's supported-format list. *Residual risk:* device-specific encoder quirks — validate on a real API 26–28 device.
+- **Deepgram auth scheme ambiguity** → the backend may return either a temporary API key (`Token` scheme) or a granted JWT (`Bearer`); low risk since the documented example token (`dg_temp_key_...`) is API-key-shaped. *Mitigation:* default to `Token`, keep the scheme in one place in `DeepgramClient`; a `401` from Deepgram is the signal to flip to `Bearer`. Confirm against a live token during apply.
+- **Interim dev login** → using `juan@tienda.com`/`mipass123` is a stopgap; the access token expires (24h) and the creds must not ship in a release. *Mitigation:* keep them as `debug` build-config fields only, surface a token/auth failure → error screen, and replace with real pairing/session when it lands.
 - **New `core:network` + Ktor on AGP 9 / Kotlin 2.3** → version reconciliation (Ktor 3.4.3, serialization plugin, `kotlin-metadata-jvm` on the Hilt ksp classpath). *Mitigation:* follow the canonical catalog + the metadata-override note; validate with a clean `:core:network:assembleDebug` before wiring consumers.
 - **Permission denied / kiosk without mic** → voice search must degrade gracefully. *Mitigation:* spec gates capture on permission; UI informs the consumer and keeps the rest of Home usable.
 - **Large surface in one change (new module + 5 modified)** → *Mitigation:* tasks ordered so `core:network` compiles first, then domain ports, then data, then UI/feature, then `:app`; DoD (lint + unit tests + previews) gates completion.
@@ -97,7 +128,10 @@ A debug-only log (guarded by `BuildConfig.DEBUG`) records the query (e.g. audio 
 
 ## Open Questions
 
-- Exact Deepgram transcription endpoint, request params (model, language, mime type), and response shape — to be confirmed against Deepgram docs during apply (the contract doc only covers the Qhathia token endpoint).
-- Which audio format/mime the backend-issued Deepgram token expects, and the API 26–28 fallback choice — resolve during apply.
+- ~~Exact Deepgram transcription endpoint, request params, and response shape~~ — **resolved** from Deepgram docs: `POST https://api.deepgram.com/v1/listen`, raw-bytes body, `model=nova-3&smart_format=true&language=es&punctuate=true`, read `results.channels[0].alternatives[0].transcript`.
+- ~~Audio format/mime and API 26–28 fallback~~ — **resolved**: OGG/Opus (`audio/ogg`) on API ≥29, AAC/M4A (`audio/mp4`) on 26–28; encoding inferred from headers for batch.
+- ~~Source of the Qhathia JWT for `POST /api/v1/stt/token`~~ — **resolved**: obtained from `POST /api/v1/auth/login` using the dev credentials `juan@tienda.com` / `mipass123` (build-config fields) until pairing/auth exists.
+- **Deepgram auth scheme** (`Token` vs `Bearer`) for the backend-issued credential — default `Token` (the documented example token `dg_temp_key_...` is API-key-shaped, not a JWT); confirm against a live token from `POST /api/v1/stt/token`, or with the backend team, during apply.
+- ~~Fixed vs detected language~~ — **resolved**: always Spanish (`language=es`, no `detect_language`).
 - Source of the session Bearer JWT for `POST /api/v1/stt/token` before device pairing/auth exists — interim behavior is to surface a token error; confirm with product.
 - Whether "audio extension max 45s" is purely the local recording cap or also a provider-side rejection to map — assumed local cap; confirm.
