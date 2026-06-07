@@ -19,9 +19,12 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.home.navigation.HOME_ROUTE
 import com.qhathia.mobile.discovery.feature.home.navigation.homeScreen
+import com.qhathia.mobile.discovery.feature.productdetail.navigation.productDetailRoute
+import com.qhathia.mobile.discovery.feature.productdetail.navigation.productDetailScreen
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.productSearchRoute
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.productSearchScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -64,6 +67,14 @@ private fun DiscoveryAppRoot() {
                 )
                 productSearchScreen(
                     onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
+                    onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
+                )
+                productDetailScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
+                    onNavigateToSearch = { query ->
+                        navController.navigate(productSearchRoute(query, SearchSource.Text))
+                    },
                 )
                 placeholderDestinations()
             }

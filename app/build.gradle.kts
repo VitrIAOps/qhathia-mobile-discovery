@@ -45,6 +45,7 @@ dependencies {
     // Feature + design-system modules
     implementation(project(":features:home"))
     implementation(project(":features:product-search"))
+    implementation(project(":features:product-detail"))
     implementation(project(":core:ui"))
     // Domain types referenced by the NavHost wiring (e.g. SearchSource on the Home → ProductSearch handoff).
     implementation(project(":core:domain"))

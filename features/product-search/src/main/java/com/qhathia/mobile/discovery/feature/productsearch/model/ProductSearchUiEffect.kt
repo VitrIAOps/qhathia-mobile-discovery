@@ -5,4 +5,7 @@ sealed interface ProductSearchUiEffect {
 
     /** Return to the Home idle screen (confirmed new search, unhappy idle timeout, or back-to-close). */
     data object NavigateHomeIdle : ProductSearchUiEffect
+
+    /** Open the product-detail screen for the tapped product. */
+    data class NavigateToDetail(val productId: String) : ProductSearchUiEffect
 }

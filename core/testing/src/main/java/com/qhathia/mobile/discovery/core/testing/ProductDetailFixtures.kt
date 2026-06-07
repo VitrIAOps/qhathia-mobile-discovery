@@ -1,0 +1,36 @@
+package com.qhathia.mobile.discovery.core.testing
+
+import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
+import com.qhathia.mobile.discovery.core.domain.model.ProductImage
+
+/** Canonical product-detail test data so tests don't re-declare detail/image shapes. */
+object ProductDetailFixtures {
+
+    fun image(
+        url: String = "https://example.com/taladro-1.jpg",
+        position: Int = 0,
+        isPrimary: Boolean = position == 0,
+    ): ProductImage = ProductImage(url = url, position = position, isPrimary = isPrimary)
+
+    /** Builds [count] images (the first one primary), or an empty list when [count] is 0. */
+    fun images(count: Int): List<ProductImage> =
+        (0 until count).map { image(url = "https://example.com/taladro-$it.jpg", position = it) }
+
+    fun productDetail(
+        id: String = "p1",
+        name: String = "Taladro Percutor Bosch GSB 13 RE Professional",
+        description: String = "Taladro percutor profesional 650W, ideal para concreto y madera.",
+        price: Double = 380.0,
+        availability: String = "AVAILABLE",
+        categoryName: String = "Taladros",
+        images: List<ProductImage> = images(3),
+    ): ProductDetail = ProductDetail(
+        id = id,
+        name = name,
+        description = description,
+        price = price,
+        availability = availability,
+        categoryName = categoryName,
+        images = images,
+    )
+}

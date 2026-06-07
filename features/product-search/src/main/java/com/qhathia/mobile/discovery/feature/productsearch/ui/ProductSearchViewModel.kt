@@ -103,7 +103,13 @@ class ProductSearchViewModel @Inject constructor(
             ProductSearchUiEvent.StopRecording -> beginTranscription()
             ProductSearchUiEvent.CancelVoice -> cancelVoiceCapture()
             is ProductSearchUiEvent.CartTapped -> resetIdleTimerIfUnhappy() // cart navigation out of scope
+            is ProductSearchUiEvent.ProductTapped -> openDetail(event.productId)
         }
+    }
+
+    private fun openDetail(productId: String) {
+        resetIdleTimerIfUnhappy()
+        emit(ProductSearchUiEffect.NavigateToDetail(productId))
     }
 
     // --- In-place voice capture (mirrors the Home STT flow, reusing the shared domain ports) ---

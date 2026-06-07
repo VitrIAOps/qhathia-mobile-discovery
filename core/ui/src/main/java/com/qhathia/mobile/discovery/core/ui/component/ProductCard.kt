@@ -44,6 +44,8 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  * @param imageUrl primary image URL (a neutral placeholder shows while empty/loading).
  * @param cartContentDescription localized description for the cart button (required, non-null).
  * @param onCartClick invoked when the cart button is tapped.
+ * @param onCardClick invoked when the card surface (outside the cart button) is tapped; when null the
+ *   card is not clickable. Kept separate from [onCartClick] so the cart button retains its own tap.
  */
 @Composable
 fun ProductCard(
@@ -53,9 +55,12 @@ fun ProductCard(
     cartContentDescription: String,
     onCartClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onCardClick: (() -> Unit)? = null,
 ) {
     Surface(
-        modifier = modifier.width(CARD_WIDTH),
+        modifier = modifier
+            .width(CARD_WIDTH)
+            .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier),
         shape = RoundedCornerShape(12.dp),
         color = Color.White,
         border = BorderStroke(1.dp, DiscoveryColors.SearchBorder),
@@ -147,6 +152,21 @@ private fun ProductCardDarkPreview() {
             imageUrl = "",
             cartContentDescription = "Agregar al carrito",
             onCartClick = {},
+        )
+    }
+}
+
+@Preview(name = "ProductCard clickable — light", showBackground = true, backgroundColor = 0xFFF8F8F8)
+@Composable
+private fun ProductCardClickablePreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductCard(
+            name = "Taladro Percutor Bosch GSB 13 RE Professional",
+            priceText = "S/ 380.00",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+            onCardClick = {},
         )
     }
 }

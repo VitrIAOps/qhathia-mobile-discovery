@@ -80,6 +80,8 @@ class HomeViewModel @Inject constructor(
             HomeUiEvent.SubmitSearch -> {
                 val query = _uiState.value.query.trim()
                 if (query.isNotEmpty()) {
+                    // Clear the field so the search bar is empty when the user returns to Home.
+                    _uiState.update { it.copy(query = "") }
                     emitEffect(HomeUiEffect.NavigateToProductSearch(query, SearchSource.Text))
                 }
             }
@@ -192,7 +194,8 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun onTranscribed(transcript: String) {
-        _uiState.update { it.copy(micState = MicState.Success(transcript)) }
+        // Clear any leftover typed query so the field is empty when the user returns to Home.
+        _uiState.update { it.copy(micState = MicState.Success(transcript), query = "") }
         emitEffect(HomeUiEffect.NavigateToProductSearch(transcript, SearchSource.Voice))
     }
 

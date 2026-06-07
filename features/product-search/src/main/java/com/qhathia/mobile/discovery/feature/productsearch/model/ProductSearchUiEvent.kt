@@ -32,4 +32,7 @@ sealed interface ProductSearchUiEvent {
 
     /** Tap a product's cart button (no-op until cart navigation lands). */
     data class CartTapped(val productId: String) : ProductSearchUiEvent
+
+    /** Tap a product card (its surface, not the cart button) — opens the product detail. */
+    data class ProductTapped(val productId: String) : ProductSearchUiEvent
 }
