@@ -1,0 +1,68 @@
+package com.qhathia.mobile.discovery.core.data.search
+
+import android.util.Log
+import com.qhathia.mobile.discovery.core.data.BuildConfig
+import com.qhathia.mobile.discovery.core.data.stt.SessionTokenProvider
+import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
+import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.repository.ProductSearchRepository
+import com.qhathia.mobile.discovery.core.network.NetworkResult
+import com.qhathia.mobile.discovery.core.network.service.ConversationSearchApiService
+import javax.inject.Inject
+
+/**
+ * Calls the Qhathia conversational search API and maps the result to a [ProductSearchResult].
+ *
+ * Obtains the session JWT via the shared [SessionTokenProvider] (the interim auth seam reused from the
+ * STT pipeline). On a `401` the cached token is dropped and the call is retried once with a fresh
+ * login. Failures surface as a failed [Result] carrying a [SearchException] tagged with the matching
+ * [SearchErrorCategory] so the presentation layer can pick the recovery UX.
+ */
+class ProductSearchRepositoryImpl @Inject constructor(
+    private val sessionTokenProvider: SessionTokenProvider,
+    private val searchApiService: ConversationSearchApiService,
+) : ProductSearchRepository {
+
+    override suspend fun search(query: String, language: String): Result<ProductSearchResult> {
+        logQuery(query)
+
+        val token = sessionTokenProvider.accessToken()
+            .getOrElse { return failure(SearchErrorMapper.fromTokenFailure(it)) }
+
+        var response = searchApiService.search(token, query, language)
+        if (response is NetworkResult.HttpError && response.code == HTTP_UNAUTHORIZED) {
+            sessionTokenProvider.clear()
+            val refreshed = sessionTokenProvider.accessToken(forceRefresh = true)
+                .getOrElse { return failure(SearchErrorMapper.fromTokenFailure(it)) }
+            response = searchApiService.search(refreshed, query, language)
+        }
+
+        return when (response) {
+            is NetworkResult.Success -> success(response.data.toDomain())
+            is NetworkResult.HttpError -> failure(SearchErrorCategory.SearchApi)
+            is NetworkResult.NetworkError -> failure(SearchErrorMapper.fromNetworkError(response.kind))
+        }
+    }
+
+    private fun success(result: ProductSearchResult): Result<ProductSearchResult> {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "search result: count=${result.products.size} noResults=${result.noResults}")
+        }
+        return Result.success(result)
+    }
+
+    private fun failure(category: SearchErrorCategory): Result<ProductSearchResult> {
+        if (BuildConfig.DEBUG) Log.d(TAG, "search result: failure=$category")
+        return Result.failure(SearchException(category))
+    }
+
+    private fun logQuery(query: String) {
+        if (BuildConfig.DEBUG) Log.d(TAG, "search query: length=${query.length}")
+    }
+
+    private companion object {
+        const val TAG = "ProductSearch"
+        const val HTTP_UNAUTHORIZED = 401
+    }
+}

@@ -22,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.home.navigation.HOME_ROUTE
 import com.qhathia.mobile.discovery.feature.home.navigation.homeScreen
+import com.qhathia.mobile.discovery.feature.productsearch.navigation.productSearchRoute
+import com.qhathia.mobile.discovery.feature.productsearch.navigation.productSearchScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -55,10 +57,13 @@ private fun DiscoveryAppRoot() {
             ) {
                 homeScreen(
                     onNavigateToCatalog = { navController.navigate(CATALOG_ROUTE) },
-                    onNavigateToResults = { query ->
-                        navController.navigate("$RESULTS_ROUTE/${query.ifBlank { " " }}")
+                    onNavigateToProductSearch = { query, source ->
+                        navController.navigate(productSearchRoute(query, source))
                     },
                     onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) },
+                )
+                productSearchScreen(
+                    onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
                 )
                 placeholderDestinations()
             }
@@ -66,18 +71,13 @@ private fun DiscoveryAppRoot() {
     }
 }
 
-// --- Placeholder destinations (catalog / results / settings screens are out of scope) ---
+// --- Placeholder destinations (catalog / settings screens are out of scope) ---
 
 private const val CATALOG_ROUTE = "catalog"
-private const val RESULTS_ROUTE = "results"
 private const val SETTINGS_ROUTE = "settings"
 
 private fun NavGraphBuilder.placeholderDestinations() {
     composable(CATALOG_ROUTE) { PlaceholderScreen(title = "Catalog") }
-    composable("$RESULTS_ROUTE/{query}") { backStackEntry ->
-        val query = backStackEntry.arguments?.getString("query").orEmpty().trim()
-        PlaceholderScreen(title = "Results: $query")
-    }
     composable(SETTINGS_ROUTE) { PlaceholderScreen(title = "Settings") }
 }
 

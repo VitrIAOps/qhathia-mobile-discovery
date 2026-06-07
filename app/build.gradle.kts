@@ -44,7 +44,10 @@ android {
 dependencies {
     // Feature + design-system modules
     implementation(project(":features:home"))
+    implementation(project(":features:product-search"))
     implementation(project(":core:ui"))
+    // Domain types referenced by the NavHost wiring (e.g. SearchSource on the Home → ProductSearch handoff).
+    implementation(project(":core:domain"))
     // Data + network layers — included by the app shell so their Hilt bindings (StoreSessionRepository,
     // SpeechToTextRepository, AudioRecorder, HttpClient) are aggregated into the dependency graph.
     implementation(project(":core:data"))

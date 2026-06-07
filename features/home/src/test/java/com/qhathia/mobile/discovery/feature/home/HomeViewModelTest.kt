@@ -2,6 +2,7 @@ package com.qhathia.mobile.discovery.feature.home
 
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.audio.AudioLevel
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
@@ -76,7 +77,10 @@ class HomeViewModelTest {
                 advanceUntilIdle()
 
                 assertEquals(MicState.Success("taladro bosch"), vm.uiState.value.micState)
-                assertEquals(HomeUiEffect.VoiceTranscribed("taladro bosch"), awaitItem())
+                assertEquals(
+                    HomeUiEffect.NavigateToProductSearch("taladro bosch", SearchSource.Voice),
+                    awaitItem(),
+                )
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -199,14 +203,30 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun given_query_when_submit_search_then_results_navigation_with_query() =
+    fun given_query_when_submit_search_then_product_search_navigation_with_text_source() =
         runTest(mainDispatcher.dispatcher) {
             val vm = viewModel()
 
             vm.uiEffect.test {
                 vm.onEvent(HomeUiEvent.QueryChanged("lamps"))
                 vm.onEvent(HomeUiEvent.SubmitSearch)
-                assertEquals(HomeUiEffect.NavigateToResults("lamps"), awaitItem())
+                assertEquals(
+                    HomeUiEffect.NavigateToProductSearch("lamps", SearchSource.Text),
+                    awaitItem(),
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun given_blank_query_when_submit_search_then_no_navigation() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel()
+
+            vm.uiEffect.test {
+                vm.onEvent(HomeUiEvent.QueryChanged("   "))
+                vm.onEvent(HomeUiEvent.SubmitSearch)
+                expectNoEvents()
                 cancelAndIgnoreRemainingEvents()
             }
         }

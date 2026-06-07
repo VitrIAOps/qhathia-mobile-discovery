@@ -26,5 +26,8 @@ dependencies {
     implementation(libs.compose.material.icons.core)
     implementation(libs.compose.ui.tooling.preview)
 
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+
     debugImplementation(libs.compose.ui.tooling)
 }

@@ -1,0 +1,234 @@
+package com.qhathia.mobile.discovery.feature.productsearch
+
+import androidx.lifecycle.SavedStateHandle
+import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
+import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
+import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
+import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
+import com.qhathia.mobile.discovery.core.testing.FakeSpeechToTextRepository
+import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
+import com.qhathia.mobile.discovery.core.testing.ProductFixtures
+import com.qhathia.mobile.discovery.core.testing.VoiceSearchFixtures
+import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
+import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEffect
+import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEvent
+import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_QUERY
+import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_SOURCE
+import com.qhathia.mobile.discovery.feature.productsearch.ui.ProductSearchViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ProductSearchViewModelTest {
+
+    @JvmField
+    @RegisterExtension
+    val mainDispatcher = MainDispatcherExtension()
+
+    private fun viewModel(
+        query: String = "taladro 20v",
+        source: SearchSource = SearchSource.Text,
+        repository: FakeProductSearchRepository = FakeProductSearchRepository(),
+        recorder: FakeAudioRecorder = FakeAudioRecorder(),
+        stt: FakeSpeechToTextRepository = FakeSpeechToTextRepository(),
+    ) = ProductSearchViewModel(
+        savedStateHandle = SavedStateHandle(mapOf(ARG_QUERY to query, ARG_SOURCE to source.name)),
+        searchProducts = SearchProductsUseCase(repository),
+        generalizeQuery = GeneralizeQueryUseCase(),
+        audioRecorder = recorder,
+        transcribeVoiceSearch = TranscribeVoiceSearchUseCase(stt),
+    )
+
+    @Test
+    fun given_results_when_initialized_then_results_phase() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))
+        val vm = viewModel(repository = repository)
+
+        val phase = vm.uiState.value.phase
+        assertTrue(phase is ProductSearchPhase.Results)
+        assertEquals(8, (phase as ProductSearchPhase.Results).products.size)
+        assertEquals(1, repository.callCount)
+    }
+
+    @Test
+    fun given_voice_search_in_flight_then_mic_animation_shown() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(delayMillis = 25_000)
+        val vm = viewModel(source = SearchSource.Voice, repository = repository)
+
+        assertEquals(ProductSearchPhase.Searching, vm.uiState.value.phase)
+        assertTrue(vm.uiState.value.showProcessingMicAnimation)
+
+        advanceTimeBy(26_000)
+    }
+
+    @Test
+    fun given_text_search_in_flight_then_no_mic_animation() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(delayMillis = 25_000)
+        val vm = viewModel(source = SearchSource.Text, repository = repository)
+
+        assertFalse(vm.uiState.value.showProcessingMicAnimation)
+
+        advanceTimeBy(26_000)
+    }
+
+    @Test
+    fun given_slow_search_after_20s_then_slow_phase() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(delayMillis = 25_000)
+        val vm = viewModel(repository = repository)
+
+        advanceTimeBy(ProductSearchConstants.SLOW_SEARCH_SECONDS * 1_000 + 1)
+
+        assertEquals(ProductSearchPhase.SlowSearch, vm.uiState.value.phase)
+        advanceTimeBy(6_000)
+    }
+
+    @Test
+    fun given_no_results_then_runs_alternatives_and_shows_unhappy() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.success(ProductFixtures.noResults()),
+            alternativeResult = Result.success(ProductFixtures.result(ProductFixtures.products(5))),
+        )
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        val phase = vm.uiState.value.phase
+        assertTrue(phase is ProductSearchPhase.Unhappy)
+        assertEquals(ProductSearchConstants.ALTERNATIVES_COUNT, (phase as ProductSearchPhase.Unhappy).alternatives.size)
+        assertEquals(2, repository.callCount)
+        assertEquals("Taladros", repository.queries[1]) // generalized keyword
+    }
+
+    @Test
+    fun given_search_api_error_then_runs_alternatives() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.failure(SearchException(SearchErrorCategory.SearchApi)),
+            alternativeResult = Result.success(ProductFixtures.result(ProductFixtures.products(3))),
+        )
+        val vm = viewModel(repository = repository)
+
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Unhappy)
+        assertEquals(2, repository.callCount)
+    }
+
+    @Test
+    fun given_network_error_then_keeps_screen_without_alternatives() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.failure(SearchException(SearchErrorCategory.Network)),
+        )
+        val vm = viewModel(repository = repository)
+
+        assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
+        assertEquals(1, repository.callCount) // no alternative search for a network error
+    }
+
+    @Test
+    fun given_unhappy_idle_30s_then_navigates_home() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(result = Result.success(ProductFixtures.noResults()))
+        val vm = viewModel(repository = repository)
+
+        vm.uiEffect.test {
+            advanceTimeBy(ProductSearchConstants.UNHAPPY_IDLE_TIMEOUT_SECONDS * 1_000 + 1)
+            assertEquals(ProductSearchUiEffect.NavigateHomeIdle, awaitItem())
+        }
+    }
+
+    @Test
+    fun given_history_when_back_then_returns_previous_result() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.success(ProductFixtures.result(displayText = "first")),
+            alternativeResult = Result.success(ProductFixtures.result(displayText = "second")),
+        )
+        val vm = viewModel(repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.QueryChanged("martillo"))
+        vm.onEvent(ProductSearchUiEvent.SubmitSearch)
+        assertEquals("second", (vm.uiState.value.phase as ProductSearchPhase.Results).displayText)
+        assertTrue(vm.uiState.value.canGoBack)
+
+        vm.onEvent(ProductSearchUiEvent.Back)
+        assertEquals("first", (vm.uiState.value.phase as ProductSearchPhase.Results).displayText)
+        assertFalse(vm.uiState.value.canGoBack)
+    }
+
+    @Test
+    fun given_no_previous_result_when_back_then_opens_dialog() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        vm.onEvent(ProductSearchUiEvent.Back)
+
+        assertTrue(vm.uiState.value.showCloseConfirmDialog)
+    }
+
+    @Test
+    fun given_confirm_new_search_then_navigates_home_idle() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.NewSearch)
+            vm.onEvent(ProductSearchUiEvent.ConfirmCloseSearch)
+            assertEquals(ProductSearchUiEffect.NavigateHomeIdle, awaitItem())
+        }
+        assertFalse(vm.uiState.value.showCloseConfirmDialog)
+    }
+
+    @Test
+    fun given_activate_mic_then_listens_in_place_without_navigating() = runTest(mainDispatcher.dispatcher) {
+        val recorder = FakeAudioRecorder()
+        val vm = viewModel(recorder = recorder)
+
+        vm.onEvent(ProductSearchUiEvent.ActivateMic)
+
+        assertEquals(ProductSearchPhase.VoiceListening, vm.uiState.value.phase)
+        assertTrue(recorder.isRecording)
+        assertTrue(vm.uiState.value.showProcessingMicAnimation)
+    }
+
+    @Test
+    fun given_voice_transcript_when_stop_then_runs_search_in_place() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(4))))
+        val stt = FakeSpeechToTextRepository(Result.success(VoiceSearchFixtures.result("martillo")))
+        val vm = viewModel(repository = repository, stt = stt)
+
+        vm.onEvent(ProductSearchUiEvent.ActivateMic)
+        vm.onEvent(ProductSearchUiEvent.StopRecording)
+
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+        // Original init search + the voice-driven search.
+        assertEquals(2, repository.callCount)
+        assertEquals("martillo", repository.queries.last())
+    }
+
+    @Test
+    fun given_voice_capture_when_cancelled_then_restores_previous_screen() = runTest(mainDispatcher.dispatcher) {
+        val recorder = FakeAudioRecorder()
+        val vm = viewModel(recorder = recorder) // init settles on Results
+
+        vm.onEvent(ProductSearchUiEvent.ActivateMic)
+        assertEquals(ProductSearchPhase.VoiceListening, vm.uiState.value.phase)
+
+        vm.onEvent(ProductSearchUiEvent.CancelVoice)
+
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+        assertTrue(recorder.cancelled)
+    }
+
+    @Test
+    fun given_query_over_cap_when_changed_then_truncated() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        vm.onEvent(ProductSearchUiEvent.QueryChanged("a".repeat(ProductSearchConstants.MAX_QUERY_CHARS + 50)))
+
+        assertEquals(ProductSearchConstants.MAX_QUERY_CHARS, vm.uiState.value.query.length)
+    }
+}

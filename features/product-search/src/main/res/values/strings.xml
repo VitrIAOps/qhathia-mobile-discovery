@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Processing messages (animated 3-dot indicator appends the dots; base text only here). -->
+    <string name="ps_listening">Escuchando</string>
+    <string name="ps_organizing">Organizando ideas</string>
+    <string name="ps_slow_stt">Está tardando más de lo que esperaba</string>
+    <string name="ps_searching">Revisando catálogo</string>
+    <string name="ps_slow_search">Buscando minuciosamente</string>
+    <string name="ps_searching_alternatives">Buscando sugerencias</string>
+
+    <!-- Results headline — count is filled in client-side. -->
+    <plurals name="ps_results_headline">
+        <item quantity="one">Encontré %1$d producto para ti:</item>
+        <item quantity="other">Encontré %1$d productos para ti:</item>
+    </plurals>
+
+    <!-- Unhappy (no results / search error) screen. -->
+    <string name="ps_unhappy_message">Lo siento, no pude encontrar lo que estás buscando.\nDe pronto te interesaría…</string>
+
+    <!-- Network error (screen kept). -->
+    <string name="ps_network_error_title">Perdí la conexión…</string>
+    <string name="ps_network_error_message">Parece que la red está inestable. Verifica tu internet e intenta nuevamente.</string>
+
+    <!-- Top bar. -->
+    <string name="ps_back">Volver</string>
+    <string name="ps_new_search">Nueva búsqueda</string>
+    <string name="ps_go_to_cart">Ir al carrito</string>
+
+    <!-- Content descriptions. -->
+    <string name="ps_back_cd">Volver</string>
+    <string name="ps_new_search_cd">Nueva búsqueda</string>
+    <string name="ps_cart_cd">Agregar al carrito</string>
+    <string name="ps_mic_cd">Buscar por voz</string>
+    <string name="ps_search_icon_cd">Buscar</string>
+
+    <!-- Bottom search bar. -->
+    <string name="ps_prompt">¿En qué tipo de proyecto lo usarás?</string>
+    <string name="ps_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
+
+    <!-- Price (Peruvian Sol). -->
+    <string name="ps_price">S/ %1$.2f</string>
+
+    <!-- Close-current-search confirmation dialog. -->
+    <string name="ps_close_dialog_title">¿Cerrar la búsqueda actual?</string>
+    <string name="ps_close_dialog_message">Se cerrará la búsqueda y volverás al inicio.</string>
+    <string name="ps_close_dialog_confirm">Sí, cerrar</string>
+    <string name="ps_close_dialog_dismiss">Cancelar</string>
+</resources>
