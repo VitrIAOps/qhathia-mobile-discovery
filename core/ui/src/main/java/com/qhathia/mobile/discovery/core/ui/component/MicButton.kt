@@ -46,6 +46,8 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
  *
  * @param contentDescription localized description for assistive technologies (required, non-null).
  * @param onClick invoked when the button is tapped.
+ * @param compact renders the smaller variant (~104dp container) used in the chat-area bottom bar; the
+ *   default is the large hero size used on the Home and listening screens.
  */
 @Composable
 fun MicButton(
@@ -53,14 +55,22 @@ fun MicButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
+    val idleDisc = if (compact) 58.dp else 150.dp
+    val listeningDisc = if (compact) 80.dp else 190.dp
+    val idleGlow = if (compact) 20.dp else 64.dp
+    val listeningGlow = if (compact) 28.dp else 100.dp
+    val iconSize = if (compact) 28.dp else 48.dp
+    val waveformSize = if (compact) 36.dp else 68.dp
+
     // Listening makes the disc noticeably larger and the halos reach further.
     val circleSize by animateDpAsState(
-        targetValue = if (isListening) 190.dp else 150.dp,
+        targetValue = if (isListening) listeningDisc else idleDisc,
         label = "micCircleSize",
     )
     val glowPadding by animateDpAsState(
-        targetValue = if (isListening) 100.dp else 64.dp,
+        targetValue = if (isListening) listeningGlow else idleGlow,
         label = "micGlowPadding",
     )
     val containerSize = circleSize + glowPadding * 2
@@ -138,7 +148,7 @@ fun MicButton(
                 VoiceWaveform(
                     barColor = Color.White,
                     modifier = Modifier
-                        .size(68.dp)
+                        .size(waveformSize)
                         .semantics { this.contentDescription = waveformDescription },
                 )
             } else {
@@ -146,7 +156,7 @@ fun MicButton(
                     painter = painterResource(R.drawable.ic_mic),
                     contentDescription = contentDescription,
                     tint = Color.White,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(iconSize),
                 )
             }
         }

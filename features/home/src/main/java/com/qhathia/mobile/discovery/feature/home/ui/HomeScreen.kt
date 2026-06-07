@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.feature.home.R
 import com.qhathia.mobile.discovery.feature.home.model.HomeUiEffect
 import com.qhathia.mobile.discovery.feature.home.model.HomeUiEvent
@@ -26,7 +27,7 @@ import com.qhathia.mobile.discovery.feature.home.model.HomeUiEvent
 @Composable
 fun HomeScreen(
     onNavigateToCatalog: () -> Unit,
-    onNavigateToResults: (String) -> Unit,
+    onNavigateToProductSearch: (String, SearchSource) -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
@@ -49,9 +50,8 @@ fun HomeScreen(
         viewModel.uiEffect.collect { effect ->
             when (effect) {
                 HomeUiEffect.NavigateToCatalog -> onNavigateToCatalog()
-                is HomeUiEffect.NavigateToResults -> onNavigateToResults(effect.query)
+                is HomeUiEffect.NavigateToProductSearch -> onNavigateToProductSearch(effect.query, effect.source)
                 HomeUiEffect.NavigateToSettings -> onNavigateToSettings()
-                is HomeUiEffect.VoiceTranscribed -> Unit // results navigation out of scope; logged in data layer
             }
         }
     }

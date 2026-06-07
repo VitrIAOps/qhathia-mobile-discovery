@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.VoiceSearchConstants
 import com.qhathia.mobile.discovery.core.domain.audio.AudioLevel
 import com.qhathia.mobile.discovery.core.domain.audio.AudioRecorder
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
@@ -76,7 +77,12 @@ class HomeViewModel @Inject constructor(
             HomeUiEvent.StopRecording -> beginTranscription()
             HomeUiEvent.CancelMic -> cancelVoiceSearch()
             is HomeUiEvent.QueryChanged -> _uiState.update { it.copy(query = event.query) }
-            HomeUiEvent.SubmitSearch -> emitEffect(HomeUiEffect.NavigateToResults(_uiState.value.query))
+            HomeUiEvent.SubmitSearch -> {
+                val query = _uiState.value.query.trim()
+                if (query.isNotEmpty()) {
+                    emitEffect(HomeUiEffect.NavigateToProductSearch(query, SearchSource.Text))
+                }
+            }
             HomeUiEvent.OpenCatalog -> emitEffect(HomeUiEffect.NavigateToCatalog)
             HomeUiEvent.OpenSettings -> emitEffect(HomeUiEffect.NavigateToSettings)
         }
@@ -187,7 +193,7 @@ class HomeViewModel @Inject constructor(
 
     private fun onTranscribed(transcript: String) {
         _uiState.update { it.copy(micState = MicState.Success(transcript)) }
-        emitEffect(HomeUiEffect.VoiceTranscribed(transcript))
+        emitEffect(HomeUiEffect.NavigateToProductSearch(transcript, SearchSource.Voice))
     }
 
     private fun onTranscriptionError(error: Throwable) {

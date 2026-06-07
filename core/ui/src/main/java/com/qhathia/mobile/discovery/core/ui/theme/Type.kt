@@ -28,7 +28,11 @@ val DiscoveryTypography: Typography = Typography(
     headlineLarge = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Bold, fontSize = 48.sp, lineHeight = 56.sp),
     titleLarge = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Normal, fontSize = 40.sp, lineHeight = 48.sp),
     titleMedium = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 32.sp),
+    // DS "H3" — used by the results headline and product price.
+    titleSmall = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 28.sp),
     bodyLarge = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Medium, fontSize = 24.sp, lineHeight = 32.sp),
     bodyMedium = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
+    // DS "Body/MD" — used by the product card name.
+    bodySmall = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp),
     labelLarge = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 20.sp),
 )
