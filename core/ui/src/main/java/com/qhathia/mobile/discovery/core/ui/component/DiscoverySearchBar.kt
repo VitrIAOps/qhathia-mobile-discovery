@@ -2,8 +2,10 @@ package com.qhathia.mobile.discovery.core.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,8 +20,12 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,6 +54,12 @@ fun DiscoverySearchBar(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(24.dp)
+    // The search screens live in a single Activity window, so `windowSoftInputMode=stateHidden`
+    // only suppresses the keyboard on the very first screen. A focus eater claims the window's
+    // initial focus on entry so the text field never auto-focuses — the keyboard opens only when
+    // the user taps the field.
+    val focusEater = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusEater.requestFocus() }
     Row(
         modifier = modifier
             .heightIn(min = 49.dp)
@@ -68,6 +80,13 @@ fun DiscoverySearchBar(
                 .weight(1f),
             contentAlignment = Alignment.CenterStart,
         ) {
+            // Invisible target that absorbs the initial focus instead of the text field below.
+            Spacer(
+                modifier = Modifier
+                    .size(1.dp)
+                    .focusRequester(focusEater)
+                    .focusable(),
+            )
             if (query.isEmpty()) {
                 Text(
                     text = placeholder,

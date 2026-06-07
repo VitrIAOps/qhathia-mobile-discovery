@@ -277,6 +277,7 @@ private fun ResultsBody(
                 imageUrl = product.imageUrl,
                 cartContentDescription = stringResource(R.string.ps_cart_cd),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
+                onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
             )
         }
     }
@@ -310,6 +311,7 @@ private fun UnhappyBody(
                     imageUrl = product.imageUrl,
                     cartContentDescription = stringResource(R.string.ps_cart_cd),
                     onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
+                    onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
                 )
             }
         }

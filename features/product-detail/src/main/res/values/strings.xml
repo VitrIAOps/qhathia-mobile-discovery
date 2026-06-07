@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar (shared chrome with product search). -->
+    <string name="pd_back">Volver</string>
+    <string name="pd_new_search">Nueva búsqueda</string>
+    <string name="pd_go_to_cart">Ir al carrito</string>
+
+    <!-- Sections. -->
+    <string name="pd_detail_headline">Este es el detalle</string>
+    <string name="pd_related_headline">Podrías acompañar este producto con…</string>
+
+    <!-- Price (Peruvian Sol). -->
+    <string name="pd_price">S/ %1$.2f</string>
+
+    <!-- Availability labels (mapped from the API AvailabilityStatus enum). -->
+    <string name="pd_availability_available">Disponible</string>
+    <string name="pd_availability_low_stock">Pocas unidades</string>
+    <string name="pd_availability_consult">Consultar disponibilidad</string>
+
+    <!-- Primary actions (render-only for now). -->
+    <string name="pd_add_to_cart">Agregar al carrito</string>
+    <string name="pd_share_whatsapp">Compartir</string>
+
+    <!-- Quantity stepper (render-only — cart is out of scope). -->
+    <string name="pd_qty_decrease_cd">Quitar una unidad</string>
+    <string name="pd_qty_increase_cd">Agregar una unidad</string>
+
+    <!-- Bottom search bar (follow-up search). -->
+    <string name="pd_prompt">¿En qué tipo de proyecto lo usarás?</string>
+    <string name="pd_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
+    <string name="pd_search_icon_cd">Buscar</string>
+
+    <!-- Loading / error states. -->
+    <string name="pd_not_found_title">Producto no encontrado</string>
+    <string name="pd_not_found_message">No pudimos encontrar este producto. Es posible que ya no esté disponible.</string>
+    <string name="pd_network_error_title">Perdí la conexión…</string>
+    <string name="pd_network_error_message">Parece que la red está inestable. Verifica tu internet e intenta nuevamente.</string>
+    <string name="pd_generic_error_title">Algo salió mal</string>
+    <string name="pd_generic_error_message">No pudimos cargar el detalle del producto. Intenta nuevamente.</string>
+    <string name="pd_retry">Reintentar</string>
+
+    <!-- Content descriptions. -->
+    <string name="pd_back_cd">Volver a los resultados</string>
+    <string name="pd_new_search_cd">Nueva búsqueda</string>
+    <string name="pd_cart_cd">Ir al carrito</string>
+    <string name="pd_mic_cd">Buscar por voz</string>
+    <string name="pd_product_image_cd">Foto del producto</string>
+    <string name="pd_loading_cd">Cargando detalle del producto</string>
+    <string name="pd_related_cart_cd">Agregar al carrito</string>
+
+    <!-- Close-current-search confirmation dialog. -->
+    <string name="pd_close_dialog_title">¿Cerrar la búsqueda actual?</string>
+    <string name="pd_close_dialog_message">Se cerrará la búsqueda y volverás al inicio.</string>
+    <string name="pd_close_dialog_confirm">Sí, cerrar</string>
+    <string name="pd_close_dialog_dismiss">Cancelar</string>
+</resources>

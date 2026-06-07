@@ -9,10 +9,16 @@ import androidx.compose.ui.graphics.Color
 object DiscoveryColors {
     // Primitives (from Figma variable defs)
     val Blue600 = Color(0xFF163550) // headings ("Encuentra lo que necesitas")
+    val Blue700 = Color(0xFF112947) // primitive-blue-700 — "Agregar al carrito" button
     val Blue800 = Color(0xFF0D1F38) // "TIENDA"
+    val Blue200 = Color(0xFF95AABF) // primitive-blue-200 — product-detail thumbnail border
+    val Green500 = Color(0xFF22C55E) // primitive-green-500 — in-stock + "Compartir" button
     val Neutral50 = Color(0xFFF8F8F8) // screen surface
     val Neutral500 = Color(0xFF757575) // search placeholder
-    val CatalogText = Color(0xFF0A2540) // "Ir al catálogo"
+    val CatalogText = Color(0xFF0A2540) // "Ir al catálogo" / detail title & price
+    val TextMuted = Color(0xFF616161) // product-detail description
+    val Divider = Color(0xFFE0E0E0) // product-detail info divider
+    val AccentOrange = Color(0xFFFF4500) // product card category tag
     val SearchBorder = Color(0xFFDBDBDB)
     val Footer = Color(0xFF878787) // "powered by Qhathia"
 

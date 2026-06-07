@@ -28,6 +28,7 @@ fun productSearchRoute(query: String, source: SearchSource): String =
  */
 fun NavGraphBuilder.productSearchScreen(
     onNavigateHomeIdle: () -> Unit,
+    onNavigateToDetail: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     composable(
@@ -39,6 +40,7 @@ fun NavGraphBuilder.productSearchScreen(
     ) {
         ProductSearchScreen(
             onNavigateHomeIdle = onNavigateHomeIdle,
+            onNavigateToDetail = onNavigateToDetail,
             modifier = modifier,
         )
     }

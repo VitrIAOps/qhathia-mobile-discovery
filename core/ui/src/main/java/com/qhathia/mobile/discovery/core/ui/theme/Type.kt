@@ -26,6 +26,8 @@ val Urbanist: FontFamily = FontFamily(
  */
 val DiscoveryTypography: Typography = Typography(
     headlineLarge = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Bold, fontSize = 48.sp, lineHeight = 56.sp),
+    // DS "H1" — used by the product-detail price.
+    headlineMedium = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = (-0.5).sp),
     titleLarge = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Normal, fontSize = 40.sp, lineHeight = 48.sp),
     titleMedium = TextStyle(fontFamily = Urbanist, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 32.sp),
     // DS "H3" — used by the results headline and product price.
