@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Header. -->
+    <string name="cart_title">Carrito</string>
+    <string name="cart_close_cd">Cerrar carrito</string>
+    <plurals name="cart_subtitle_count">
+        <item quantity="one">%d producto guardado</item>
+        <item quantity="other">%d productos guardados</item>
+    </plurals>
+
+    <!-- Empty state. -->
+    <string name="cart_empty_message">Tu carrito está vacío</string>
+    <string name="cart_empty_hint">Agrega productos para realizar tu pedido.</string>
+
+    <!-- Price (Peruvian Sol). -->
+    <string name="cart_price">S/ %1$.2f</string>
+
+    <!-- Cart line. -->
+    <string name="cart_line_remove_cd">Quitar producto del carrito</string>
+    <string name="cart_go_to_detail">Ver detalle</string>
+    <string name="cart_go_to_detail_cd">Ver el detalle del producto</string>
+    <string name="cart_qty_decrease_cd">Quitar una unidad</string>
+    <string name="cart_qty_increase_cd">Agregar una unidad</string>
+
+    <!-- Consumer-data form. -->
+    <string name="cart_form_title">Completa tus datos para continuar</string>
+    <string name="cart_name_label">Nombres</string>
+    <string name="cart_name_placeholder">Nombres</string>
+    <string name="cart_name_error">Ingresa al menos un nombre</string>
+    <string name="cart_phone_label">Número de celular</string>
+    <string name="cart_phone_placeholder">Ej. 987 654 321</string>
+    <string name="cart_phone_error">Ingresa un número de celular válido</string>
+
+    <!-- Totals (receipt). -->
+    <plurals name="cart_subtotal_label">
+        <item quantity="one">Subtotal (%d producto)</item>
+        <item quantity="other">Subtotal (%d productos)</item>
+    </plurals>
+    <string name="cart_total_label">Total</string>
+
+    <!-- Actions. -->
+    <string name="cart_place_order">Realizar pedido</string>
+    <string name="cart_keep_shopping">Seguir buscando</string>
+    <string name="cart_share_whatsapp">Compartir</string>
+    <string name="cart_share_whatsapp_cd">Compartir por WhatsApp</string>
+</resources>

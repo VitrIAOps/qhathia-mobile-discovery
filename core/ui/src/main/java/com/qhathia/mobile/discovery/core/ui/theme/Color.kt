@@ -12,6 +12,7 @@ object DiscoveryColors {
     val Blue700 = Color(0xFF112947) // primitive-blue-700 — "Agregar al carrito" button
     val Blue800 = Color(0xFF0D1F38) // "TIENDA"
     val Blue200 = Color(0xFF95AABF) // primitive-blue-200 — product-detail thumbnail border
+    val Blue50 = Color(0xFFE8EDF2) // primitive-blue-50 — cart totals (receipt) panel background
     val Green500 = Color(0xFF22C55E) // primitive-green-500 — in-stock + "Compartir" button
     val Neutral50 = Color(0xFFF8F8F8) // screen surface
     val Neutral500 = Color(0xFF757575) // search placeholder
@@ -20,6 +21,7 @@ object DiscoveryColors {
     val Divider = Color(0xFFE0E0E0) // product-detail info divider
     val AccentOrange = Color(0xFFFF4500) // product card category tag
     val SearchBorder = Color(0xFFDBDBDB)
+    val TextDisabled = Color(0xFF9E9E9E) // disabled button label (e.g. "Realizar pedido" until valid)
     val Footer = Color(0xFF878787) // "powered by Qhathia"
 
     // Brand accent — the microphone gradient + glow (raster in Figma, recreated in Compose).

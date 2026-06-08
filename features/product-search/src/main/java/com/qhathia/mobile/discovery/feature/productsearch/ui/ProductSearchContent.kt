@@ -26,8 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -37,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.ui.component.CartButton
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
@@ -67,9 +66,10 @@ fun ProductSearchContent(
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBar(
+                cartItemCount = uiState.cartItemCount,
                 onBack = { onEvent(ProductSearchUiEvent.Back) },
                 onNewSearch = { onEvent(ProductSearchUiEvent.NewSearch) },
-                onCart = { /* cart navigation out of scope */ },
+                onCart = { onEvent(ProductSearchUiEvent.OpenCart) },
             )
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -114,6 +114,7 @@ fun ProductSearchContent(
 
 @Composable
 private fun TopBar(
+    cartItemCount: Int,
     onBack: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
@@ -139,7 +140,12 @@ private fun TopBar(
             onClick = onNewSearch,
         )
         Spacer(modifier = Modifier.width(Spacing.md))
-        CartButton(onClick = onCart)
+        CartButton(
+            itemCount = cartItemCount,
+            label = stringResource(R.string.ps_go_to_cart),
+            contentDescription = stringResource(R.string.ps_go_to_cart),
+            onClick = onCart,
+        )
     }
 }
 
@@ -179,36 +185,6 @@ private fun IconTextButton(
             label()
             icon()
         }
-    }
-}
-
-@Composable
-private fun CartButton(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(DiscoveryColors.MicGradientStart, DiscoveryColors.MicGradientEnd),
-                ),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Text(
-            text = stringResource(R.string.ps_go_to_cart),
-            style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
-        )
-        Icon(
-            painter = painterResource(UiR.drawable.ic_cart),
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(20.dp),
-        )
     }
 }
 

@@ -10,11 +10,15 @@ import kotlinx.collections.immutable.ImmutableList
  * @property status the current load status (loading / loaded / error).
  * @property query the current bottom search-bar text for a follow-up search.
  * @property showCloseConfirmDialog whether the close-current-search confirmation dialog is visible.
+ * @property quantity the quantity selected in the add-to-cart stepper (≥ 1, bounded by stock).
+ * @property cartItemCount total items in the cart, shown on the Ir al carrito control's badge.
  */
 data class ProductDetailUiState(
     val status: Status = Status.Loading,
     val query: String = "",
     val showCloseConfirmDialog: Boolean = false,
+    val quantity: Int = 1,
+    val cartItemCount: Int = 0,
 ) {
     /** The product-detail load status. */
     sealed interface Status {

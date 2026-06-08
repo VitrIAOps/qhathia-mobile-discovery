@@ -6,10 +6,13 @@ import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
+import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
 import com.qhathia.mobile.discovery.core.testing.FakeSpeechToTextRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
@@ -43,12 +46,15 @@ class ProductSearchViewModelTest {
         repository: FakeProductSearchRepository = FakeProductSearchRepository(),
         recorder: FakeAudioRecorder = FakeAudioRecorder(),
         stt: FakeSpeechToTextRepository = FakeSpeechToTextRepository(),
+        cartRepository: FakeCartRepository = FakeCartRepository(),
     ) = ProductSearchViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_QUERY to query, ARG_SOURCE to source.name)),
         searchProducts = SearchProductsUseCase(repository),
         generalizeQuery = GeneralizeQueryUseCase(),
         audioRecorder = recorder,
         transcribeVoiceSearch = TranscribeVoiceSearchUseCase(stt),
+        observeCart = ObserveCartUseCase(cartRepository),
+        addToCart = AddToCartUseCase(cartRepository),
     )
 
     @Test
@@ -221,6 +227,29 @@ class ProductSearchViewModelTest {
 
         assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
         assertTrue(recorder.cancelled)
+    }
+
+    @Test
+    fun given_cart_tapped_then_product_added_and_count_updates() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))
+        val cartRepository = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.onEvent(ProductSearchUiEvent.CartTapped("p1"))
+
+        assertEquals(listOf("p1"), cartRepository.current.items.map { it.productId })
+        assertEquals(1, vm.uiState.value.cartItemCount)
+    }
+
+    @Test
+    fun given_open_cart_then_emits_open_cart_effect() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(4))))
+        val vm = viewModel(repository = repository)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.OpenCart)
+            assertEquals(ProductSearchUiEffect.OpenCart, awaitItem())
+        }
     }
 
     @Test
