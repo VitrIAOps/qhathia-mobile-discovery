@@ -12,7 +12,10 @@ import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.toCartItem
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
@@ -54,6 +57,8 @@ class ProductSearchViewModel @Inject constructor(
     private val generalizeQuery: GeneralizeQueryUseCase,
     private val audioRecorder: AudioRecorder,
     private val transcribeVoiceSearch: TranscribeVoiceSearchUseCase,
+    observeCart: ObserveCartUseCase,
+    private val addToCart: AddToCartUseCase,
 ) : ViewModel() {
 
     private val initialQuery: String = savedStateHandle.get<String>(ARG_QUERY)?.trim().orEmpty()
@@ -89,6 +94,11 @@ class ProductSearchViewModel @Inject constructor(
 
     init {
         performSearch(initialQuery, initialSource)
+        viewModelScope.launch {
+            observeCart().collect { cart ->
+                _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
+            }
+        }
     }
 
     fun onEvent(event: ProductSearchUiEvent) {
@@ -102,7 +112,8 @@ class ProductSearchViewModel @Inject constructor(
             ProductSearchUiEvent.ActivateMic -> startVoiceCapture()
             ProductSearchUiEvent.StopRecording -> beginTranscription()
             ProductSearchUiEvent.CancelVoice -> cancelVoiceCapture()
-            is ProductSearchUiEvent.CartTapped -> resetIdleTimerIfUnhappy() // cart navigation out of scope
+            is ProductSearchUiEvent.CartTapped -> onCartTapped(event.productId)
+            ProductSearchUiEvent.OpenCart -> openCart()
             is ProductSearchUiEvent.ProductTapped -> openDetail(event.productId)
         }
     }
@@ -110,6 +121,24 @@ class ProductSearchViewModel @Inject constructor(
     private fun openDetail(productId: String) {
         resetIdleTimerIfUnhappy()
         emit(ProductSearchUiEffect.NavigateToDetail(productId))
+    }
+
+    private fun onCartTapped(productId: String) {
+        resetIdleTimerIfUnhappy()
+        val product = currentProducts().firstOrNull { it.id == productId } ?: return
+        viewModelScope.launch { addToCart(product.toCartItem()) }
+    }
+
+    private fun openCart() {
+        resetIdleTimerIfUnhappy()
+        emit(ProductSearchUiEffect.OpenCart)
+    }
+
+    /** The products currently on screen (results or unhappy alternatives), for cart adds. */
+    private fun currentProducts(): List<Product> = when (val phase = _uiState.value.phase) {
+        is ProductSearchPhase.Results -> phase.products
+        is ProductSearchPhase.Unhappy -> phase.alternatives
+        else -> emptyList()
     }
 
     // --- In-place voice capture (mirrors the Home STT flow, reusing the shared domain ports) ---

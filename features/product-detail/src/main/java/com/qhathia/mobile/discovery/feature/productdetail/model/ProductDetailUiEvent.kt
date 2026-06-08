@@ -18,8 +18,17 @@ sealed interface ProductDetailUiEvent {
     /** Dismiss the confirmation dialog, keeping the current detail. */
     data object DismissDialog : ProductDetailUiEvent
 
-    /** Tap "Agregar al carrito" (render-only — no cart action until cart lands). */
+    /** Tap "Agregar al carrito" — adds the product to the cart with the selected quantity. */
     data object AddToCart : ProductDetailUiEvent
+
+    /** Increase the add-to-cart stepper quantity (bounded by stock). */
+    data object IncreaseQuantity : ProductDetailUiEvent
+
+    /** Decrease the add-to-cart stepper quantity (floored at 1). */
+    data object DecreaseQuantity : ProductDetailUiEvent
+
+    /** Tap the top-bar Ir al carrito control — opens the cart dialog. */
+    data object OpenCart : ProductDetailUiEvent
 
     /** Tap "Compartir por WhatsApp" (render-only — no WhatsApp navigation until it lands). */
     data object ShareWhatsApp : ProductDetailUiEvent

@@ -10,6 +10,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
  * @property phase the current screen phase.
  * @property canGoBack whether a previous result exists to return to (Volver).
  * @property showCloseConfirmDialog whether the close-current-search confirmation dialog is visible.
+ * @property cartItemCount total items in the cart, shown on the Ir al carrito control's badge.
  */
 data class ProductSearchUiState(
     val source: SearchSource = SearchSource.Text,
@@ -17,6 +18,7 @@ data class ProductSearchUiState(
     val phase: ProductSearchPhase = ProductSearchPhase.Searching,
     val canGoBack: Boolean = false,
     val showCloseConfirmDialog: Boolean = false,
+    val cartItemCount: Int = 0,
 ) {
     /** True while voice is being captured or a search (original or alternative) is in flight. */
     val isProcessing: Boolean

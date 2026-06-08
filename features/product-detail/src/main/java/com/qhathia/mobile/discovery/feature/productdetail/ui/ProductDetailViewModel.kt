@@ -3,9 +3,14 @@ package com.qhathia.mobile.discovery.feature.productdetail.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
+import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
+import com.qhathia.mobile.discovery.core.domain.model.toCartItem
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.feature.productdetail.data.RelatedProductsMock
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEffect
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEvent
@@ -34,6 +39,8 @@ import javax.inject.Inject
 class ProductDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getProductDetail: GetProductDetailUseCase,
+    observeCart: ObserveCartUseCase,
+    private val addToCart: AddToCartUseCase,
 ) : ViewModel() {
 
     private val productId: String = savedStateHandle.get<String>(ARG_PRODUCT_ID).orEmpty()
@@ -49,6 +56,11 @@ class ProductDetailViewModel @Inject constructor(
 
     init {
         load()
+        viewModelScope.launch {
+            observeCart().collect { cart ->
+                _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
+            }
+        }
     }
 
     fun onEvent(event: ProductDetailUiEvent) {
@@ -60,14 +72,32 @@ class ProductDetailViewModel @Inject constructor(
             ProductDetailUiEvent.DismissDialog -> _uiState.update { it.copy(showCloseConfirmDialog = false) }
             is ProductDetailUiEvent.QueryChanged -> _uiState.update { it.copy(query = event.query) }
             ProductDetailUiEvent.SubmitSearch -> onSubmitSearch()
+            ProductDetailUiEvent.AddToCart -> onAddToCart()
+            ProductDetailUiEvent.IncreaseQuantity -> adjustQuantity(delta = 1)
+            ProductDetailUiEvent.DecreaseQuantity -> adjustQuantity(delta = -1)
+            ProductDetailUiEvent.OpenCart -> emit(ProductDetailUiEffect.OpenCart)
             // Render-only / mock interactions — out of scope for this change.
-            ProductDetailUiEvent.AddToCart,
             ProductDetailUiEvent.ShareWhatsApp,
             ProductDetailUiEvent.ActivateMic,
             is ProductDetailUiEvent.RelatedProductTapped,
             -> Unit
         }
     }
+
+    private fun onAddToCart() {
+        val detail = loadedDetail() ?: return
+        val quantity = _uiState.value.quantity
+        viewModelScope.launch { addToCart(detail.toCartItem(quantity)) }
+    }
+
+    private fun adjustQuantity(delta: Int) {
+        val detail = loadedDetail() ?: return
+        val max = CartConstants.maxQuantityFor(detail.availability)
+        _uiState.update { it.copy(quantity = (it.quantity + delta).coerceIn(1, max)) }
+    }
+
+    private fun loadedDetail(): ProductDetail? =
+        (_uiState.value.status as? ProductDetailUiState.Status.Loaded)?.detail
 
     private fun onSubmitSearch() {
         val query = _uiState.value.query.trim()

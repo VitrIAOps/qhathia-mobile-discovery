@@ -8,4 +8,7 @@ sealed interface ProductSearchUiEffect {
 
     /** Open the product-detail screen for the tapped product. */
     data class NavigateToDetail(val productId: String) : ProductSearchUiEffect
+
+    /** Open the cart dialog (hosted by the app over the current screen). */
+    data object OpenCart : ProductSearchUiEffect
 }

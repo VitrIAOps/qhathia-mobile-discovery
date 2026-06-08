@@ -11,4 +11,7 @@ sealed interface ProductDetailUiEffect {
 
     /** Start a new text search from the bottom search bar. */
     data class NavigateToSearch(val query: String) : ProductDetailUiEffect
+
+    /** Open the cart dialog (hosted by the app over the current screen). */
+    data object OpenCart : ProductDetailUiEffect
 }

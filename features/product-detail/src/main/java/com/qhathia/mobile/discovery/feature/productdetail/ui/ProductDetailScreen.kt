@@ -17,6 +17,7 @@ fun ProductDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateHomeIdle: () -> Unit,
     onNavigateToSearch: (String) -> Unit,
+    onOpenCart: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProductDetailViewModel = hiltViewModel(),
 ) {
@@ -28,6 +29,7 @@ fun ProductDetailScreen(
                 ProductDetailUiEffect.NavigateBack -> onNavigateBack()
                 ProductDetailUiEffect.NavigateHomeIdle -> onNavigateHomeIdle()
                 is ProductDetailUiEffect.NavigateToSearch -> onNavigateToSearch(effect.query)
+                ProductDetailUiEffect.OpenCart -> onOpenCart()
             }
         }
     }

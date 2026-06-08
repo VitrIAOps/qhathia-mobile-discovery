@@ -16,6 +16,7 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiE
 fun ProductSearchScreen(
     onNavigateHomeIdle: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
+    onOpenCart: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProductSearchViewModel = hiltViewModel(),
 ) {
@@ -26,6 +27,7 @@ fun ProductSearchScreen(
             when (effect) {
                 ProductSearchUiEffect.NavigateHomeIdle -> onNavigateHomeIdle()
                 is ProductSearchUiEffect.NavigateToDetail -> onNavigateToDetail(effect.productId)
+                ProductSearchUiEffect.OpenCart -> onOpenCart()
             }
         }
     }

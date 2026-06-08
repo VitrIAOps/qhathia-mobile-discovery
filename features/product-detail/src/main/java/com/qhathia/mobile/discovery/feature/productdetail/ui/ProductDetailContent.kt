@@ -1,7 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -29,14 +27,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,13 +39,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.ProductImage
+import com.qhathia.mobile.discovery.core.ui.component.CartButton
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ProductImageGallery
 import com.qhathia.mobile.discovery.core.ui.component.ProductRowCard
+import com.qhathia.mobile.discovery.core.ui.component.QuantityStepper
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -77,9 +73,10 @@ fun ProductDetailContent(
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBar(
+                cartItemCount = uiState.cartItemCount,
                 onBack = { onEvent(ProductDetailUiEvent.Back) },
                 onNewSearch = { onEvent(ProductDetailUiEvent.NewSearch) },
-                onCart = { /* cart navigation out of scope */ },
+                onCart = { onEvent(ProductDetailUiEvent.OpenCart) },
             )
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -88,7 +85,12 @@ fun ProductDetailContent(
                         LoadingBody(modifier = Modifier.align(Alignment.Center))
 
                     is ProductDetailUiState.Status.Loaded ->
-                        LoadedBody(detail = status.detail, related = status.relatedProducts, onEvent = onEvent)
+                        LoadedBody(
+                            detail = status.detail,
+                            related = status.relatedProducts,
+                            quantity = uiState.quantity,
+                            onEvent = onEvent,
+                        )
 
                     is ProductDetailUiState.Status.Error ->
                         ErrorBody(kind = status.kind, onEvent = onEvent, modifier = Modifier.align(Alignment.Center))
@@ -112,6 +114,7 @@ fun ProductDetailContent(
 
 @Composable
 private fun TopBar(
+    cartItemCount: Int,
     onBack: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
@@ -137,7 +140,12 @@ private fun TopBar(
             onClick = onNewSearch,
         )
         Spacer(modifier = Modifier.width(Spacing.md))
-        CartButton(onClick = onCart)
+        CartButton(
+            itemCount = cartItemCount,
+            label = stringResource(R.string.pd_go_to_cart),
+            contentDescription = stringResource(R.string.pd_cart_cd),
+            onClick = onCart,
+        )
     }
 }
 
@@ -178,36 +186,6 @@ private fun IconTextButton(
     }
 }
 
-@Composable
-private fun CartButton(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(DiscoveryColors.MicGradientStart, DiscoveryColors.MicGradientEnd),
-                ),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Text(
-            text = stringResource(R.string.pd_go_to_cart),
-            style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
-        )
-        Icon(
-            painter = painterResource(UiR.drawable.ic_cart),
-            contentDescription = stringResource(R.string.pd_cart_cd),
-            tint = Color.White,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
 // --- Bodies ---
 
 @Composable
@@ -223,6 +201,7 @@ private fun LoadingBody(modifier: Modifier = Modifier) {
 private fun LoadedBody(
     detail: ProductDetail,
     related: ImmutableList<Product>,
+    quantity: Int,
     onEvent: (ProductDetailUiEvent) -> Unit,
 ) {
     Column(
@@ -238,7 +217,7 @@ private fun LoadedBody(
                 imageUrls = detail.images.map { it.url },
                 mainContentDescription = stringResource(R.string.pd_product_image_cd),
             )
-            ProductInfo(detail = detail, onEvent = onEvent, modifier = Modifier.weight(1f))
+            ProductInfo(detail = detail, quantity = quantity, onEvent = onEvent, modifier = Modifier.weight(1f))
         }
         RelatedProductsSection(related = related, onEvent = onEvent)
         Spacer(modifier = Modifier.size(Spacing.sm))
@@ -263,6 +242,7 @@ private fun HeadingRow(text: String) {
 @Composable
 private fun ProductInfo(
     detail: ProductDetail,
+    quantity: Int,
     onEvent: (ProductDetailUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -285,7 +265,11 @@ private fun ProductInfo(
             color = DiscoveryColors.TextMuted,
         )
         Spacer(modifier = Modifier.size(Spacing.xs))
-        ActionRow(onEvent = onEvent)
+        ActionRow(
+            quantity = quantity,
+            maxQuantity = CartConstants.maxQuantityFor(detail.availability),
+            onEvent = onEvent,
+        )
     }
 }
 
@@ -302,13 +286,25 @@ private fun StockRow(availability: String) {
 }
 
 @Composable
-private fun ActionRow(onEvent: (ProductDetailUiEvent) -> Unit) {
+private fun ActionRow(
+    quantity: Int,
+    maxQuantity: Int,
+    onEvent: (ProductDetailUiEvent) -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        QuantityStepper()
+        QuantityStepper(
+            quantity = quantity,
+            onDecrease = { onEvent(ProductDetailUiEvent.DecreaseQuantity) },
+            onIncrease = { onEvent(ProductDetailUiEvent.IncreaseQuantity) },
+            decreaseContentDescription = stringResource(R.string.pd_qty_decrease_cd),
+            increaseContentDescription = stringResource(R.string.pd_qty_increase_cd),
+            canDecrease = quantity > 1,
+            canIncrease = quantity < maxQuantity,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             ActionButton(
                 text = stringResource(R.string.pd_add_to_cart),
@@ -318,7 +314,7 @@ private fun ActionRow(onEvent: (ProductDetailUiEvent) -> Unit) {
             )
             ActionButton(
                 text = stringResource(R.string.pd_share_whatsapp),
-                iconRes = R.drawable.ic_whatsapp,
+                iconRes = UiR.drawable.ic_whatsapp,
                 container = DiscoveryColors.Green500,
                 onClick = { onEvent(ProductDetailUiEvent.ShareWhatsApp) },
             )
@@ -342,59 +338,6 @@ private fun ActionButton(
         Text(text = text, style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.width(Spacing.sm))
         Icon(painter = painterResource(iconRes), contentDescription = null, modifier = Modifier.size(16.dp))
-    }
-}
-
-/**
- * Render-only quantity stepper (the cart action is out of scope). The count is purely local UI state.
- */
-@Composable
-private fun QuantityStepper() {
-    var quantity by remember { mutableIntStateOf(1) }
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, DiscoveryColors.SearchBorder, RoundedCornerShape(8.dp)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StepperButton(
-            symbol = "−", // minus sign
-            contentDescription = stringResource(R.string.pd_qty_decrease_cd),
-            onClick = { if (quantity > 1) quantity-- },
-        )
-        Text(
-            text = quantity.toString(),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.widthIn(min = 48.dp),
-            textAlign = TextAlign.Center,
-        )
-        StepperButton(
-            symbol = "+",
-            contentDescription = stringResource(R.string.pd_qty_increase_cd),
-            onClick = { quantity++ },
-        )
-    }
-}
-
-@Composable
-private fun StepperButton(
-    symbol: String,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .clickable(onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = symbol,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
     }
 }
 

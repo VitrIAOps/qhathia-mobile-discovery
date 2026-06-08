@@ -30,8 +30,11 @@ sealed interface ProductSearchUiEvent {
     /** Cancel the in-place voice capture and restore the previous screen. */
     data object CancelVoice : ProductSearchUiEvent
 
-    /** Tap a product's cart button (no-op until cart navigation lands). */
+    /** Tap a product's cart button — adds that product to the cart. */
     data class CartTapped(val productId: String) : ProductSearchUiEvent
+
+    /** Tap the top-bar Ir al carrito control — opens the cart dialog. */
+    data object OpenCart : ProductSearchUiEvent
 
     /** Tap a product card (its surface, not the cart button) — opens the product detail. */
     data class ProductTapped(val productId: String) : ProductSearchUiEvent

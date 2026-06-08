@@ -4,7 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductDetailRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.core.testing.ProductDetailFixtures
@@ -31,9 +34,12 @@ class ProductDetailViewModelTest {
     private fun viewModel(
         productId: String = "p1",
         repository: FakeProductDetailRepository = FakeProductDetailRepository(),
+        cartRepository: FakeCartRepository = FakeCartRepository(),
     ) = ProductDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_PRODUCT_ID to productId)),
         getProductDetail = GetProductDetailUseCase(repository),
+        observeCart = ObserveCartUseCase(cartRepository),
+        addToCart = AddToCartUseCase(cartRepository),
     )
 
     @Test
@@ -118,5 +124,57 @@ class ProductDetailViewModelTest {
         vm.onEvent(ProductDetailUiEvent.DismissDialog)
 
         assertFalse(vm.uiState.value.showCloseConfirmDialog)
+    }
+
+    @Test
+    fun given_quantity_increased_then_add_to_cart_uses_quantity() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(
+            result = Result.success(ProductDetailFixtures.productDetail(id = "p1")),
+        )
+        val cartRepository = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.onEvent(ProductDetailUiEvent.IncreaseQuantity)
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+
+        val line = cartRepository.current.items.single()
+        assertEquals("p1", line.productId)
+        assertEquals(2, line.quantity)
+        assertEquals(2, vm.uiState.value.cartItemCount)
+    }
+
+    @Test
+    fun given_consult_stock_when_increased_then_quantity_capped_at_one() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(
+            result = Result.success(ProductDetailFixtures.productDetail(availability = "CONSULT")),
+        )
+        val vm = viewModel(repository = repository)
+
+        vm.onEvent(ProductDetailUiEvent.IncreaseQuantity)
+
+        assertEquals(1, vm.uiState.value.quantity) // CONSULT caps at 1
+    }
+
+    @Test
+    fun given_quantity_at_one_when_decreased_then_stays_one() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(
+            repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail())),
+        )
+
+        vm.onEvent(ProductDetailUiEvent.DecreaseQuantity)
+
+        assertEquals(1, vm.uiState.value.quantity)
+    }
+
+    @Test
+    fun given_open_cart_then_emits_open_cart_effect() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(
+            repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail())),
+        )
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductDetailUiEvent.OpenCart)
+            assertEquals(ProductDetailUiEffect.OpenCart, awaitItem())
+        }
     }
 }
