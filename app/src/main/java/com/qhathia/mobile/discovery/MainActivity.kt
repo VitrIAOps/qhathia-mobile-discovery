@@ -41,6 +41,9 @@ import com.qhathia.mobile.discovery.feature.productdetail.navigation.productDeta
 import com.qhathia.mobile.discovery.feature.productdetail.navigation.productDetailScreen
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.productSearchRoute
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.productSearchScreen
+import com.qhathia.mobile.discovery.feature.settings.navigation.NETWORK_SETTINGS_ROUTE
+import com.qhathia.mobile.discovery.feature.settings.navigation.networkSettingsScreen
+import com.qhathia.mobile.discovery.feature.settings.ui.SettingsPasswordGate
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 
@@ -73,6 +76,10 @@ private fun DiscoveryAppRoot(
         // Cart is a dialog overlay hosted here (feature modules cannot depend on each other), opened
         // by the cart controls on the search and detail screens.
         var showCart by rememberSaveable { mutableStateOf(false) }
+
+        // Settings PIN gate is an overlay hosted here so the PIN is requested before entering settings;
+        // a correct PIN navigates straight to the Network settings screen.
+        var showSettingsGate by rememberSaveable { mutableStateOf(false) }
 
         // Off-Home inactivity: any touch-down anywhere bumps the tick, restarting the 1-minute timer.
         var interactionTick by remember { mutableIntStateOf(0) }
@@ -113,7 +120,7 @@ private fun DiscoveryAppRoot(
                         onNavigateToProductSearch = { query, source ->
                             navController.navigate(productSearchRoute(query, source))
                         },
-                        onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) },
+                        onNavigateToSettings = { showSettingsGate = true },
                     )
                     productSearchScreen(
                         onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
@@ -127,6 +134,9 @@ private fun DiscoveryAppRoot(
                             navController.navigate(productSearchRoute(query, SearchSource.Text))
                         },
                         onOpenCart = { showCart = true },
+                    )
+                    networkSettingsScreen(
+                        onNavigateBack = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
                     )
                     placeholderDestinations()
                 }
@@ -142,17 +152,25 @@ private fun DiscoveryAppRoot(
                 onDismiss = { showCart = false },
             )
         }
+
+        if (showSettingsGate) {
+            SettingsPasswordGate(
+                onUnlocked = {
+                    showSettingsGate = false
+                    navController.navigate(NETWORK_SETTINGS_ROUTE)
+                },
+                onDismiss = { showSettingsGate = false },
+            )
+        }
     }
 }
 
-// --- Placeholder destinations (catalog / settings screens are out of scope) ---
+// --- Placeholder destinations (the catalog screen is out of scope) ---
 
 private const val CATALOG_ROUTE = "catalog"
-private const val SETTINGS_ROUTE = "settings"
 
 private fun NavGraphBuilder.placeholderDestinations() {
     composable(CATALOG_ROUTE) { PlaceholderScreen(title = "Catalog") }
-    composable(SETTINGS_ROUTE) { PlaceholderScreen(title = "Settings") }
 }
 
 @Composable

@@ -11,9 +11,16 @@ object DiscoveryColors {
     val Blue600 = Color(0xFF163550) // headings ("Encuentra lo que necesitas")
     val Blue700 = Color(0xFF112947) // primitive-blue-700 — "Agregar al carrito" button
     val Blue800 = Color(0xFF0D1F38) // "TIENDA"
+    val Blue500 = Color(0xFF1C4466) // primitive-blue-500 — selected side-menu item
     val Blue200 = Color(0xFF95AABF) // primitive-blue-200 — product-detail thumbnail border
     val Blue50 = Color(0xFFE8EDF2) // primitive-blue-50 — cart totals (receipt) panel background
     val Green500 = Color(0xFF22C55E) // primitive-green-500 — in-stock + "Compartir" button
+    val Green300 = Color(0xFF58D487) // primitive-green-300 — connected-network badge
+    val Green400 = Color(0xFF32C96C) // primitive-green-400 — "CONECTADO" chip border
+    val Green600 = Color(0xFF1BA44D) // primitive-green-600 — "CONECTADO" chip label
+    val Teal400 = Color(0xFF43ABD0) // primitive-teal-400 — settings PIN dots + Wi-Fi badge icon
+    val Teal50 = Color(0xFFE6F4F8) // primitive-teal-50 — Wi-Fi network badge background
+    val Neutral300 = Color(0xFFC4C4C4) // primitive-neutral-300 — network list card border
     val Neutral50 = Color(0xFFF8F8F8) // screen surface
     val Neutral500 = Color(0xFF757575) // search placeholder
     val CatalogText = Color(0xFF0A2540) // "Ir al catálogo" / detail title & price

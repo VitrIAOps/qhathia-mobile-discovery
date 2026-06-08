@@ -7,6 +7,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Network settings: read Wi-Fi state/scan results and request Wi-Fi changes. Reading scan
+         results requires location (a dangerous permission, requested at runtime in the screen). -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- Android 12+ requires COARSE alongside FINE; either grant lets us read Wi-Fi scan results. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:name=".DiscoveryApp"
         android:allowBackup="true"
