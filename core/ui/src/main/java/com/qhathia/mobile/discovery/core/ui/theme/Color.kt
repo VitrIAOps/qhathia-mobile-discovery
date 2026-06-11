@@ -20,6 +20,7 @@ object DiscoveryColors {
     val Green600 = Color(0xFF1BA44D) // primitive-green-600 — "CONECTADO" chip label
     val Teal400 = Color(0xFF43ABD0) // primitive-teal-400 — settings PIN dots + Wi-Fi badge icon
     val Teal50 = Color(0xFFE6F4F8) // primitive-teal-50 — Wi-Fi network badge background
+    val Neutral900 = Color(0xFF0A0A0A) // primitive-neutral-900 — pairing code digits / headings
     val Neutral300 = Color(0xFFC4C4C4) // primitive-neutral-300 — network list card border
     val Neutral50 = Color(0xFFF8F8F8) // screen surface
     val Neutral500 = Color(0xFF757575) // search placeholder

@@ -8,15 +8,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,10 +47,10 @@ import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Stateless Network settings UI — a pure function of [NetworkSettingsUiState], following the Figma DS
- * "Red Wifi" node: a fixed dark side menu (store title + Wi-Fi / Vincular sections) and a light main
- * panel with a toolbar ("TIENDA" + "Buscar redes"), heading, the kept mobile-data / Wi-Fi controls,
- * and the accessible-network list (connected network highlighted with a badge + "CONECTADO" chip).
- * The airplane-mode, not-permitted, Wi-Fi-off and location-required states use the shared design system.
+ * "Red Wifi" node main panel: a toolbar ("TIENDA" + "Buscar redes"), heading, the kept mobile-data /
+ * Wi-Fi controls, and the accessible-network list (connected network highlighted with a badge +
+ * "CONECTADO" chip). The shared dark side menu is hosted by `SettingsScreen`, not here. The
+ * airplane-mode, not-permitted, Wi-Fi-off and location-required states use the shared design system.
  */
 @Composable
 fun NetworkSettingsContent(
@@ -61,100 +58,13 @@ fun NetworkSettingsContent(
     onEvent: (NetworkSettingsUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier.fillMaxSize()) {
-        SideMenu(
-            onBack = { onEvent(NetworkSettingsUiEvent.BackPressed) },
-        )
-        MainPanel(
-            uiState = uiState,
-            onEvent = onEvent,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.background),
-        )
-    }
-}
-
-// --- Side menu (fixed dark panel) ---
-
-@Composable
-private fun SideMenu(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .width(SIDE_MENU_WIDTH)
-            .fillMaxHeight()
-            .background(DiscoveryColors.Blue800)
-            .padding(Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onBack)
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_arrow_back),
-                    contentDescription = stringResource(R.string.network_settings_back_cd),
-                    tint = DiscoveryColors.Blue50,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = stringResource(R.string.network_back),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = DiscoveryColors.Blue50,
-                )
-            }
-        }
-        Text(
-            text = stringResource(R.string.network_store_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-            SideMenuItem(
-                iconRes = R.drawable.ic_wifi,
-                label = stringResource(R.string.network_section_wifi),
-                selected = true,
-            )
-            SideMenuItem(
-                iconRes = UiR.drawable.ic_refresh,
-                label = stringResource(R.string.network_section_link),
-                selected = false,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SideMenuItem(iconRes: Int, label: String, selected: Boolean) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) DiscoveryColors.Blue500 else Color.Transparent)
-            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(24.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            ),
-            color = Color.White,
-        )
-    }
+    MainPanel(
+        uiState = uiState,
+        onEvent = onEvent,
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    )
 }
 
 // --- Main panel ---
@@ -478,7 +388,6 @@ private fun InfoBanner(text: String) {
     }
 }
 
-private val SIDE_MENU_WIDTH = 320.dp
 private val DIVIDER_THICKNESS = 1.dp
 
 // --- Previews (landscape kiosk) ---
