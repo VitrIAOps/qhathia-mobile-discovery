@@ -14,4 +14,13 @@ interface StoreSessionRepository {
 
     /** Persists [storeName] as the active store's name. */
     suspend fun updateStoreName(storeName: String?)
+
+    /** Reads the persisted DEVICE access token, or `null` when the device is not paired. */
+    suspend fun deviceAccessToken(): String?
+
+    /** Persists the DEVICE access token and device name produced by pairing. */
+    suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?)
+
+    /** Clears the persisted device session (used by unpair). */
+    suspend fun clearDeviceSession()
 }

@@ -17,4 +17,11 @@ class StoreSessionRepositoryImpl @Inject constructor(
 
     override suspend fun updateStoreName(storeName: String?) =
         localDataSource.updateStoreName(storeName)
+
+    override suspend fun deviceAccessToken(): String? = localDataSource.deviceAccessToken()
+
+    override suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?) =
+        localDataSource.saveDeviceSession(deviceAccessToken, deviceName)
+
+    override suspend fun clearDeviceSession() = localDataSource.clearDeviceSession()
 }

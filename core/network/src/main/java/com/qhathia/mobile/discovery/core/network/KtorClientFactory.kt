@@ -8,6 +8,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -27,6 +28,8 @@ internal object KtorClientFactory {
 
     fun create(enableLogging: Boolean): HttpClient = HttpClient(CIO) {
         expectSuccess = true
+        // Raw WebSocket support (ADR-009) for the device pairing-session status channel.
+        install(WebSockets)
         install(ContentNegotiation) {
             json(
                 Json {

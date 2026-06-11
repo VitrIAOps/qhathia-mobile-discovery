@@ -1,13 +1,22 @@
-# Qhathia — Referencia de API
+# VitrIA — Referencia de API
 
-**Base URL:** `http://87.99.156.164`  
+**Base URL:** `http://87.99.156.164` (producción — IP fija del VPS, no hay dominio HTTPS)  
 **Versión:** 0.1.0-SNAPSHOT  
 **Formato:** JSON / UTF-8  
 **Autenticación:** Bearer JWT en header `Authorization`
 
+> **Nota para el frontend**: producción es `http://87.99.156.164` (IP directa, sin HTTPS, sin dominio). Local dev: `http://localhost` (todos los servicios via nginx en :80).
+
 ---
 
-## Cambios recientes (Fase 1-7)
+## Cambios recientes (Fase 1-8)
+
+**Fase 8 — junio 2026 (último deploy):**
+- **VoAPI search devuelve hasta 3 sugerencias en el unhappy path**: cuando `POST /api/v1/conversations/search` no encuentra match al query, ahora `results` viene con hasta 3 productos del store en vez de array vacío. Mantiene `noResults=true`. Nuevo campo opcional `suggestedFromCategory: String, nullable` para personalizar el copy ("Te puede interesar de aretes:" vs "Te puede interesar:"). Backward compatible — clientes viejos siguen funcionando. Detalle en sección 12.
+- **BizAPI: catálogo agregado por categoría**: nuevo endpoint `GET /api/v1/catalog/by-category` devuelve la lista de categorías del store con sus productos AVAILABLE/LOW_STOCK embebidos. Usado por la pantalla "ver catálogo" del kiosko. Detalle en sección nueva 8.5.
+- **STT Deepgram activado en producción**: `POST /api/v1/stt/token` ahora emite tokens reales de Deepgram (no más stubs). El frontend ya puede transcribir audio de verdad. Detalle en sección 6.
+
+**Cambios recientes (Fase 1-7)**
 
 Esta sección resume los cambios contractuales más relevantes desde la versión inicial v0.1.0. Los detalles completos viven en las secciones individuales más abajo.
 
@@ -35,7 +44,7 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 **Auto-tag con visión (Fase 6 + 6.1):**
 - `POST /api/v1/products/{id}/suggest-tags` — para producto ya existente (foto cargada vía `mediaId` o URL).
 - `POST /api/v1/tags/suggest-from-image` — para foto en `drafts/` antes de crear el producto. Útil cuando el comerciante elige una foto, pide tags, y recién después confirma el guardado.
-Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) y filtran defensivamente contra el catálogo del (mall × rubro).
+  Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) y filtran defensivamente contra el catálogo del (mall × rubro).
 
 ---
 
@@ -49,6 +58,7 @@ Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) 
 6. [Auth API — STT Token](#6-auth-api--stt-token)
 7. [BizAPI — Categorías](#7-bizapi--categorías)
 8. [BizAPI — Productos](#8-bizapi--productos)
+   8.5. [BizAPI — Catálogo agregado (Fase 8)](#85-bizapi--catálogo-agregado-fase-8)
 9. [BizAPI — Órdenes](#9-bizapi--órdenes)
 10. [BizAPI — Device Sync](#10-bizapi--device-sync)
 11. [BizAPI — Analytics](#11-bizapi--analytics)
@@ -598,51 +608,62 @@ curl http://87.99.156.164/api/v1/subscriptions/current \
 
 ## 5. Auth API — Dispositivos
 
+> **Flujo invertido (ClickUp 86e1tvkvq).** La **tablet** (app discovery, sin JWT) genera el código y un `sessionId` opaco, abre el WebSocket de estado y muestra el código. El **comercio** (celular, JWT OWNER) lo ingresa en `/pair` para **aprobar** o **rechazar**. Tras `APPROVED`, la tablet canjea su DEVICE JWT por `sessionId`. El JWT nunca viaja por el socket.
+
 ### POST /api/v1/devices/pairing-token
 
-**Descripción:** Genera un token temporal de pairing (TTL 15 min). El OWNER lo muestra en pantalla y el dispositivo lo ingresa para vincularse.  
-**Autenticación:** JWT requerido (roles: `OWNER`, `ADMIN`)  
+**Descripción:** La tablet genera un código de vinculación de 5 caracteres (TTL 5 min, ver `expiresInSeconds`) y un `sessionId` opaco. Lo muestra en pantalla.  
+**Autenticación:** **Pública** (la tablet no tiene JWT)  
 **URL producción:** `http://87.99.156.164/api/v1/devices/pairing-token`
 
-**Headers:** `Authorization: Bearer <accessToken>`  
 **Request Body:** ninguno
 
 **Response 200:**
 ```json
 {
-  "pairingToken": "X7K2P",
-  "expiresAt": "2025-04-15T18:40:00Z",
-  "storeId": "uuid"
+  "pairingToken": "AB3CD",
+  "sessionId": "uuid",
+  "expiresAt": "2026-06-09T18:40:00Z",
+  "expiresInSeconds": 300
 }
 ```
 
-> **Formato del código:** exactamente 5 caracteres alfanuméricos uppercase del alfabeto `23456789ABCDEFGHJKMNPQRSTUVWXYZ` (31 caracteres; excluye confusables visuales `0 O 1 I L`). Patrón regex: `^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$`.  
-> **Unicidad:** evaluada solo contra tokens activos (`consumed=false AND expires_at > now()`). Tokens expirados o consumidos con el mismo valor pueden reutilizarse.  
-> **TTL:** 15 minutos desde la generación.
+> **`expiresInSeconds`** es el TTL relativo (`expiresAt − createdAt`, por defecto 300). La tablet debe correr el regresivo desde este valor en lugar de restar `expiresAt` contra su reloj local: así el contador queda inmune al desfase de reloj del dispositivo (clock skew) frente al servidor.
 
 **Errores:**
-- `401` — No autenticado
-- `403` — Rol insuficiente (SELLER o DEVICE no pueden)
-- `503` — `code: PAIRING_GENERATION_EXHAUSTED` — No se pudo generar un código único tras 5 intentos (muy poco frecuente; reintentar la petición)
+- `503` — `PAIRING_GENERATION_EXHAUSTED` (no se pudo generar un código único)
 
 **curl:**
 ```bash
-curl -X POST http://87.99.156.164/api/v1/devices/pairing-token \
-  -H "Authorization: Bearer eyJ..."
+curl -X POST http://87.99.156.164/api/v1/devices/pairing-token
+```
+
+---
+
+### WSS /api/v1/devices/pairing-session/{sessionId}
+
+**Descripción:** WebSocket (raw, ADR-009) de notificación de estado. Al conectar emite el estado actual; al resolverse empuja un único mensaje terminal y cierra. Vida = TTL del token (5 min).  
+**Autenticación:** Pública. El handshake se rechaza si el `sessionId` no existe o ya venció.
+
+**Mensajes (servidor → tablet):**
+```json
+{ "status": "WAITING|APPROVED|REJECTED|EXPIRED", "sessionId": "uuid" }
 ```
 
 ---
 
 ### POST /api/v1/devices/pair
 
-**Descripción:** El dispositivo usa el token de pairing para vincularse a la tienda y obtener su JWT propio (role=DEVICE, TTL 1 año).  
-**Autenticación:** Pública (el dispositivo aún no tiene JWT)  
+**Descripción:** El comercio ingresa el código mostrado en la tablet y lo **aprueba** (vincula la tienda y crea el dispositivo) o lo **rechaza**. La tablet recibe el desenlace por WebSocket. **No** devuelve el DEVICE JWT.  
+**Autenticación:** JWT requerido (roles: `OWNER`, `ADMIN`)  
 **URL producción:** `http://87.99.156.164/api/v1/devices/pair`
 
+**Headers:** `Authorization: Bearer <accessToken>`  
 **Request Body:**
 ```json
 {
   "pairingToken": "string (requerido)",
+  "decision": "APPROVE | REJECT (requerido)",
   "deviceName": "string (requerido, max 200 chars, ej: 'Tablet Mostrador 1')",
   "platform": "ANDROID (requerido)",
   "appVersion": "string (requerido, max 20 chars, ej: '1.0.0')",
@@ -650,7 +671,33 @@ curl -X POST http://87.99.156.164/api/v1/devices/pairing-token \
 }
 ```
 
-**Response 201:**
+**Response 200 (APPROVE):**
+```json
+{
+  "sessionId": "uuid",
+  "status": "APPROVED",
+  "storeId": "uuid",
+  "deviceId": "uuid",
+  "deviceName": "Tablet Mostrador 1",
+  "platform": "ANDROID"
+}
+```
+En `REJECT`: `{ "sessionId": "uuid", "status": "REJECTED", "storeId": "uuid" }`.
+
+**Errores:**
+- `400` — `INVALID_PAIRING_TOKEN` / `PAIRING_TOKEN_EXPIRED` / `PAIRING_TOKEN_ALREADY_USED`
+- `401` — No autenticado · `403` — Rol insuficiente (SELLER/DEVICE)
+- `409` — `CATALOG_THRESHOLD_NOT_MET` (catálogo bajo el umbral; la sesión sigue `WAITING`)
+- `503` — `CATALOG_READINESS_UNAVAILABLE` (header `Retry-After: 30`)
+
+---
+
+### GET /api/v1/devices/pairing-session/{sessionId}/token
+
+**Descripción:** Tras `APPROVED`, la tablet canjea (one-shot) su DEVICE JWT por `sessionId`.  
+**Autenticación:** **Pública** (la tablet solo posee su `sessionId`)
+
+**Response 200:**
 ```json
 {
   "deviceId": "uuid",
@@ -662,21 +709,16 @@ curl -X POST http://87.99.156.164/api/v1/devices/pairing-token \
 }
 ```
 
-**Nota:** El `deviceAccessToken` es el JWT con `role=DEVICE`. Guardarlo de forma persistente — no hay refresh. TTL ~1 año.
+**Nota:** El `deviceAccessToken` es el JWT con `role=DEVICE` (TTL ~1 año, sin refresh). Guardarlo de forma persistente.
 
 **Errores:**
-- `400` — Token de pairing inválido, expirado o ya utilizado
+- `404` — `NOT_FOUND` (sesión inexistente)
+- `409` — `PAIRING_NOT_APPROVED` (aún `WAITING`) / `PAIRING_REJECTED`
+- `410` — `PAIRING_TOKEN_EXPIRED` (sesión expirada) / `PAIRING_TOKEN_ALREADY_USED` (segundo canje)
 
 **curl:**
 ```bash
-curl -X POST http://87.99.156.164/api/v1/devices/pair \
-  -H "Content-Type: application/json" \
-  -d '{
-    "pairingToken": "ABC123",
-    "deviceName": "Tablet Mostrador 1",
-    "platform": "ANDROID",
-    "appVersion": "1.0.0"
-  }'
+curl http://87.99.156.164/api/v1/devices/pairing-session/<sessionId>/token
 ```
 
 ---
@@ -974,29 +1016,59 @@ curl -X POST http://87.99.156.164/api/v1/devices/550e8400-e29b-41d4-a716-4466554
 
 ### POST /api/v1/stt/token
 
-**Descripción:** Emite una API key temporal de Deepgram (TTL configurado, default 60s) para que el dispositivo pueda transcribir audio directamente desde la tablet. La API key real nunca se expone al cliente.  
+**Descripción:** Emite un token temporal de Deepgram para que el frontend pueda abrir una conexión WebSocket directa a Deepgram y transcribir audio en vivo. La API key real de Deepgram (la "Project API key") nunca se expone al cliente — solo se emite este token de corta duración.
+
 **Autenticación:** JWT requerido (cualquier rol autenticado, típicamente `DEVICE`)  
 **URL producción:** `http://87.99.156.164/api/v1/stt/token`
 
-**Headers:** `Authorization: Bearer <deviceAccessToken>`  
-**Request Body:** ninguno
+**Headers:** `Authorization: Bearer <accessToken>`  
+**Request Body:** ninguno (POST con body vacío)
 
 **Response 200:**
 ```json
 {
-  "token": "dg_temp_key_...",
+  "token": "af7ca4b94c64428e51b6e305691342fb7784b713",
   "expiresIn": 60,
   "provider": "deepgram",
-  "issuedAt": "2025-04-15T20:00:00Z"
+  "issuedAt": "2026-06-10T06:38:55.988Z"
 }
 ```
 
-**Errores:**
-- `401` — No autenticado
-- `502` — Error en el proveedor Deepgram
-- `503` — STT no configurado (modo stub activo o API key ausente)
+**Campos:**
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `token` | string | Token temporal de Deepgram. Formato hex de 40 chars. Usarlo como `Authorization: Token <token>` al abrir el WSS a Deepgram. |
+| `expiresIn` | int | Segundos hasta que el token expire (típicamente 60). |
+| `provider` | string | Siempre `"deepgram"` en producción. Si llega `"stub"` significa que el backend tiene `STT_STUB_ENABLED=true` (no debería ocurrir en producción). |
+| `issuedAt` | Instant | Timestamp UTC de emisión. |
 
-**curl:**
+### Flujo end-to-end de transcripción (lado frontend)
+
+1. **Pedir token** al endpoint anterior (con `Authorization: Bearer <accessToken>` del usuario).
+2. **Abrir WebSocket** a Deepgram con el token. URL típica:
+   ```
+   wss://api.deepgram.com/v1/listen?model=nova-2&language=es&smart_format=true
+   ```
+   Header de auth en el WSS:
+   ```
+   Authorization: Token <token-del-paso-1>
+   ```
+3. **Stream del audio del micrófono** al WSS en chunks PCM/WebM/OGG (lo que Deepgram acepta).
+4. **Recibir transcripciones** en mensajes JSON de Deepgram (`channel.alternatives[0].transcript`).
+5. **Cuando el usuario termina** de hablar (o cuando llega `speech_final=true`), tomar el texto completo y mandarlo a `POST /api/v1/conversations/search` (sección 12).
+6. **Renovar el token** si pasaron >55s desde `issuedAt` y la sesión sigue activa — pedís otro al endpoint.
+
+**Importante:**
+- No cacheen el token más de su `expiresIn`. Está pensado para una sesión corta de voz.
+- No pasen la API key real de Deepgram al cliente — esto es justamente lo que evita el endpoint.
+- Si el endpoint devuelve `provider=stub` con un token tipo `stub-token-xxx`, avisar a backend: la env var `STT_STUB_ENABLED` quedó en `true`. En prod debe ser `false`.
+
+**Errores:**
+- `401` — No autenticado (falta o expiró el `accessToken` del usuario)
+- `502` — Error en el proveedor Deepgram (rate limit, problema en su lado)
+- `503` — STT no configurado en backend (`DEEPGRAM_API_KEY` ausente o `STT_STUB_ENABLED=false` sin keys reales)
+
+**curl de prueba:**
 ```bash
 curl -X POST http://87.99.156.164/api/v1/stt/token \
   -H "Authorization: Bearer eyJ..."
@@ -1438,6 +1510,100 @@ curl -X DELETE \
 
 ---
 
+## 8.5. BizAPI — Catálogo agregado (Fase 8)
+
+### GET /api/v1/catalog/by-category
+
+**Descripción:** Devuelve los productos AVAILABLE y activos del store del JWT, **agrupados por las categorías que el merchant haya creado**. Usado por el flujo "Catálogo directo" del kiosko (cuando el cliente entra al catálogo sin pasar por la búsqueda conversacional), y también como preview en el panel del merchant.
+
+**Autenticación:** JWT requerido (cualquier rol autenticado: `OWNER`, `SELLER`, `ADMIN`, `DEVICE`)  
+**URL producción:** `http://87.99.156.164/api/v1/catalog/by-category`
+
+**Headers:** `Authorization: Bearer <accessToken>`  
+**Request:** sin query params, sin body. El store sale del JWT.
+
+**Response 200:**
+```json
+[
+  {
+    "categoryId": "uuid-iluminacion",
+    "categoryName": "Iluminación",
+    "categorySlug": "iluminacion",
+    "position": 0,
+    "products": [
+      {
+        "id": "uuid-producto-1",
+        "categoryId": "uuid-iluminacion",
+        "categoryName": "Iluminación",
+        "name": "Lámpara LED colgante negra industrial",
+        "price": 89.00,
+        "availability": "AVAILABLE",
+        "allowDiscountInquiry": true,
+        "position": 0,
+        "primaryImageUrl": "https://...",
+        "brand": "Philips"
+      },
+      { "id": "...", "...": "..." }
+    ]
+  },
+  {
+    "categoryId": "uuid-electrico",
+    "categoryName": "Eléctrico",
+    "categorySlug": "electrico",
+    "position": 1,
+    "products": [ /* ... */ ]
+  }
+]
+```
+
+**Reglas del response:**
+
+- **Top-level: array de categorías**. Si el store no tiene productos AVAILABLE, devuelve `[]`.
+- **Filtros de productos**:
+   - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
+   - Solo productos activos (`isActive=true`).
+   - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
+- **Categorías que se omiten**:
+   - Categorías sin ningún producto AVAILABLE no aparecen en el array.
+   - Categorías inactivas no aparecen.
+- **Orden**:
+   - Categorías: por `position ASC, name ASC`.
+   - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
+- **Multi-tenant**: filtrado por `storeId` del JWT. Nunca se mezclan productos de otras tiendas.
+
+**Campos del producto** (`ProductSummaryResponse` — reutilizado del listado plano `/api/v1/products`):
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | UUID | Id del producto. |
+| `categoryId` | UUID | Id de la categoría a la que pertenece. |
+| `categoryName` | string | Nombre humano de la categoría. |
+| `name` | string | Nombre del producto. |
+| `price` | BigDecimal | Precio en soles. |
+| `availability` | AvailabilityStatus | Siempre `"AVAILABLE"` en este endpoint. |
+| `allowDiscountInquiry` | boolean | Si el cliente puede preguntar por descuentos. |
+| `position` | int | Orden dentro de la categoría (intención del merchant). |
+| `primaryImageUrl` | string \| null | URL de la imagen principal. |
+| `brand` | string \| null | Marca del producto. Nullable. |
+
+**Errores:**
+- `401` — JWT ausente o inválido.
+
+**Notas para el frontend:**
+
+- Diseñado para pantallas con scroll vertical de varias categorías en cards apilables.
+- Si el array viene vacío (`[]`) → mostrar empty state ("Esta tienda aún no tiene productos disponibles").
+- El campo `brand` es opcional — algunos productos no lo tendrán. Útil para futuros filtros de marca en el sidebar.
+- Si la cantidad de productos por categoría es grande, considerar paginación en cliente; el backend devuelve todo lo AVAILABLE.
+
+**curl:**
+```bash
+curl -X GET http://87.99.156.164/api/v1/catalog/by-category \
+  -H "Authorization: Bearer eyJ..."
+```
+
+---
+
 ## 9. BizAPI — Órdenes
 
 ### POST /api/v1/orders
@@ -1825,11 +1991,12 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 
 ### POST /api/v1/conversations/search
 
-**Descripción:** Recibe texto ya transcrito (por el dispositivo vía Deepgram), extrae la intención de búsqueda y retorna hasta 5 productos relevantes con texto para síntesis de voz.  
-**Autenticación:** JWT requerido (cualquier rol — tipicamente `DEVICE`)  
+**Descripción:** Recibe texto ya transcrito (por el dispositivo vía Deepgram), extrae la intención de búsqueda y retorna hasta 5 productos relevantes con texto para síntesis de voz. Si el ranking no encuentra match, devuelve hasta 3 sugerencias del store para mantener la conversación viva (unhappy path — Fase 8).
+
+**Autenticación:** JWT requerido (cualquier rol — típicamente `DEVICE`)  
 **URL producción:** `http://87.99.156.164/api/v1/conversations/search`
 
-**Headers:** `Authorization: Bearer <deviceAccessToken>`
+**Headers:** `Authorization: Bearer <accessToken>`
 
 **Request Body:**
 ```json
@@ -1840,7 +2007,7 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 }
 ```
 
-**Response 200:**
+**Response 200 (happy path — hay matches reales):**
 ```json
 {
   "understood": true,
@@ -1871,17 +2038,65 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
     }
   ],
   "noResults": false,
+  "suggestedFromCategory": null,
   "spokenText": "Encontré 1 lámpara vintage. La más relevante cuesta 89 soles.",
   "displayText": "1 resultado para 'lámpara vintage'",
   "fallbackMessage": null
 }
 ```
 
-**Notas:**
-- `results` contiene máximo 5 productos, ordenados por `relevanceScore` descendente
-- Cuando `noResults=true`, `results` es vacío y `fallbackMessage` tiene texto sugerido
-- Cuando `understood=false`, la búsqueda fue ambigua — `fallbackMessage` guía al usuario
-- El path primario de datos es MongoDB (`vitria_search`); si no hay datos, hace fallback a BizAPI
+**Response 200 (unhappy path con categoría entendida — Fase 8):**
+```json
+{
+  "understood": true,
+  "interpretedQuery": { "category": "lámpara", "...": "..." },
+  "results": [
+    { "id": "uuid-1", "name": "Lámpara LED colgante", "price": 89.0, "relevanceScore": 0, "...": "..." },
+    { "id": "uuid-2", "name": "Lámpara de mesa industrial", "price": 159.0, "relevanceScore": 0, "...": "..." },
+    { "id": "uuid-3", "name": "Lámpara LED de techo", "price": 120.0, "relevanceScore": 0, "...": "..." }
+  ],
+  "noResults": true,
+  "suggestedFromCategory": "lámpara",
+  "spokenText": "Lo sentimos, no encontramos productos para tu búsqueda.",
+  "displayText": "Sin resultados",
+  "fallbackMessage": "No encontramos productos para tu búsqueda. Puedes consultar con nuestros asesores."
+}
+```
+
+**Response 200 (unhappy path sin categoría entendida — Fase 8):**
+```json
+{
+  "understood": false,
+  "interpretedQuery": { "category": null, "...": "..." },
+  "results": [
+    { "id": "...", "name": "...", "relevanceScore": 0, "...": "..." }
+  ],
+  "noResults": true,
+  "suggestedFromCategory": null,
+  "fallbackMessage": "..."
+}
+```
+
+**Notas (importantes para el frontend — comportamiento NUEVO en Fase 8):**
+
+- **`noResults` indica "no hubo match al query"**, NO "array vacío". `results` puede tener hasta 3 sugerencias aunque `noResults=true`. Pensar el flag como "el ranking falló" y `results` como "lo que sirve mostrar al usuario".
+- **`suggestedFromCategory` (NUEVO, nullable)**:
+   - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
+   - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
+   - Si `noResults=false` (happy path) → siempre `null`.
+- **`fallbackMessage`** sigue presente cuando `noResults=true` con el mensaje de "Lo sentimos…". Es el copy "de cabecera" de la pantalla unhappy. Las sugerencias van debajo.
+- **`results[*].relevanceScore = 0`** identifica que el producto vino de las sugerencias del unhappy path, no del ranking real. Útil para tracking.
+- **Tamaño**:
+   - Happy path: hasta 5 productos.
+   - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
+- **Filtros de las sugerencias**: solo `AVAILABLE` + `isActive=true`. LOW_STOCK y CONSULT quedan fuera.
+- **Orden de las sugerencias**: `position ASC, name ASC` (determinístico, lo mismo en consultas sucesivas).
+- **Backward compat**: si renderizan `results` siempre, los clientes viejos funcionarán igual. El campo `suggestedFromCategory` es opcional — ignorenlo si no lo usan todavía.
+
+**Otras notas:**
+- Cuando `understood=false`, la búsqueda fue ambigua — `fallbackMessage` guía al usuario, y `results` puede traer sugerencias del store si el ranking quedó vacío.
+- El path primario de datos es MongoDB (`vitria_search`); si no hay datos, hace fallback a BizAPI.
+- Las sugerencias del unhappy path siempre se leen desde MongoDB. Si Mongo cae al construirlas → `results=[]` (fail-open), nunca 5xx.
 
 **Errores:**
 - `401` — No autenticado
@@ -2323,13 +2538,20 @@ curl -X POST http://87.99.156.164/api/v1/products/$PROD_ID/suggest-tags \
 ### Paso 7 — Pairing del kiosk
 
 ```bash
-PAIR=$(curl -s -X POST http://87.99.156.164/api/v1/devices/pairing-token \
-  -H "Authorization: Bearer $TOKEN" | jq -r .pairingToken)
+# 1) La tablet (sin JWT) genera el código y obtiene el sessionId.
+GEN=$(curl -s -X POST http://87.99.156.164/api/v1/devices/pairing-token)
+PAIR=$(echo "$GEN" | jq -r .pairingToken)
+SESSION=$(echo "$GEN" | jq -r .sessionId)
+# (La tablet abre wss /api/v1/devices/pairing-session/$SESSION y muestra $PAIR)
 
-# Desde la tablet (sin JWT, endpoint público)
-DEVICE_TOKEN=$(curl -s -X POST http://87.99.156.164/api/v1/devices/pair \
+# 2) El comercio (JWT OWNER) aprueba el código.
+curl -s -X POST http://87.99.156.164/api/v1/devices/pair \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"pairingToken\":\"$PAIR\",\"deviceName\":\"Tablet 1\",\"platform\":\"ANDROID\",\"appVersion\":\"1.0.0\"}" \
+  -d "{\"pairingToken\":\"$PAIR\",\"decision\":\"APPROVE\",\"deviceName\":\"Tablet 1\",\"platform\":\"ANDROID\",\"appVersion\":\"1.0.0\"}"
+
+# 3) La tablet canjea su DEVICE JWT por sessionId.
+DEVICE_TOKEN=$(curl -s http://87.99.156.164/api/v1/devices/pairing-session/$SESSION/token \
   | jq -r .deviceAccessToken)
 ```
 
