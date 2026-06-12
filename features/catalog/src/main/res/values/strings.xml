@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Category tab bar. -->
+    <string name="catalog_tab_all">Todo</string>
+    <string name="catalog_discounts_heading">Descuentos</string>
+    <string name="catalog_discounts_empty">Productos sin descuentos aún.</string>
+
+    <!-- Store has no available products. -->
+    <string name="catalog_store_empty">Esta tienda aún no tiene productos disponibles.</string>
+
+    <!-- Network error (connection lost) — established copy. -->
+    <string name="catalog_network_error_title">Perdí la conexión…</string>
+    <string name="catalog_network_error_message">Parece que la red está inestable. Verifica tu internet e intenta nuevamente.</string>
+
+    <!-- Top bar. -->
+    <string name="catalog_back">Volver</string>
+    <string name="catalog_new_search">Nueva búsqueda</string>
+    <string name="catalog_go_to_cart">Ir al carrito</string>
+
+    <!-- Content descriptions. -->
+    <string name="catalog_back_cd">Volver</string>
+    <string name="catalog_new_search_cd">Nueva búsqueda</string>
+    <string name="catalog_cart_cd">Agregar al carrito</string>
+    <string name="catalog_mic_cd">Buscar por voz</string>
+    <string name="catalog_search_icon_cd">Buscar</string>
+
+    <!-- Bottom search bar. -->
+    <string name="catalog_prompt">¿En qué tipo de proyecto lo usarás?</string>
+    <string name="catalog_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
+
+    <!-- Price (Peruvian Sol). -->
+    <string name="catalog_price">S/ %1$.2f</string>
+
+    <!-- Close-current-session confirmation dialog. -->
+    <string name="catalog_close_dialog_title">¿Cerrar el catálogo?</string>
+    <string name="catalog_close_dialog_message">Se cerrará el catálogo y volverás al inicio.</string>
+    <string name="catalog_close_dialog_confirm">Sí, cerrar</string>
+    <string name="catalog_close_dialog_dismiss">Cancelar</string>
+</resources>

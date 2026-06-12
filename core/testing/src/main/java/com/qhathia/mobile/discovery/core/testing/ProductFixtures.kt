@@ -14,6 +14,7 @@ object ProductFixtures {
         availability: String = "AVAILABLE",
         categoryName: String = "Taladros",
         imageUrl: String = "https://example.com/taladro.jpg",
+        allowDiscountInquiry: Boolean = false,
     ): Product = Product(
         id = id,
         name = name,
@@ -22,6 +23,7 @@ object ProductFixtures {
         availability = availability,
         categoryName = categoryName,
         imageUrl = imageUrl,
+        allowDiscountInquiry = allowDiscountInquiry,
     )
 
     fun products(count: Int): List<Product> =

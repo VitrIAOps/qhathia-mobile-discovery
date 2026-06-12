@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,21 +19,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.cart.ui.CartDialog
+import com.qhathia.mobile.discovery.feature.catalog.navigation.catalogRoute
+import com.qhathia.mobile.discovery.feature.catalog.navigation.catalogScreen
 import com.qhathia.mobile.discovery.feature.home.navigation.HOME_ROUTE
 import com.qhathia.mobile.discovery.feature.home.navigation.homeScreen
 import com.qhathia.mobile.discovery.feature.productdetail.navigation.productDetailRoute
@@ -116,11 +114,19 @@ private fun DiscoveryAppRoot(
                     startDestination = HOME_ROUTE,
                 ) {
                     homeScreen(
-                        onNavigateToCatalog = { navController.navigate(CATALOG_ROUTE) },
+                        onNavigateToCatalog = { navController.navigate(catalogRoute()) },
                         onNavigateToProductSearch = { query, source ->
                             navController.navigate(productSearchRoute(query, source))
                         },
                         onNavigateToSettings = { showSettingsGate = true },
+                    )
+                    catalogScreen(
+                        onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
+                        onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
+                        onNavigateToSearch = { query, source ->
+                            navController.navigate(productSearchRoute(query, source))
+                        },
+                        onOpenCart = { showCart = true },
                     )
                     productSearchScreen(
                         onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
@@ -138,7 +144,6 @@ private fun DiscoveryAppRoot(
                     networkSettingsScreen(
                         onNavigateBack = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
                     )
-                    placeholderDestinations()
                 }
             }
         }
@@ -165,17 +170,3 @@ private fun DiscoveryAppRoot(
     }
 }
 
-// --- Placeholder destinations (the catalog screen is out of scope) ---
-
-private const val CATALOG_ROUTE = "catalog"
-
-private fun NavGraphBuilder.placeholderDestinations() {
-    composable(CATALOG_ROUTE) { PlaceholderScreen(title = "Catalog") }
-}
-
-@Composable
-private fun PlaceholderScreen(title: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = title)
-    }
-}

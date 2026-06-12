@@ -10,6 +10,9 @@ package com.qhathia.mobile.discovery.core.domain.model
  * @property availability availability status as returned by the API (e.g. `AVAILABLE`).
  * @property categoryName the product's category name, or empty when none.
  * @property imageUrl primary image URL, or empty when none.
+ * @property allowDiscountInquiry whether the consumer may ask about discounts for this product. Drives
+ *   the catalog's synthetic "Descuentos" section. Defaults to `false` for sources that don't expose it
+ *   (e.g. conversational search results), where it means "unknown / none".
  */
 data class Product(
     val id: String,
@@ -19,4 +22,5 @@ data class Product(
     val availability: String,
     val categoryName: String,
     val imageUrl: String,
+    val allowDiscountInquiry: Boolean = false,
 )
