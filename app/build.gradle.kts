@@ -44,6 +44,7 @@ android {
 dependencies {
     // Feature + design-system modules
     implementation(project(":features:home"))
+    implementation(project(":features:catalog"))
     implementation(project(":features:product-search"))
     implementation(project(":features:product-detail"))
     implementation(project(":features:cart"))

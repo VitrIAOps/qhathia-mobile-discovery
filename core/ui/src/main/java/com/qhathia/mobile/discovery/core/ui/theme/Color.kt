@@ -29,6 +29,7 @@ object DiscoveryColors {
     val Divider = Color(0xFFE0E0E0) // product-detail info divider
     val AccentOrange = Color(0xFFFF4500) // product card category tag
     val SearchBorder = Color(0xFFDBDBDB)
+    val CatalogTabTrack = Color(0xFFEDEDF2) // catalog category tab-bar track background
     val TextDisabled = Color(0xFF9E9E9E) // disabled button label (e.g. "Realizar pedido" until valid)
     val Footer = Color(0xFF878787) // "powered by Qhathia"
 
