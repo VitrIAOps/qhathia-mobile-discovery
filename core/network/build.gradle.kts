@@ -19,10 +19,22 @@ android {
         // pairing/auth provides the real session JWT. Not a production secret.
         buildConfigField("String", "QHATHIA_DEV_EMAIL", "\"juan@tienda.com\"")
         buildConfigField("String", "QHATHIA_DEV_PASSWORD", "\"mipass123\"")
+
+        // Ktor request/response logging toggle, decoupled from BuildConfig.DEBUG so a non-debuggable
+        // build (e.g. the `profile` build type) can still surface the API call logs. Off by default;
+        // debug builds also force it on via BuildConfig.DEBUG at the call site.
+        buildConfigField("boolean", "ENABLE_NETWORK_LOGGING", "false")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildTypes {
+        // Non-debuggable QA/profiling build: keep the API logs on while the app stays profileable.
+        create("profile") {
+            initWith(getByName("release"))
+            buildConfigField("boolean", "ENABLE_NETWORK_LOGGING", "true")
+        }
     }
     buildFeatures {
         buildConfig = true

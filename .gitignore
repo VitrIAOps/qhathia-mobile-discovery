@@ -24,6 +24,7 @@ bin/
 gen/
 out/
 release/
+dist/
 /captures
 .externalNativeBuild/
 .cxx/
