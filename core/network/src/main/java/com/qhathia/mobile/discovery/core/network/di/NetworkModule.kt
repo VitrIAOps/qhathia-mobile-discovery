@@ -20,5 +20,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideHttpClient(): HttpClient =
-        KtorClientFactory.create(enableLogging = BuildConfig.DEBUG)
+        // Debug builds always log; a non-debuggable build can opt in via ENABLE_NETWORK_LOGGING
+        // (set on the `profile` build type) so API call logs survive in QA/profiling APKs.
+        KtorClientFactory.create(enableLogging = BuildConfig.DEBUG || BuildConfig.ENABLE_NETWORK_LOGGING)
 }

@@ -6,6 +6,13 @@ kotlin = "2.3.20"
 # Do NOT use the old <kotlin>-<patch> format.
 ksp = "2.3.6"
 
+# --- App version (semantic versioning + prerelease) — single source of truth for versionName/versionCode ---
+# Bump `appVersion` (MAJOR.MINOR.PATCH) here; the build derives versionName ("<appVersion>-<appPrerelease>")
+# and versionCode (major*10000 + minor*100 + patch). Prerelease stays SNAPSHOT for all builds (dynamic
+# prerelease tagging is handled later in the CI/CD pipeline).
+appVersion = "1.0.0"
+appPrerelease = "SNAPSHOT"
+
 # --- AndroidX core ---
 coreKtx = "1.18.0"
 activityCompose = "1.13.0"
