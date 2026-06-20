@@ -6,7 +6,6 @@
     <string name="ps_slow_stt">Está tardando más de lo que esperaba</string>
     <string name="ps_searching">Revisando catálogo</string>
     <string name="ps_slow_search">Buscando minuciosamente</string>
-    <string name="ps_searching_alternatives">Buscando sugerencias</string>
 
     <!-- Results headline — count is filled in client-side. -->
     <plurals name="ps_results_headline">
@@ -14,8 +13,25 @@
         <item quantity="other">Encontré %1$d productos para ti:</item>
     </plurals>
 
-    <!-- Unhappy (no results / search error) screen. -->
-    <string name="ps_unhappy_message">Lo siento, no pude encontrar lo que estás buscando.\nDe pronto te interesaría…</string>
+    <!-- Filters & suggestions refine section (results screen). -->
+    <string name="ps_refine_title">Afina tu búsqueda</string>
+    <string name="ps_refine_subtitle">Usa los filtros para encontrar exactamente lo que necesitas.</string>
+    <string name="ps_suggestions_title">Sugerencias</string>
+    <string name="ps_refine_icon_cd">Filtros</string>
+    <string name="ps_suggestions_icon_cd">Sugerencias</string>
+    <!-- Per-criterion clear control. -->
+    <string name="ps_filter_clear">Limpiar</string>
+    <!-- %1$s = criterion. -->
+    <string name="ps_filter_clear_cd">Limpiar filtro %1$s</string>
+    <!-- %1$s = criterion, %2$s = option. -->
+    <string name="ps_filter_option_cd">Filtrar por %1$s: %2$s</string>
+    <string name="ps_suggestion_cd">Sugerencia: %1$s</string>
+
+    <!-- Unhappy (no results / search error) screen. The apology, then an invite line that is generic
+         or personalized from the category (%1$s = category, verbatim from the API). -->
+    <string name="ps_unhappy_message">Lo siento, no pude encontrar lo que estás buscando.</string>
+    <string name="ps_unhappy_invite">De pronto te interesaría…</string>
+    <string name="ps_unhappy_invite_category">Relacionado a \'%1$s\' te podría interesar…</string>
 
     <!-- Network error (screen kept). -->
     <string name="ps_network_error_title">Perdí la conexión…</string>
@@ -34,7 +50,7 @@
     <string name="ps_search_icon_cd">Buscar</string>
 
     <!-- Bottom search bar. -->
-    <string name="ps_prompt">¿En qué tipo de proyecto lo usarás?</string>
+    <string name="ps_prompt">Cuéntame más</string>
     <string name="ps_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
 
     <!-- Price (Peruvian Sol). -->

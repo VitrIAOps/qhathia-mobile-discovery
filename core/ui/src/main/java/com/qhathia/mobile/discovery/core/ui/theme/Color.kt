@@ -13,6 +13,7 @@ object DiscoveryColors {
     val Blue800 = Color(0xFF0D1F38) // "TIENDA"
     val Blue500 = Color(0xFF1C4466) // primitive-blue-500 — selected side-menu item
     val Blue200 = Color(0xFF95AABF) // primitive-blue-200 — product-detail thumbnail border
+    val Blue100 = Color(0xFFC5D0DE) // primitive-blue-100 — filter/suggestion chip border (default state)
     val Blue50 = Color(0xFFE8EDF2) // primitive-blue-50 — cart totals (receipt) panel background
     val Green500 = Color(0xFF22C55E) // primitive-green-500 — in-stock + "Compartir" button
     val Green300 = Color(0xFF58D487) // primitive-green-300 — connected-network badge
@@ -28,6 +29,7 @@ object DiscoveryColors {
     val TextMuted = Color(0xFF616161) // product-detail description
     val Divider = Color(0xFFE0E0E0) // product-detail info divider
     val AccentOrange = Color(0xFFFF4500) // product card category tag
+    val LinkBlue = Color(0xFF3B82F6) // inline text link — filter "Limpiar"
     val SearchBorder = Color(0xFFDBDBDB)
     val CatalogTabTrack = Color(0xFFEDEDF2) // catalog category tab-bar track background
     val TextDisabled = Color(0xFF9E9E9E) // disabled button label (e.g. "Realizar pedido" until valid)

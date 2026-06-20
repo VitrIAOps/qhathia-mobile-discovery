@@ -1,6 +1,9 @@
 package com.qhathia.mobile.discovery.feature.productsearch.model
 
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * Immutable snapshot of the product-search screen.
@@ -11,6 +14,8 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
  * @property canGoBack whether a previous result exists to return to (Volver).
  * @property showCloseConfirmDialog whether the close-current-search confirmation dialog is visible.
  * @property cartItemCount total items in the cart, shown on the Ir al carrito control's badge.
+ * @property selectedFilters the filter options currently selected, for rendering their selected state.
+ * @property selectedSuggestion the suggestion phrase currently selected (at most one), or null.
  */
 data class ProductSearchUiState(
     val source: SearchSource = SearchSource.Text,
@@ -19,15 +24,16 @@ data class ProductSearchUiState(
     val canGoBack: Boolean = false,
     val showCloseConfirmDialog: Boolean = false,
     val cartItemCount: Int = 0,
+    val selectedFilters: ImmutableSet<SearchFilterOption> = persistentSetOf(),
+    val selectedSuggestion: String? = null,
 ) {
-    /** True while voice is being captured or a search (original or alternative) is in flight. */
+    /** True while voice is being captured or a search is in flight. */
     val isProcessing: Boolean
         get() = phase is ProductSearchPhase.VoiceListening ||
             phase is ProductSearchPhase.VoiceTranscribing ||
             phase is ProductSearchPhase.VoiceSlowResponse ||
             phase is ProductSearchPhase.Searching ||
-            phase is ProductSearchPhase.SlowSearch ||
-            phase is ProductSearchPhase.SearchingAlternatives
+            phase is ProductSearchPhase.SlowSearch
 
     /** True while the consumer's voice is being captured or transcribed in-place. */
     val isVoiceCapturing: Boolean

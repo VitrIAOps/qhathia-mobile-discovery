@@ -5,9 +5,10 @@ import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
@@ -29,6 +30,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
@@ -50,7 +52,7 @@ class ProductSearchViewModelTest {
     ) = ProductSearchViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_QUERY to query, ARG_SOURCE to source.name)),
         searchProducts = SearchProductsUseCase(repository),
-        generalizeQuery = GeneralizeQueryUseCase(),
+        composeSearchQuery = ComposeSearchQueryUseCase(),
         audioRecorder = recorder,
         transcribeVoiceSearch = TranscribeVoiceSearchUseCase(stt),
         observeCart = ObserveCartUseCase(cartRepository),
@@ -101,30 +103,44 @@ class ProductSearchViewModelTest {
     }
 
     @Test
-    fun given_no_results_then_runs_alternatives_and_shows_unhappy() = runTest(mainDispatcher.dispatcher) {
+    fun given_no_results_then_shows_unhappy_with_response_suggestions() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(
-            result = Result.success(ProductFixtures.noResults()),
-            alternativeResult = Result.success(ProductFixtures.result(ProductFixtures.products(5))),
+            result = Result.success(ProductFixtures.noResults(products = ProductFixtures.products(3))),
         )
         val vm = viewModel(query = "taladro 20v", repository = repository)
 
         val phase = vm.uiState.value.phase
         assertTrue(phase is ProductSearchPhase.Unhappy)
         assertEquals(ProductSearchConstants.ALTERNATIVES_COUNT, (phase as ProductSearchPhase.Unhappy).alternatives.size)
-        assertEquals(2, repository.callCount)
-        assertEquals("Taladros", repository.queries[1]) // generalized keyword
+        // A single request — the unhappy suggestions come from the same response, no second search.
+        assertEquals(1, repository.callCount)
     }
 
     @Test
-    fun given_search_api_error_then_runs_alternatives() = runTest(mainDispatcher.dispatcher) {
+    fun given_unhappy_response_then_carries_suggested_category() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(
-            result = Result.failure(SearchException(SearchErrorCategory.SearchApi)),
-            alternativeResult = Result.success(ProductFixtures.result(ProductFixtures.products(3))),
+            result = Result.success(ProductFixtures.noResults(suggestedFromCategory = "lámpara")),
         )
         val vm = viewModel(repository = repository)
 
-        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Unhappy)
-        assertEquals(2, repository.callCount)
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Unhappy
+        assertEquals("lámpara", phase.suggestedFromCategory)
+    }
+
+    @Test
+    fun given_search_api_error_then_shows_unhappy_without_suggestions() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.failure(SearchException(SearchErrorCategory.SearchApi)),
+        )
+        val vm = viewModel(repository = repository)
+
+        val phase = vm.uiState.value.phase
+        assertTrue(phase is ProductSearchPhase.Unhappy)
+        phase as ProductSearchPhase.Unhappy
+        assertTrue(phase.alternatives.isEmpty())
+        assertNull(phase.suggestedFromCategory)
+        // A single request — no disguised alternative search.
+        assertEquals(1, repository.callCount)
     }
 
     @Test
@@ -259,5 +275,107 @@ class ProductSearchViewModelTest {
         vm.onEvent(ProductSearchUiEvent.QueryChanged("a".repeat(ProductSearchConstants.MAX_QUERY_CHARS + 50)))
 
         assertEquals(ProductSearchConstants.MAX_QUERY_CHARS, vm.uiState.value.query.length)
+    }
+
+    @Test
+    fun given_suggestion_selected_then_requeries_with_it_appended() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Para uso en casa"))
+
+        assertEquals("taladro 20v para uso en casa", repository.queries.last())
+        assertEquals("Para uso en casa", vm.uiState.value.selectedSuggestion)
+    }
+
+    @Test
+    fun given_multiple_filters_selected_then_requeries_with_all_appended() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Voltaje", "12V"))
+
+        assertEquals("taladro 20v marca bosch voltaje 12v", repository.queries.last())
+        assertEquals(2, vm.uiState.value.selectedFilters.size)
+    }
+
+    @Test
+    fun given_second_suggestion_selected_then_replaces_the_first() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Para uso en casa"))
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        assertEquals("taladro 20v percutor", repository.queries.last())
+        assertEquals("Percutor", vm.uiState.value.selectedSuggestion)
+    }
+
+    @Test
+    fun given_criterion_cleared_then_drops_only_that_criterions_options() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Makita"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Voltaje", "12V"))
+
+        vm.onEvent(ProductSearchUiEvent.FilterCriterionCleared("Marca"))
+
+        assertEquals("taladro 20v voltaje 12v", repository.queries.last())
+        assertEquals(setOf(SearchFilterOption("Voltaje", "12V")), vm.uiState.value.selectedFilters)
+    }
+
+    @Test
+    fun given_criterion_without_selection_when_cleared_then_no_requery() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+        val queriesBefore = repository.queries.size
+
+        vm.onEvent(ProductSearchUiEvent.FilterCriterionCleared("Marca"))
+
+        assertEquals(queriesBefore, repository.queries.size)
+    }
+
+    @Test
+    fun given_all_selection_removed_then_requeries_the_base() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch")) // de-select
+
+        assertEquals("taladro 20v", repository.queries.last())
+        assertTrue(vm.uiState.value.selectedFilters.isEmpty())
+    }
+
+    @Test
+    fun given_empty_requery_result_then_follows_unhappy_path() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.success(ProductFixtures.result()),
+            alternativeResult = Result.success(ProductFixtures.noResults()),
+        )
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Unhappy)
+    }
+
+    @Test
+    fun given_selection_when_new_search_confirmed_then_selection_reset() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro 20v", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        assertTrue(vm.uiState.value.selectedFilters.isNotEmpty())
+
+        vm.onEvent(ProductSearchUiEvent.NewSearch)
+        vm.onEvent(ProductSearchUiEvent.ConfirmCloseSearch)
+
+        assertTrue(vm.uiState.value.selectedFilters.isEmpty())
+        assertNull(vm.uiState.value.selectedSuggestion)
     }
 }

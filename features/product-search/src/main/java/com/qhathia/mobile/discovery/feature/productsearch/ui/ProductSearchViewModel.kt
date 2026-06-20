@@ -11,10 +11,11 @@ import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
@@ -25,7 +26,9 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiS
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_QUERY
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_SOURCE
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -42,19 +45,20 @@ import javax.inject.Inject
 /**
  * Drives the product-search screen and owns its state machine:
  *
- * `Searching → (SlowSearch) → Results` on success; on no-results or a search (API) error,
- * `→ SearchingAlternatives → Unhappy` (a disguised alternative search derived from the keyword,
- * keeping its first 3 products); a connectivity failure settles on `NetworkError` (screen kept).
- * Each settled outcome is pushed onto an in-memory history so Volver can return to the previous
- * result; with no previous result Volver opens the close-confirmation dialog. Nueva búsqueda (once
- * confirmed) clears the history and returns Home idle, as does the 30s idle timeout on the unhappy
- * screen. The microphone animation is retained while processing only for a voice-initiated search.
+ * A single request per search: `Searching → (SlowSearch) → Results` when the response has
+ * `noResults=false`, or `→ Unhappy` when `noResults=true` (rendering the up-to-3 store suggestions the
+ * response already returned). A search (API) error settles `Unhappy` with no suggestions; a
+ * connectivity failure settles `NetworkError` (screen kept). Each settled outcome is pushed onto an
+ * in-memory history so Volver can return to the previous result; with no previous result Volver opens
+ * the close-confirmation dialog. Nueva búsqueda (once confirmed) clears the history and returns Home
+ * idle, as does the 30s idle timeout on the unhappy screen. The microphone animation is retained
+ * while processing only for a voice-initiated search.
  */
 @HiltViewModel
 class ProductSearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val searchProducts: SearchProductsUseCase,
-    private val generalizeQuery: GeneralizeQueryUseCase,
+    private val composeSearchQuery: ComposeSearchQueryUseCase,
     private val audioRecorder: AudioRecorder,
     private val transcribeVoiceSearch: TranscribeVoiceSearchUseCase,
     observeCart: ObserveCartUseCase,
@@ -77,6 +81,15 @@ class ProductSearchViewModel @Inject constructor(
 
     /** Settled outcomes visited so far; the last entry is the one currently displayed. */
     private val history = mutableListOf<HistoryEntry>()
+
+    /** Immutable raw query that started the current results view; the concatenation base for refinements. */
+    private var baseQuery: String = ""
+
+    /** Filter options currently selected (insertion-ordered); N may be active across criteria. */
+    private val selectedFilters = LinkedHashSet<SearchFilterOption>()
+
+    /** The single selected suggestion phrase, or null when none is selected. */
+    private var selectedSuggestion: String? = null
 
     private var searchJob: Job? = null
     private var slowSearchJob: Job? = null
@@ -115,7 +128,31 @@ class ProductSearchViewModel @Inject constructor(
             is ProductSearchUiEvent.CartTapped -> onCartTapped(event.productId)
             ProductSearchUiEvent.OpenCart -> openCart()
             is ProductSearchUiEvent.ProductTapped -> openDetail(event.productId)
+            is ProductSearchUiEvent.FilterToggled -> onFilterToggled(event.criterion, event.option)
+            is ProductSearchUiEvent.FilterCriterionCleared -> onFilterCriterionCleared(event.criterion)
+            is ProductSearchUiEvent.SuggestionSelected -> onSuggestionSelected(event.phrase)
         }
+    }
+
+    private fun onFilterToggled(criterion: String, option: String) {
+        val ref = SearchFilterOption(criterion, option)
+        if (!selectedFilters.add(ref)) selectedFilters.remove(ref)
+        refineSearch()
+    }
+
+    private fun onFilterCriterionCleared(criterion: String) {
+        if (selectedFilters.removeAll { it.criterion == criterion }) refineSearch()
+    }
+
+    private fun onSuggestionSelected(phrase: String) {
+        selectedSuggestion = if (selectedSuggestion == phrase) null else phrase
+        refineSearch()
+    }
+
+    /** Re-query with the current selection concatenated onto the immutable [baseQuery]. */
+    private fun refineSearch() {
+        val composed = composeSearchQuery(baseQuery, selectedFilters.toList(), selectedSuggestion)
+        performSearch(composed, _uiState.value.source, isRefinement = true)
     }
 
     private fun openDetail(productId: String) {
@@ -247,48 +284,72 @@ class ProductSearchViewModel @Inject constructor(
         transcribeJob = null
     }
 
-    private fun performSearch(query: String, source: SearchSource) {
+    private fun performSearch(query: String, source: SearchSource, isRefinement: Boolean = false) {
         cancelTimers()
         searchJob?.cancel()
+        // A fresh (non-refinement) search starts a new results view, so it resets the selection.
+        if (!isRefinement) clearSelection()
         _uiState.update {
-            it.copy(source = source, query = "", phase = ProductSearchPhase.Searching)
+            it.copy(
+                source = source,
+                query = "",
+                phase = ProductSearchPhase.Searching,
+                selectedFilters = selectedFilters.toImmutableSet(),
+                selectedSuggestion = selectedSuggestion,
+            )
         }
         startSlowSearchTimer()
         searchJob = viewModelScope.launch {
             val result = searchProducts(query)
             slowSearchJob?.cancel()
             result.fold(
+                // The backend decides happy vs. unhappy via noResults, and on the unhappy path it
+                // already returns up to 3 store suggestions — no second (generalized) request.
                 onSuccess = { search ->
-                    if (search.products.isNotEmpty()) settleResults(source, search)
-                    else startAlternativeSearch(query, source)
+                    if (!search.noResults) {
+                        settleResults(source, search, query, isRefinement)
+                    } else {
+                        settleUnhappy(source, search.products, search.suggestedFromCategory)
+                    }
                 },
                 onFailure = { error ->
                     when ((error as? SearchException)?.category ?: SearchErrorCategory.SearchApi) {
                         SearchErrorCategory.Network -> settleNetworkError(source)
-                        SearchErrorCategory.SearchApi -> startAlternativeSearch(query, source)
+                        // A real API error carries no usable suggestions: show the apology alone.
+                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null)
                     }
                 },
             )
         }
     }
 
-    private suspend fun startAlternativeSearch(originalQuery: String, source: SearchSource) {
-        _uiState.update { it.copy(phase = ProductSearchPhase.SearchingAlternatives) }
-        val generalized = generalizeQuery(originalQuery)
-        val alternatives = searchProducts(generalized).getOrNull()
-            ?.products
-            ?.take(ProductSearchConstants.ALTERNATIVES_COUNT)
-            .orEmpty()
-        settleUnhappy(source, alternatives)
+    private fun settleResults(
+        source: SearchSource,
+        result: ProductSearchResult,
+        query: String,
+        isRefinement: Boolean,
+    ) {
+        // A fresh search settling into results fixes the immutable concatenation base for refinements.
+        if (!isRefinement) baseQuery = query
+        val phase = ProductSearchPhase.Results(
+            products = result.products.toImmutableList(),
+            displayText = result.displayText,
+            filters = result.filters.toImmutableList(),
+            suggestions = result.suggestions.toImmutableList(),
+        )
+        settle(source, phase, baseQuery)
     }
 
-    private fun settleResults(source: SearchSource, result: ProductSearchResult) {
-        val phase = ProductSearchPhase.Results(result.products.toImmutableList(), result.displayText)
-        settle(source, phase)
-    }
-
-    private fun settleUnhappy(source: SearchSource, alternatives: List<Product>) {
-        settle(source, ProductSearchPhase.Unhappy(alternatives.toImmutableList()))
+    private fun settleUnhappy(
+        source: SearchSource,
+        alternatives: List<Product>,
+        suggestedFromCategory: String?,
+    ) {
+        val phase = ProductSearchPhase.Unhappy(
+            alternatives = alternatives.take(ProductSearchConstants.ALTERNATIVES_COUNT).toImmutableList(),
+            suggestedFromCategory = suggestedFromCategory,
+        )
+        settle(source, phase, baseQuery)
         startIdleTimer()
     }
 
@@ -300,11 +361,22 @@ class ProductSearchViewModel @Inject constructor(
         }
     }
 
-    private fun settle(source: SearchSource, phase: ProductSearchPhase) {
-        history += HistoryEntry(source, phase)
+    private fun settle(source: SearchSource, phase: ProductSearchPhase, query: String) {
+        history += HistoryEntry(source, phase, query)
         _uiState.update {
-            it.copy(source = source, phase = phase, canGoBack = history.size > 1)
+            it.copy(
+                source = source,
+                phase = phase,
+                canGoBack = history.size > 1,
+                selectedFilters = selectedFilters.toImmutableSet(),
+                selectedSuggestion = selectedSuggestion,
+            )
         }
+    }
+
+    private fun clearSelection() {
+        selectedFilters.clear()
+        selectedSuggestion = null
     }
 
     private fun onBack() {
@@ -318,8 +390,17 @@ class ProductSearchViewModel @Inject constructor(
 
     private fun showEntry(entry: HistoryEntry) {
         cancelTimers()
+        // History entries are settled snapshots — restore their base query and drop the live selection.
+        clearSelection()
+        baseQuery = entry.query
         _uiState.update {
-            it.copy(source = entry.source, phase = entry.phase, canGoBack = history.size > 1)
+            it.copy(
+                source = entry.source,
+                phase = entry.phase,
+                canGoBack = history.size > 1,
+                selectedFilters = persistentSetOf(),
+                selectedSuggestion = null,
+            )
         }
         if (entry.phase is ProductSearchPhase.Unhappy) startIdleTimer()
     }
@@ -337,10 +418,18 @@ class ProductSearchViewModel @Inject constructor(
 
     private fun confirmCloseSearch() {
         history.clear()
+        clearSelection()
+        baseQuery = ""
         cancelTimers()
         cancelVoiceJobs()
         searchJob?.cancel()
-        _uiState.update { it.copy(showCloseConfirmDialog = false) }
+        _uiState.update {
+            it.copy(
+                showCloseConfirmDialog = false,
+                selectedFilters = persistentSetOf(),
+                selectedSuggestion = null,
+            )
+        }
         emit(ProductSearchUiEffect.NavigateHomeIdle)
     }
 
@@ -377,7 +466,11 @@ class ProductSearchViewModel @Inject constructor(
         viewModelScope.launch { _uiEffect.emit(effect) }
     }
 
-    private data class HistoryEntry(val source: SearchSource, val phase: ProductSearchPhase)
+    private data class HistoryEntry(
+        val source: SearchSource,
+        val phase: ProductSearchPhase,
+        val query: String,
+    )
 
     private companion object {
         const val ONE_SECOND_MS = 1_000L

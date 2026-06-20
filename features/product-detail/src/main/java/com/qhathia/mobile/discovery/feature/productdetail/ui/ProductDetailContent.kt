@@ -465,6 +465,7 @@ private fun CloseConfirmDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.pd_close_dialog_title)) },
         text = { Text(stringResource(R.string.pd_close_dialog_message)) },
+        containerColor = MaterialTheme.colorScheme.surface,
         confirmButton = {
             TextButton(onClick = onConfirm) { Text(stringResource(R.string.pd_close_dialog_confirm)) }
         },

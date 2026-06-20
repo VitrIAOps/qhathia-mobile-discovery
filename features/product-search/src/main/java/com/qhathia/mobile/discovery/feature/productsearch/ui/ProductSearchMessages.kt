@@ -17,7 +17,6 @@ internal fun ProductSearchPhase.processingTextRes(): Int? = when (this) {
     ProductSearchPhase.VoiceSlowResponse -> R.string.ps_slow_stt
     ProductSearchPhase.Searching -> R.string.ps_searching
     ProductSearchPhase.SlowSearch -> R.string.ps_slow_search
-    ProductSearchPhase.SearchingAlternatives -> R.string.ps_searching_alternatives
     is ProductSearchPhase.Results,
     is ProductSearchPhase.Unhappy,
     ProductSearchPhase.NetworkError,

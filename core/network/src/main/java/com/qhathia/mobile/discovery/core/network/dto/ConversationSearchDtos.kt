@@ -18,14 +18,33 @@ data class ConversationSearchRequestDto(
 /**
  * Response of `POST /api/v1/conversations/search`. Only the fields the client renders are modeled;
  * `ignoreUnknownKeys` drops the rest (e.g. `interpretedQuery`, `spokenText`).
+ *
+ * [filters] and [suggestions] (Fase 9) refine the kiosk results; both are `[]` on the unhappy path.
+ * On the unhappy path (`noResults=true`) [results] still carries up to 3 store suggestions and
+ * [suggestedFromCategory] (Fase 8) names the category they were drawn from (null when generic).
+ * The defaults keep older responses backward-compatible under `ignoreUnknownKeys`.
  */
 @Serializable
 data class ConversationSearchResponseDto(
     val understood: Boolean = false,
     val results: List<SearchProductDto> = emptyList(),
     val noResults: Boolean = false,
+    val suggestedFromCategory: String? = null,
     val displayText: String = "",
     val fallbackMessage: String? = null,
+    val filters: List<SearchFilterDto> = emptyList(),
+    val suggestions: List<String> = emptyList(),
+)
+
+/**
+ * A search-refinement criterion and its selectable options (e.g. `criterion = "Voltaje"`,
+ * `options = ["12V", "18V", "20V"]`). Plain strings — options carry no count. Max 5 criteria × 5
+ * options server-side.
+ */
+@Serializable
+data class SearchFilterDto(
+    val criterion: String = "",
+    val options: List<String> = emptyList(),
 )
 
 @Serializable

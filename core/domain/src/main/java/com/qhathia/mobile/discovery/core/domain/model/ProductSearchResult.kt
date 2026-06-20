@@ -6,8 +6,13 @@ package com.qhathia.mobile.discovery.core.domain.model
  * @property products the matching products, ordered by relevance (may be empty).
  * @property displayText short headline for the results (e.g. "Encontré 8 taladros para ti").
  * @property understood whether the backend understood the query.
- * @property noResults whether the search produced no products.
+ * @property noResults whether the ranking found no match (the unhappy path); [products] may still
+ *   carry up to 3 store suggestions in that case.
+ * @property suggestedFromCategory on the unhappy path, the category the suggestions were drawn from
+ *   (verbatim, lowercase/singular) to personalize the copy; null for the generic case or happy path.
  * @property fallbackMessage optional guidance text when the query was ambiguous or empty.
+ * @property filters refinement criteria with their options (empty on the unhappy / no-results path).
+ * @property suggestions short phrases to refine the search (empty on the unhappy / no-results path).
  */
 data class ProductSearchResult(
     val products: List<Product>,
@@ -15,4 +20,7 @@ data class ProductSearchResult(
     val understood: Boolean,
     val noResults: Boolean,
     val fallbackMessage: String?,
+    val suggestedFromCategory: String? = null,
+    val filters: List<SearchFilter> = emptyList(),
+    val suggestions: List<String> = emptyList(),
 )
