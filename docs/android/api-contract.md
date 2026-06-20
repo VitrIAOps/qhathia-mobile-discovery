@@ -9,9 +9,16 @@
 
 ---
 
-## Cambios recientes (Fase 1-8)
+## Cambios recientes (Fase 1-9)
 
-**Fase 8 — junio 2026 (último deploy):**
+**Fase 9 — 2026-06-16 (último deploy, ClickUp 86e1r9epc):**
+- **VoAPI search devuelve `filters` y `suggestions` para el sidebar del kiosko (Mockup 5)**: el response de `POST /api/v1/conversations/search` ahora incluye `filters: [{criterion, options[]}]` (max 5 criterios × 5 options, strings planos) y `suggestions: List<String>` (max 5). Cuando `noResults=true` ambos van `[]`. Detalle en sección 12.
+- **`MAX_RESULTS` del search sube de 5 a 20**.
+- **Cada `results[*]` ahora incluye `brand: String, nullable` y `tags: List<String>`** — el frontend filtra client-side cuando el cliente toca una opción del sidebar.
+- **BizAPI tag-catalog acepta campo `group`**: nueva columna `tag_group VARCHAR(60) NULL` en la tabla. El admin asigna la dimensión (`"voltaje"`, `"tipo"`, `"material"`...) al crear/editar tag. Tags con `group=null` siguen contando al ranking pero no aparecen como criterio en `filters`. Detalle en sección 14.
+- **LLM Groq activado en producción**: `LLM_PROVIDER=openai` con `OPENAI_BASE_URL=https://api.groq.com/openai` (sin /v1, el gateway lo agrega). Intent (confidence ya pasa de 0.5 a 0.8+), Response (frases naturales) y Suggestions (frases contextuales generadas por Llama 3.3 70B) todos activos. Cuando Groq falla, automáticamente fail-open a rule-based + templates.
+
+**Fase 8 — junio 2026:**
 - **VoAPI search devuelve hasta 3 sugerencias en el unhappy path**: cuando `POST /api/v1/conversations/search` no encuentra match al query, ahora `results` viene con hasta 3 productos del store en vez de array vacío. Mantiene `noResults=true`. Nuevo campo opcional `suggestedFromCategory: String, nullable` para personalizar el copy ("Te puede interesar de aretes:" vs "Te puede interesar:"). Backward compatible — clientes viejos siguen funcionando. Detalle en sección 12.
 - **BizAPI: catálogo agregado por categoría**: nuevo endpoint `GET /api/v1/catalog/by-category` devuelve la lista de categorías del store con sus productos AVAILABLE/LOW_STOCK embebidos. Usado por la pantalla "ver catálogo" del kiosko. Detalle en sección nueva 8.5.
 - **STT Deepgram activado en producción**: `POST /api/v1/stt/token` ahora emite tokens reales de Deepgram (no más stubs). El frontend ya puede transcribir audio de verdad. Detalle en sección 6.
@@ -44,7 +51,7 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 **Auto-tag con visión (Fase 6 + 6.1):**
 - `POST /api/v1/products/{id}/suggest-tags` — para producto ya existente (foto cargada vía `mediaId` o URL).
 - `POST /api/v1/tags/suggest-from-image` — para foto en `drafts/` antes de crear el producto. Útil cuando el comerciante elige una foto, pide tags, y recién después confirma el guardado.
-  Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) y filtran defensivamente contra el catálogo del (mall × rubro).
+Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) y filtran defensivamente contra el catálogo del (mall × rubro).
 
 ---
 
@@ -58,7 +65,7 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 6. [Auth API — STT Token](#6-auth-api--stt-token)
 7. [BizAPI — Categorías](#7-bizapi--categorías)
 8. [BizAPI — Productos](#8-bizapi--productos)
-   8.5. [BizAPI — Catálogo agregado (Fase 8)](#85-bizapi--catálogo-agregado-fase-8)
+8.5. [BizAPI — Catálogo agregado (Fase 8)](#85-bizapi--catálogo-agregado-fase-8)
 9. [BizAPI — Órdenes](#9-bizapi--órdenes)
 10. [BizAPI — Device Sync](#10-bizapi--device-sync)
 11. [BizAPI — Analytics](#11-bizapi--analytics)
@@ -612,7 +619,7 @@ curl http://87.99.156.164/api/v1/subscriptions/current \
 
 ### POST /api/v1/devices/pairing-token
 
-**Descripción:** La tablet genera un código de vinculación de 5 caracteres (TTL 5 min, ver `expiresInSeconds`) y un `sessionId` opaco. Lo muestra en pantalla.  
+**Descripción:** La tablet genera un código de vinculación de 5 caracteres (TTL 5 min) y un `sessionId` opaco. Lo muestra en pantalla.  
 **Autenticación:** **Pública** (la tablet no tiene JWT)  
 **URL producción:** `http://87.99.156.164/api/v1/devices/pairing-token`
 
@@ -1560,15 +1567,15 @@ curl -X DELETE \
 
 - **Top-level: array de categorías**. Si el store no tiene productos AVAILABLE, devuelve `[]`.
 - **Filtros de productos**:
-   - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
-   - Solo productos activos (`isActive=true`).
-   - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
+  - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
+  - Solo productos activos (`isActive=true`).
+  - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
 - **Categorías que se omiten**:
-   - Categorías sin ningún producto AVAILABLE no aparecen en el array.
-   - Categorías inactivas no aparecen.
+  - Categorías sin ningún producto AVAILABLE no aparecen en el array.
+  - Categorías inactivas no aparecen.
 - **Orden**:
-   - Categorías: por `position ASC, name ASC`.
-   - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
+  - Categorías: por `position ASC, name ASC`.
+  - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
 - **Multi-tenant**: filtrado por `storeId` del JWT. Nunca se mezclan productos de otras tiendas.
 
 **Campos del producto** (`ProductSummaryResponse` — reutilizado del listado plano `/api/v1/products`):
@@ -1991,7 +1998,7 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 
 ### POST /api/v1/conversations/search
 
-**Descripción:** Recibe texto ya transcrito (por el dispositivo vía Deepgram), extrae la intención de búsqueda y retorna hasta 5 productos relevantes con texto para síntesis de voz. Si el ranking no encuentra match, devuelve hasta 3 sugerencias del store para mantener la conversación viva (unhappy path — Fase 8).
+**Descripción:** Recibe texto ya transcrito (por el dispositivo vía Deepgram), extrae la intención de búsqueda y retorna hasta **20** productos relevantes (subido desde 5 — Fase 9, ClickUp 86e1r9epc) más `filters` y `suggestions` para el sidebar del kiosko. Si el ranking no encuentra match, devuelve hasta 3 sugerencias de productos del store para mantener la conversación viva (unhappy path — Fase 8); en ese caso `filters` y `suggestions` van vacíos.
 
 **Autenticación:** JWT requerido (cualquier rol — típicamente `DEVICE`)  
 **URL producción:** `http://87.99.156.164/api/v1/conversations/search`
@@ -2013,34 +2020,48 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
   "understood": true,
   "interpretedQuery": {
     "intent": "PRODUCT_SEARCH",
-    "category": "lámpara",
-    "subtype": "pared",
-    "style": "vintage",
+    "category": "taladro",
+    "subtype": "percutor",
+    "style": null,
     "useContext": null,
     "maxPrice": null,
     "minPrice": null,
     "color": null,
     "sizePreference": null,
     "attributes": [],
-    "rawText": "busco una lámpara de pared vintage",
-    "confidence": 0.9
+    "rawText": "busco un taladro percutor",
+    "confidence": 0.92
   },
   "results": [
     {
       "id": "uuid",
-      "name": "Lámpara de Pared Vintage",
-      "description": "Estilo vintage, ideal para sala",
-      "price": 89.90,
+      "name": "Taladro Percutor Bosch GSB 13 RE",
+      "description": "Taladro percutor 650W",
+      "price": 189.90,
       "availability": "AVAILABLE",
-      "categoryName": "Lámparas",
+      "categoryName": "Herramientas",
       "primaryImageUrl": "https://...",
-      "relevanceScore": 85
+      "relevanceScore": 92,
+      "brand": "Bosch",
+      "tags": ["12v", "percutor"]
     }
+  ],
+  "filters": [
+    { "criterion": "Marca",   "options": ["Bosch", "DeWalt", "Makita"] },
+    { "criterion": "Voltaje", "options": ["12V", "18V", "20V"] },
+    { "criterion": "Tipo",    "options": ["Percutor", "Inalámbrico"] }
+  ],
+  "suggestions": [
+    "Para uso doméstico",
+    "Para uso profesional",
+    "Inalámbrico",
+    "Kit completo",
+    "Percutor"
   ],
   "noResults": false,
   "suggestedFromCategory": null,
-  "spokenText": "Encontré 1 lámpara vintage. La más relevante cuesta 89 soles.",
-  "displayText": "1 resultado para 'lámpara vintage'",
+  "spokenText": "Encontré varios taladros. El más relevante es un Bosch a 189 soles.",
+  "displayText": "20 resultados para 'taladro percutor'",
   "fallbackMessage": null
 }
 ```
@@ -2057,6 +2078,8 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
   ],
   "noResults": true,
   "suggestedFromCategory": "lámpara",
+  "filters": [],
+  "suggestions": [],
   "spokenText": "Lo sentimos, no encontramos productos para tu búsqueda.",
   "displayText": "Sin resultados",
   "fallbackMessage": "No encontramos productos para tu búsqueda. Puedes consultar con nuestros asesores."
@@ -2073,22 +2096,33 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
   ],
   "noResults": true,
   "suggestedFromCategory": null,
+  "filters": [],
+  "suggestions": [],
   "fallbackMessage": "..."
 }
 ```
 
-**Notas (importantes para el frontend — comportamiento NUEVO en Fase 8):**
+**Notas sobre `filters` y `suggestions` (Fase 9, ClickUp 86e1r9epc):**
+
+- **`filters`** es un array de objetos `{criterion, options}` para el sidebar de filtros del kiosko (Mockup 5). Máximo 5 criterios, máximo 5 opciones por criterio. Strings planos en `options` — NO llevan `count`. Vacío `[]` cuando `noResults=true`.
+  - El criterio **"Marca"** viene del campo `brand` de cada producto resuelto. Aparece primero si tiene opciones. Ordenadas por frecuencia descendente, desempate alfabético.
+  - Otros criterios vienen de **tags agrupados** por la nueva columna `group` del tag catalog (ej. "voltaje" → criterio "Voltaje" con opciones "12V/18V/20V"). Solo los tags con `group` no nulo aparecen. El admin del catálogo asigna el `group` a cada tag. Tags con `group` null siguen contando al ranking pero no aparecen como filtros.
+- **`suggestions`** es un array plano de hasta 5 strings con frases cortas para que el cliente refine su búsqueda ("Para uso doméstico", "Inalámbrico", etc.). Generado por LLM (Groq) cuando `vitria.llm.suggestions.enabled=true`; fallback a templates por categoría cuando el LLM falla. Si no hay templates para la categoría (o la categoría no se entendió) → `[]`. Vacío `[]` cuando `noResults=true`.
+- **Frontend filtra client-side**: cada producto ahora trae `brand` y `tags` para que el frontend filtre la lista localmente cuando el cliente toca una opción del sidebar (no hace falta nuevo request al backend).
+- **`MAX_RESULTS` subió de 5 a 20** — el sidebar tiene sentido con más opciones para filtrar.
+
+**Notas sobre el unhappy path (Fase 8 — Flow C):**
 
 - **`noResults` indica "no hubo match al query"**, NO "array vacío". `results` puede tener hasta 3 sugerencias aunque `noResults=true`. Pensar el flag como "el ranking falló" y `results` como "lo que sirve mostrar al usuario".
 - **`suggestedFromCategory` (NUEVO, nullable)**:
-   - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
-   - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
-   - Si `noResults=false` (happy path) → siempre `null`.
+  - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
+  - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
+  - Si `noResults=false` (happy path) → siempre `null`.
 - **`fallbackMessage`** sigue presente cuando `noResults=true` con el mensaje de "Lo sentimos…". Es el copy "de cabecera" de la pantalla unhappy. Las sugerencias van debajo.
 - **`results[*].relevanceScore = 0`** identifica que el producto vino de las sugerencias del unhappy path, no del ranking real. Útil para tracking.
 - **Tamaño**:
-   - Happy path: hasta 5 productos.
-   - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
+  - Happy path: hasta 5 productos.
+  - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
 - **Filtros de las sugerencias**: solo `AVAILABLE` + `isActive=true`. LOW_STOCK y CONSULT quedan fuera.
 - **Orden de las sugerencias**: `position ASC, name ASC` (determinístico, lo mismo en consultas sucesivas).
 - **Backward compat**: si renderizan `results` siempre, los clientes viejos funcionarán igual. El campo `suggestedFromCategory` es opcional — ignorenlo si no lo usan todavía.
@@ -2290,7 +2324,7 @@ Multi-store: un usuario puede estar vinculado a varias tiendas.
 
 ### `/api/v1/admin/tag-catalog` — Catálogo de tags (biz)
 
-Curado por Vitria. Indexado por (`shoppingCenterId`, `storeCategory`).
+Curado por Vitria (`role=ADMIN` requerido). Indexado por (`shoppingCenterId`, `storeCategory`). El campo `group` (Fase 9) agrupa tags por dimensión para el sidebar del kiosko (ej "voltaje", "tipo", "material") — solo los tags con `group` poblado aparecen como criterios en el `filters` del search.
 
 | Método | Path | Descripción |
 |---|---|---|
@@ -2301,6 +2335,28 @@ Curado por Vitria. Indexado por (`shoppingCenterId`, `storeCategory`).
 | DELETE | `/api/v1/admin/tag-catalog/{id}` | Soft delete |
 | POST   | `/api/v1/admin/tag-catalog/bulk` | Import masivo (UPSERT/REPLACE) |
 
+**Shape común (request/response):**
+```json
+{
+  "shoppingCenterId": "uuid",
+  "storeCategory": "JEWELRY",
+  "value": "oro-amarillo",
+  "label": "Oro Amarillo",
+  "description": "(opcional)",
+  "group": "material",
+  "position": 0
+}
+```
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `value` | string | Lowercase alfanumérico (`^[a-z0-9][a-z0-9_-]*$`), max 60. Lo que se persiste en `Product.tags`. |
+| `label` | string | Texto visible al cliente del kiosko. Max 120. |
+| `description` | string \| null | Pista para el LLM al sugerir. Max 2000. |
+| **`group`** | string \| null | **(Fase 9, NUEVO)** Dimensión: `"voltaje"`, `"tipo"`, `"material"`, etc. Vocabulario libre. Max 60. NULL = el tag no aparece en `filters` del search pero sigue contando al ranking. |
+| `position` | int | Orden del sidebar. |
+| `active` | bool | Soft delete flag (solo response). |
+
 **Bulk body:**
 ```json
 {
@@ -2308,14 +2364,21 @@ Curado por Vitria. Indexado por (`shoppingCenterId`, `storeCategory`).
   "storeCategory": "JEWELRY",
   "mode": "REPLACE",
   "tags": [
-    { "value": "oro", "label": "Oro", "description": "(opcional)", "position": 0 },
-    { "value": "vintage", "label": "Vintage", "position": 1 }
+    { "value": "oro", "label": "Oro", "group": "material", "position": 0 },
+    { "value": "vintage", "label": "Vintage", "group": "estilo", "position": 1 }
   ]
 }
 ```
 - `mode=UPSERT` (default): crea o actualiza por `value`, deja intactos los existentes.
 - `mode=REPLACE`: desactiva los tags ausentes en el payload y upserts los del payload.
 - `value`: lowercase alfanumérico, guiones/underscore permitidos, sin espacios.
+- `group`: opcional en cada row. Si se omite, el tag queda sin grupo y no aparece como filtro.
+
+**`PUT /api/v1/admin/tag-catalog/{id}` (update parcial):**
+```json
+{ "group": "voltaje" }
+```
+- Solo se envían los campos a modificar. `null` no cambia el campo (a diferencia de POST donde sí persiste null). Para limpiar el `group` de un tag, mandar `""` (string vacío).
 
 ---
 
@@ -2344,6 +2407,7 @@ Tres modos de resolución:
       "value": "oro",
       "label": "Oro",
       "description": null,
+      "group": "material",
       "position": 0,
       "active": true,
       "createdAt": "...",
@@ -2352,6 +2416,10 @@ Tres modos de resolución:
   ]
 }
 ```
+
+**Notas:**
+- El campo **`group`** (Fase 9) indica la dimensión del tag (`"material"`, `"voltaje"`, `"tipo"`, etc.). El frontend del comerciante puede **agruparlos visualmente** en el form de creación/edición de producto (ej: chips de "Material" separados de chips de "Estilo"). NULL = tag sin dimensión asignada.
+- El response sigue `tag_catalog` activo del mall × rubro del JWT. Para que el sidebar del kiosko muestre criterios, el admin debe haber asignado `group` a los tags relevantes via `/admin/tag-catalog`.
 
 **Errores:**
 - `400` si el JWT no lleva tienda activa (multi-store sin switch).

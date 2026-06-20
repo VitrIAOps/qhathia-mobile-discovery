@@ -38,4 +38,13 @@ sealed interface ProductSearchUiEvent {
 
     /** Tap a product card (its surface, not the cart button) — opens the product detail. */
     data class ProductTapped(val productId: String) : ProductSearchUiEvent
+
+    /** Toggle a filter option ([criterion] + [option]); re-tapping a selected option de-selects it. */
+    data class FilterToggled(val criterion: String, val option: String) : ProductSearchUiEvent
+
+    /** Clear every selected option under [criterion] (the section's "Limpiar" link). */
+    data class FilterCriterionCleared(val criterion: String) : ProductSearchUiEvent
+
+    /** Select a suggestion [phrase]; re-tapping the active suggestion de-selects it. */
+    data class SuggestionSelected(val phrase: String) : ProductSearchUiEvent
 }

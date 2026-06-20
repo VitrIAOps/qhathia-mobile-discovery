@@ -1,12 +1,15 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,8 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,14 +31,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.qhathia.mobile.discovery.core.domain.model.Product
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
@@ -48,14 +62,19 @@ import com.qhathia.mobile.discovery.feature.productsearch.R
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEvent
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiState
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Stateless product-search UI — a pure function of [ProductSearchUiState], built from the Qhathia
- * design system and following the catalog-from-chat / unhappy Figma frames (the filters & suggestions
- * sidebar shown in Figma is intentionally out of scope). The body swaps by phase; the top bar is
- * always present and the bottom search bar + mic show on settled phases.
+ * design system and following the catalog-from-chat / unhappy Figma frames. On the results phase a
+ * filters & suggestions panel (Figma 722-13413 / 722-13564) lets the consumer refine the search; it
+ * is hidden when the response carried neither. The body swaps by phase; the top bar is always present
+ * and the bottom search bar + mic show on settled phases.
  */
 @Composable
 fun ProductSearchContent(
@@ -64,42 +83,64 @@ fun ProductSearchContent(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            TopBar(
-                cartItemCount = uiState.cartItemCount,
-                onBack = { onEvent(ProductSearchUiEvent.Back) },
-                onNewSearch = { onEvent(ProductSearchUiEvent.NewSearch) },
-                onCart = { onEvent(ProductSearchUiEvent.OpenCart) },
-            )
+        val phase = uiState.phase
+        // The refine sidebar spans the full screen height (Figma 722-13413), wrapping the entire
+        // results column — the top bar and bottom search bar sit to its right, not above/below it.
+        // It shows only on a results phase whose response carried filters or suggestions.
+        val refinePhase = (phase as? ProductSearchPhase.Results)
+            ?.takeIf { it.filters.isNotEmpty() || it.suggestions.isNotEmpty() }
 
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                when (val phase = uiState.phase) {
-                    ProductSearchPhase.VoiceListening,
-                    ProductSearchPhase.VoiceTranscribing,
-                    ProductSearchPhase.VoiceSlowResponse,
-                    ProductSearchPhase.Searching,
-                    ProductSearchPhase.SlowSearch,
-                    ProductSearchPhase.SearchingAlternatives,
-                    -> ProcessingBody(
-                        uiState = uiState,
-                        onEvent = onEvent,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-
-                    is ProductSearchPhase.Results -> ResultsBody(phase = phase, onEvent = onEvent)
-
-                    is ProductSearchPhase.Unhappy -> UnhappyBody(
-                        phase = phase,
-                        onEvent = onEvent,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-
-                    ProductSearchPhase.NetworkError -> NetworkErrorBody(modifier = Modifier.align(Alignment.Center))
-                }
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (refinePhase != null) {
+                FiltersSuggestionsPanel(
+                    filters = refinePhase.filters,
+                    suggestions = refinePhase.suggestions,
+                    selectedFilters = uiState.selectedFilters,
+                    selectedSuggestion = uiState.selectedSuggestion,
+                    onEvent = onEvent,
+                )
             }
 
-            if (!uiState.isProcessing) {
-                BottomBar(query = uiState.query, onEvent = onEvent)
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                TopBar(
+                    cartItemCount = uiState.cartItemCount,
+                    onBack = { onEvent(ProductSearchUiEvent.Back) },
+                    onNewSearch = { onEvent(ProductSearchUiEvent.NewSearch) },
+                    onCart = { onEvent(ProductSearchUiEvent.OpenCart) },
+                )
+
+                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    when (phase) {
+                        ProductSearchPhase.VoiceListening,
+                        ProductSearchPhase.VoiceTranscribing,
+                        ProductSearchPhase.VoiceSlowResponse,
+                        ProductSearchPhase.Searching,
+                        ProductSearchPhase.SlowSearch,
+                        ProductSearchPhase.SearchingAlternatives,
+                        -> ProcessingBody(
+                            uiState = uiState,
+                            onEvent = onEvent,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+
+                        is ProductSearchPhase.Results -> ResultsBody(
+                            phase = phase,
+                            onEvent = onEvent,
+                        )
+
+                        is ProductSearchPhase.Unhappy -> UnhappyBody(
+                            phase = phase,
+                            onEvent = onEvent,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+
+                        ProductSearchPhase.NetworkError -> NetworkErrorBody(modifier = Modifier.align(Alignment.Center))
+                    }
+                }
+
+                if (!uiState.isProcessing) {
+                    BottomBar(query = uiState.query, onEvent = onEvent)
+                }
             }
         }
 
@@ -119,32 +160,42 @@ private fun TopBar(
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconTextButton(
-            iconRes = UiR.drawable.ic_arrow_back,
-            text = stringResource(R.string.ps_back),
-            contentDescription = stringResource(R.string.ps_back_cd),
-            onClick = onBack,
-            leadingIcon = true,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        IconTextButton(
-            iconRes = UiR.drawable.ic_refresh,
-            text = stringResource(R.string.ps_new_search),
-            contentDescription = stringResource(R.string.ps_new_search_cd),
-            onClick = onNewSearch,
-        )
-        Spacer(modifier = Modifier.width(Spacing.md))
-        CartButton(
-            itemCount = cartItemCount,
-            label = stringResource(R.string.ps_go_to_cart),
-            contentDescription = stringResource(R.string.ps_go_to_cart),
-            onClick = onCart,
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconTextButton(
+                iconRes = UiR.drawable.ic_arrow_back,
+                text = stringResource(R.string.ps_back),
+                contentDescription = stringResource(R.string.ps_back_cd),
+                onClick = onBack,
+                leadingIcon = true,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            IconTextButton(
+                iconRes = UiR.drawable.ic_refresh,
+                text = stringResource(R.string.ps_new_search),
+                contentDescription = stringResource(R.string.ps_new_search_cd),
+                onClick = onNewSearch,
+            )
+            Spacer(modifier = Modifier.width(Spacing.md))
+            CartButton(
+                itemCount = cartItemCount,
+                label = stringResource(R.string.ps_go_to_cart),
+                contentDescription = stringResource(R.string.ps_go_to_cart),
+                onClick = onCart,
+            )
+        }
+        // Hairline separating the toolbar from the results (Figma 722-13419 border-b).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .height(0.dp)
+                .background(DiscoveryColors.Blue200),
         )
     }
 }
@@ -226,7 +277,7 @@ private fun ResultsBody(
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
-            modifier = Modifier.padding(horizontal = Spacing.lg),
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
@@ -256,6 +307,224 @@ private fun ResultsBody(
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
             )
         }
+    }
+}
+
+/**
+ * The left "Afina tu búsqueda" panel (Figma 722-13413): a fixed header, one scrollable section per
+ * filter criterion (each option a toggleable chip), and a highlighted Sugerencias section pinned to
+ * the bottom edge. Selected chips render filled per Figma. The panel carries the design's 40dp
+ * vertical inset and a soft right-edge shadow.
+ */
+@Composable
+private fun FiltersSuggestionsPanel(
+    filters: ImmutableList<SearchFilter>,
+    suggestions: ImmutableList<String>,
+    selectedFilters: ImmutableSet<SearchFilterOption>,
+    selectedSuggestion: String?,
+    onEvent: (ProductSearchUiEvent) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(280.dp)
+            .fillMaxHeight()
+            .background(Color.White)
+            .padding(Spacing.lg),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Icon(
+                    painter = painterResource(UiR.drawable.ic_filter),
+                    contentDescription = stringResource(R.string.ps_refine_icon_cd),
+                    tint = DiscoveryColors.CatalogText,
+                    modifier = Modifier.size(22.dp),
+                )
+                Text(
+                    text = stringResource(R.string.ps_refine_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = DiscoveryColors.CatalogText,
+                )
+            }
+            Text(
+                text = stringResource(R.string.ps_refine_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = DiscoveryColors.TextMuted,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(DiscoveryColors.Divider),
+            )
+        }
+
+        // Criterion sections take the remaining height (scrolling on overflow) so the highlighted
+        // Sugerencias card settles against the bottom edge, matching the Figma justify-between layout.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = Spacing.md)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            filters.forEach { filter ->
+                CriterionSection(
+                    criterion = filter.criterion,
+                    options = filter.options,
+                    selectedFilters = selectedFilters,
+                    onEvent = onEvent,
+                )
+            }
+        }
+
+        if (suggestions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            SuggestionsSection(
+                suggestions = suggestions,
+                selectedSuggestion = selectedSuggestion,
+                onEvent = onEvent,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CriterionSection(
+    criterion: String,
+    options: List<String>,
+    selectedFilters: ImmutableSet<SearchFilterOption>,
+    onEvent: (ProductSearchUiEvent) -> Unit,
+) {
+    val hasSelection = selectedFilters.any { it.criterion == criterion }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Icon(
+                    painter = painterResource(UiR.drawable.ic_tag),
+                    contentDescription = null,
+                    tint = DiscoveryColors.CatalogText,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = criterion,
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, letterSpacing = 0.1.sp),
+                    color = DiscoveryColors.CatalogText,
+                )
+            }
+            // "Limpiar" only appears once this criterion has a selection to clear.
+            if (hasSelection) {
+                val clearCd = stringResource(R.string.ps_filter_clear_cd, criterion)
+                Text(
+                    text = stringResource(R.string.ps_filter_clear),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    color = DiscoveryColors.LinkBlue,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onEvent(ProductSearchUiEvent.FilterCriterionCleared(criterion)) }
+                        .semantics { contentDescription = clearCd }
+                        .padding(Spacing.xs),
+                )
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            options.forEach { option ->
+                RefineChip(
+                    label = option,
+                    selected = SearchFilterOption(criterion, option) in selectedFilters,
+                    contentDescription = stringResource(R.string.ps_filter_option_cd, criterion, option),
+                    onClick = { onEvent(ProductSearchUiEvent.FilterToggled(criterion, option)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionsSection(
+    suggestions: ImmutableList<String>,
+    selectedSuggestion: String?,
+    onEvent: (ProductSearchUiEvent) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(1.dp, DiscoveryColors.AccentOrange, RoundedCornerShape(16.dp))
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Icon(
+                painter = painterResource(UiR.drawable.ic_sparkle),
+                contentDescription = stringResource(R.string.ps_suggestions_icon_cd),
+                tint = DiscoveryColors.AccentOrange,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = stringResource(R.string.ps_suggestions_title),
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+                color = DiscoveryColors.CatalogText,
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            suggestions.forEach { phrase ->
+                RefineChip(
+                    label = phrase,
+                    selected = phrase == selectedSuggestion,
+                    contentDescription = stringResource(R.string.ps_suggestion_cd, phrase),
+                    onClick = { onEvent(ProductSearchUiEvent.SuggestionSelected(phrase)) },
+                )
+            }
+        }
+    }
+}
+
+/** A toggleable refine chip: white with a blue-100 border by default, filled blue when [selected]. */
+@Composable
+private fun RefineChip(
+    label: String,
+    selected: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(8.dp)
+    // Selected chips use a fixed dark-blue fill, so pair it with a fixed light label for contrast in
+    // both themes; default chips follow the theme's surface/onSurface roles.
+    val background = if (selected) DiscoveryColors.Blue500 else MaterialTheme.colorScheme.surface
+    val labelColor = if (selected) DiscoveryColors.Neutral50 else MaterialTheme.colorScheme.onSurface
+    Box(
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .clip(shape)
+            .background(background)
+            .then(if (selected) Modifier else Modifier.border(1.dp, DiscoveryColors.Blue100, shape))
+            .clickable(onClick = onClick)
+            .semantics {
+                this.contentDescription = contentDescription
+                this.selected = selected
+            }
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = labelColor,
+        )
     }
 }
 
@@ -341,7 +610,7 @@ private fun BottomBar(
             )
             Text(
                 text = stringResource(R.string.ps_prompt),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp),
                 color = DiscoveryColors.Blue800,
             )
         }
@@ -404,6 +673,35 @@ private fun sampleProducts(count: Int): List<Product> = (1..count).map {
     )
 }
 
+private fun sampleFilters(): List<SearchFilter> = listOf(
+    SearchFilter(criterion = "Marca", options = listOf("Bosch", "Makita", "Dewalt")),
+    SearchFilter(criterion = "Voltaje", options = listOf("12V", "18V", "20V")),
+)
+
+private fun sampleSuggestions(): List<String> = listOf(
+    "Para uso en casa",
+    "Para uso profesional",
+    "Percutor",
+    "Kit completo",
+)
+
+private fun resultsWithRefine(
+    count: Int = 8,
+    selectedFilters: Set<SearchFilterOption> = emptySet(),
+    selectedSuggestion: String? = null,
+): ProductSearchUiState = ProductSearchUiState(
+    source = SearchSource.Voice,
+    phase = ProductSearchPhase.Results(
+        products = sampleProducts(count).toImmutableList(),
+        displayText = "Encontré $count taladros para ti",
+        filters = sampleFilters().toImmutableList(),
+        suggestions = sampleSuggestions().toImmutableList(),
+    ),
+    canGoBack = true,
+    selectedFilters = selectedFilters.toImmutableSet(),
+    selectedSuggestion = selectedSuggestion,
+)
+
 @Preview(name = "Results — light", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable
 private fun ResultsLightPreview() {
@@ -427,6 +725,52 @@ private fun ResultsDarkPreview() {
             uiState = ProductSearchUiState(
                 source = SearchSource.Text,
                 phase = ProductSearchPhase.Results(sampleProducts(6).toImmutableList(), "Encontré 6 taladros para ti"),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Results + refine — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsRefineLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(uiState = resultsWithRefine(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results + refine — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsRefineDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(uiState = resultsWithRefine(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results + refine selected — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsRefineSelectedLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(
+            uiState = resultsWithRefine(
+                count = 3,
+                selectedFilters = setOf(SearchFilterOption("Marca", "Bosch"), SearchFilterOption("Voltaje", "12V")),
+                selectedSuggestion = "Para uso en casa",
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Results + refine selected — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsRefineSelectedDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(
+            uiState = resultsWithRefine(
+                count = 3,
+                selectedFilters = setOf(SearchFilterOption("Marca", "Bosch"), SearchFilterOption("Voltaje", "12V")),
+                selectedSuggestion = "Para uso en casa",
             ),
             onEvent = {},
         )

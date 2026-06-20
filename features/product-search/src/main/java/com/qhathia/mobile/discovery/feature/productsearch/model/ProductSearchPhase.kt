@@ -1,7 +1,9 @@
 package com.qhathia.mobile.discovery.feature.productsearch.model
 
 import com.qhathia.mobile.discovery.core.domain.model.Product
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * The mutually-exclusive phases of the product-search screen.
@@ -29,10 +31,15 @@ sealed interface ProductSearchPhase {
     /** A disguised alternative search is running after a no-results / search-error outcome. */
     data object SearchingAlternatives : ProductSearchPhase
 
-    /** The search returned [products]; [displayText] is the results headline. */
+    /**
+     * The search returned [products]; [displayText] is the results headline. [filters] and
+     * [suggestions] drive the refine-by-selection section (both empty hides it).
+     */
     data class Results(
         val products: ImmutableList<Product>,
         val displayText: String,
+        val filters: ImmutableList<SearchFilter> = persistentListOf(),
+        val suggestions: ImmutableList<String> = persistentListOf(),
     ) : ProductSearchPhase
 
     /** No results or a search (API) error; [alternatives] holds up to 3 suggested products. */

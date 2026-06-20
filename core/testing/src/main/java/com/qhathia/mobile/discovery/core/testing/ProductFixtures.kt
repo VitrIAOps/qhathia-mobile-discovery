@@ -2,9 +2,17 @@ package com.qhathia.mobile.discovery.core.testing
 
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 
 /** Canonical product-search test data so tests don't re-declare product/result shapes. */
 object ProductFixtures {
+
+    fun filters(): List<SearchFilter> = listOf(
+        SearchFilter(criterion = "Marca", options = listOf("Bosch", "Makita", "Dewalt")),
+        SearchFilter(criterion = "Voltaje", options = listOf("12V", "18V", "20V")),
+    )
+
+    fun suggestions(): List<String> = listOf("Para uso en casa", "Para uso profesional", "Percutor")
 
     fun product(
         id: String = "p1",
@@ -35,12 +43,16 @@ object ProductFixtures {
         understood: Boolean = true,
         noResults: Boolean = false,
         fallbackMessage: String? = null,
+        filters: List<SearchFilter> = filters(),
+        suggestions: List<String> = suggestions(),
     ): ProductSearchResult = ProductSearchResult(
         products = products,
         displayText = displayText,
         understood = understood,
         noResults = noResults,
         fallbackMessage = fallbackMessage,
+        filters = filters,
+        suggestions = suggestions,
     )
 
     fun noResults(): ProductSearchResult = ProductSearchResult(
