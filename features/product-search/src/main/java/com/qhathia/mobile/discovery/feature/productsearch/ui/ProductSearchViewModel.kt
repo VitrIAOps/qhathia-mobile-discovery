@@ -16,7 +16,6 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
@@ -46,19 +45,19 @@ import javax.inject.Inject
 /**
  * Drives the product-search screen and owns its state machine:
  *
- * `Searching → (SlowSearch) → Results` on success; on no-results or a search (API) error,
- * `→ SearchingAlternatives → Unhappy` (a disguised alternative search derived from the keyword,
- * keeping its first 3 products); a connectivity failure settles on `NetworkError` (screen kept).
- * Each settled outcome is pushed onto an in-memory history so Volver can return to the previous
- * result; with no previous result Volver opens the close-confirmation dialog. Nueva búsqueda (once
- * confirmed) clears the history and returns Home idle, as does the 30s idle timeout on the unhappy
- * screen. The microphone animation is retained while processing only for a voice-initiated search.
+ * A single request per search: `Searching → (SlowSearch) → Results` when the response has
+ * `noResults=false`, or `→ Unhappy` when `noResults=true` (rendering the up-to-3 store suggestions the
+ * response already returned). A search (API) error settles `Unhappy` with no suggestions; a
+ * connectivity failure settles `NetworkError` (screen kept). Each settled outcome is pushed onto an
+ * in-memory history so Volver can return to the previous result; with no previous result Volver opens
+ * the close-confirmation dialog. Nueva búsqueda (once confirmed) clears the history and returns Home
+ * idle, as does the 30s idle timeout on the unhappy screen. The microphone animation is retained
+ * while processing only for a voice-initiated search.
  */
 @HiltViewModel
 class ProductSearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val searchProducts: SearchProductsUseCase,
-    private val generalizeQuery: GeneralizeQueryUseCase,
     private val composeSearchQuery: ComposeSearchQueryUseCase,
     private val audioRecorder: AudioRecorder,
     private val transcribeVoiceSearch: TranscribeVoiceSearchUseCase,
@@ -304,28 +303,24 @@ class ProductSearchViewModel @Inject constructor(
             val result = searchProducts(query)
             slowSearchJob?.cancel()
             result.fold(
+                // The backend decides happy vs. unhappy via noResults, and on the unhappy path it
+                // already returns up to 3 store suggestions — no second (generalized) request.
                 onSuccess = { search ->
-                    if (search.products.isNotEmpty()) settleResults(source, search, query, isRefinement)
-                    else startAlternativeSearch(query, source)
+                    if (!search.noResults) {
+                        settleResults(source, search, query, isRefinement)
+                    } else {
+                        settleUnhappy(source, search.products, search.suggestedFromCategory)
+                    }
                 },
                 onFailure = { error ->
                     when ((error as? SearchException)?.category ?: SearchErrorCategory.SearchApi) {
                         SearchErrorCategory.Network -> settleNetworkError(source)
-                        SearchErrorCategory.SearchApi -> startAlternativeSearch(query, source)
+                        // A real API error carries no usable suggestions: show the apology alone.
+                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null)
                     }
                 },
             )
         }
-    }
-
-    private suspend fun startAlternativeSearch(originalQuery: String, source: SearchSource) {
-        _uiState.update { it.copy(phase = ProductSearchPhase.SearchingAlternatives) }
-        val generalized = generalizeQuery(originalQuery)
-        val alternatives = searchProducts(generalized).getOrNull()
-            ?.products
-            ?.take(ProductSearchConstants.ALTERNATIVES_COUNT)
-            .orEmpty()
-        settleUnhappy(source, alternatives)
     }
 
     private fun settleResults(
@@ -345,8 +340,16 @@ class ProductSearchViewModel @Inject constructor(
         settle(source, phase, baseQuery)
     }
 
-    private fun settleUnhappy(source: SearchSource, alternatives: List<Product>) {
-        settle(source, ProductSearchPhase.Unhappy(alternatives.toImmutableList()), baseQuery)
+    private fun settleUnhappy(
+        source: SearchSource,
+        alternatives: List<Product>,
+        suggestedFromCategory: String?,
+    ) {
+        val phase = ProductSearchPhase.Unhappy(
+            alternatives = alternatives.take(ProductSearchConstants.ALTERNATIVES_COUNT).toImmutableList(),
+            suggestedFromCategory = suggestedFromCategory,
+        )
+        settle(source, phase, baseQuery)
         startIdleTimer()
     }
 

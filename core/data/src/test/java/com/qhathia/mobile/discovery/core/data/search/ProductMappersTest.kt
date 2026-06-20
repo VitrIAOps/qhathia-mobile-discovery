@@ -4,6 +4,7 @@ import com.qhathia.mobile.discovery.core.network.dto.ConversationSearchResponseD
 import com.qhathia.mobile.discovery.core.network.dto.SearchFilterDto
 import com.qhathia.mobile.discovery.core.network.dto.SearchProductDto
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -43,5 +44,28 @@ class ProductMappersTest {
 
         assertTrue(domain.filters.isEmpty())
         assertTrue(domain.suggestions.isEmpty())
+    }
+
+    @Test
+    fun `given suggestedFromCategory then maps it through`() {
+        val dto = ConversationSearchResponseDto(
+            understood = true,
+            results = listOf(SearchProductDto(id = "p1", name = "Lámpara LED", price = 89.0)),
+            noResults = true,
+            suggestedFromCategory = "lámpara",
+            displayText = "Sin resultados",
+        )
+
+        assertEquals("lámpara", dto.toDomain().suggestedFromCategory)
+    }
+
+    @Test
+    fun `given no suggestedFromCategory then maps to null`() {
+        val dto = ConversationSearchResponseDto(
+            understood = true,
+            results = listOf(SearchProductDto(id = "p1", name = "Taladro", price = 380.0)),
+        )
+
+        assertNull(dto.toDomain().suggestedFromCategory)
     }
 }

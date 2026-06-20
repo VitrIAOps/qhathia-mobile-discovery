@@ -33,6 +33,7 @@ internal fun ConversationSearchResponseDto.toDomain(): ProductSearchResult {
         understood = understood,
         noResults = noResults || products.isEmpty(),
         fallbackMessage = fallbackMessage,
+        suggestedFromCategory = suggestedFromCategory,
         filters = filters.map { it.toDomain() },
         suggestions = suggestions,
     )

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The product-search capability lets in-store consumers search the store's catalog from the Discovery app — by voice transcript or typed text — and view the matching products as a chat-style results catalog. It owns query submission to the Qhathia search API, the results and "unhappy" (no-results / error) screens, disguised alternative searches, search processing feedback, temporary in-memory search history with back navigation, and resetting the session via a new search.
+The product-search capability lets in-store consumers search the store's catalog from the Discovery app — by voice transcript or typed text — and view the matching products as a chat-style results catalog. It owns query submission to the Qhathia search API, the results and "unhappy" (no-results / error) screens, search processing feedback, temporary in-memory search history with back navigation, and resetting the session via a new search.
 
 ## Requirements
 
@@ -108,7 +108,7 @@ The app SHALL let the consumer select filter options and suggestions on the resu
 
 ### Requirement: Filter or suggestion selection re-queries with concatenated terms
 
-When the consumer selects or de-selects a filter option or a suggestion, the app SHALL issue a new `POST /api/v1/conversations/search` request whose query is built by concatenating the currently selected terms **naturally onto the original raw query** that started the current results view (e.g. raw query *busco un taladro* with suggestion *para uso doméstico* → *busco un taladro para uso doméstico*). The app SHALL retain that original raw query as the immutable concatenation base, so that de-selecting all terms reproduces the base query. The re-query SHALL refresh both the products and the filters/suggestions lists from the new response, and SHALL reuse the existing search processing, alternative-search, and unhappy/network-error handling.
+When the consumer selects or de-selects a filter option or a suggestion, the app SHALL issue a new `POST /api/v1/conversations/search` request whose query is built by concatenating the currently selected terms **naturally onto the original raw query** that started the current results view (e.g. raw query *busco un taladro* with suggestion *para uso doméstico* → *busco un taladro para uso doméstico*). The app SHALL retain that original raw query as the immutable concatenation base, so that de-selecting all terms reproduces the base query. The re-query SHALL refresh both the products and the filters/suggestions lists from the new response, and SHALL reuse the existing search processing and unhappy/network-error handling.
 
 #### Scenario: Selecting a suggestion re-queries with it appended
 
@@ -128,8 +128,28 @@ When the consumer selects or de-selects a filter option or a suggestion, the app
 
 #### Scenario: An empty re-query result follows the unhappy path
 
-- **WHEN** a filter/suggestion re-query returns no products
-- **THEN** the app follows the established alternative-search and unhappy-screen handling
+- **WHEN** a filter/suggestion re-query returns `noResults=true`
+- **THEN** the app follows the established unhappy-screen handling
+
+### Requirement: Search outcome decided by the response's noResults flag
+
+The app SHALL decide the search outcome from the response's `noResults` flag of `POST /api/v1/conversations/search`, in a **single request** per search. When `noResults` is `false`, the app SHALL present the results screen with the returned products. When `noResults` is `true`, the app SHALL present the unhappy screen using the products the **same response** returned in `results` (up to 3). The app SHALL NOT issue a second search to obtain unhappy-path suggestions.
+
+#### Scenario: Results when noResults is false
+
+- **WHEN** a search response has `noResults=false`
+- **THEN** the app presents the results screen with the returned products
+
+#### Scenario: Unhappy from the same response when noResults is true
+
+- **WHEN** a search response has `noResults=true` with up to 3 products in `results`
+- **THEN** the app presents the unhappy screen showing those products
+- **AND** does not issue a second search request
+
+#### Scenario: Empty suggestions on the unhappy path
+
+- **WHEN** a search response has `noResults=true` with an empty `results` list
+- **THEN** the app presents the unhappy screen with its apology copy and no suggested products
 
 ### Requirement: Navigation to product detail from a result
 
@@ -173,7 +193,7 @@ The microphone animation SHALL be kept on the results screen and during the sear
 
 ### Requirement: Search processing feedback
 
-While a search is in progress, the app SHALL show the design-system processing message that matches the current phase, displaying the animated three-dot ("…") indicator: a *searching* message while querying the catalog, a *slow-search* message when a search response has not arrived after **20 seconds**, and a *searching-alternatives* message while an alternative search is running. For a voice search these phases continue the conversation after the already-implemented speech-to-text phases.
+While a search is in progress, the app SHALL show the design-system processing message that matches the current phase, displaying the animated three-dot ("…") indicator: a *searching* message while querying the catalog, and a *slow-search* message when a search response has not arrived after **20 seconds**. For a voice search these phases continue the conversation after the already-implemented speech-to-text phases.
 
 #### Scenario: Searching message while querying
 
@@ -185,24 +205,25 @@ While a search is in progress, the app SHALL show the design-system processing m
 - **WHEN** a search response has not been received after 20 seconds
 - **THEN** the app shows the slow-search processing message with the animated three dots
 
-#### Scenario: Searching-alternatives message
-
-- **WHEN** the app is running an alternative search after a no-results or search-error outcome
-- **THEN** it shows the searching-alternatives processing message with the animated three dots
-
 ### Requirement: No-results and search-error unhappy screen
 
-When a search returns no results or fails with a search (API) error, the app SHALL present the "unhappy" screen following its design: an apology message (*Lo siento, no pude encontrar lo que estás buscando. De pronto te interesaría…*) together with **3 alternative products**, plus the same top bar and bottom search bar as the results screen. If the unhappy screen remains without consumer activity for **30 seconds**, the app SHALL return to the Home idle screen.
+When a search response carries `noResults=true`, or the search fails with a search (API) error, the app SHALL present the "unhappy" screen following its design, with the same top bar and bottom search bar as the results screen. The screen SHALL show an apology (*Lo siento, no pude encontrar lo que estás buscando.*) followed by an **invite line** personalized from `suggestedFromCategory`: when it is a non-null category the invite line SHALL read "Relacionado a '&lt;categoría&gt;' te podría interesar…" using the value verbatim, otherwise the generic "De pronto te interesaría…". The screen SHALL show up to **3 suggested products**: on a `noResults=true` response the suggested products SHALL be the ones the response returned in `results`; on a search (API) error there SHALL be no suggested products. If the unhappy screen remains without consumer activity for **30 seconds**, the app SHALL return to the Home idle screen.
 
-#### Scenario: No results shows alternatives
+#### Scenario: No-match query shows the response's suggestions
 
-- **WHEN** a search returns no products
-- **THEN** the app shows the unhappy screen with the apology message and up to 3 alternative products
+- **WHEN** a search response has `noResults=true` with up to 3 products
+- **THEN** the app shows the unhappy screen with the apology message and those products as suggestions
 
-#### Scenario: Search error shows alternatives
+#### Scenario: Personalized invite line from suggestedFromCategory
+
+- **WHEN** an unhappy response has a non-null `suggestedFromCategory`
+- **THEN** the apology's invite line reads "Relacionado a '&lt;categoría&gt;' te podría interesar…"
+- **AND** when `suggestedFromCategory` is null the invite line reads the generic "De pronto te interesaría…"
+
+#### Scenario: Search error shows no suggestions
 
 - **WHEN** the search request fails with a search (API) error
-- **THEN** the app shows the unhappy screen with the apology message and up to 3 alternative products
+- **THEN** the app shows the unhappy screen with the apology message and no suggested products
 
 #### Scenario: Unhappy screen auto-returns to idle
 
@@ -213,26 +234,6 @@ When a search returns no results or fails with a search (API) error, the app SHA
 
 - **WHEN** the search fails due to lost or unstable network connectivity
 - **THEN** the app keeps the screen and shows the established network-error title and message (*Perdí la conexión… / Parece que la red está inestable…*)
-
-### Requirement: Disguised alternative search
-
-The 3 alternatives on the unhappy screen SHALL be obtained from an **alternative search** derived from the original query's keyword by generalizing it (e.g. *Taladro 20v* → *Taladros*). This alternative search SHALL reuse the same search API and take only the **first 3 products** of its result. The alternative search SHALL be run disguised inside the search process (surfaced as the *searching-alternatives* state), not as a visibly separate step. The alternative search SHALL apply only to no-results and search (API) errors, and SHALL NOT apply to speech-to-text errors.
-
-#### Scenario: Alternatives derived from the keyword
-
-- **WHEN** an alternative search is triggered for the query *Taladro 20v*
-- **THEN** the app issues a generalized query (e.g. *Taladros*) to the same search API
-- **AND** displays the first 3 products of that result as alternatives
-
-#### Scenario: Alternative search is disguised
-
-- **WHEN** the alternative search is running
-- **THEN** it is presented as part of the ongoing search process (the searching-alternatives state) rather than as a separate user-visible search
-
-#### Scenario: No alternative search for STT errors
-
-- **WHEN** a voice search fails with a speech-to-text error
-- **THEN** the app does not run an alternative search
 
 ### Requirement: Temporary search history with back navigation
 

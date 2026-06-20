@@ -9,7 +9,6 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.GeneralizeQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
@@ -53,7 +52,6 @@ class ProductSearchViewModelTest {
     ) = ProductSearchViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_QUERY to query, ARG_SOURCE to source.name)),
         searchProducts = SearchProductsUseCase(repository),
-        generalizeQuery = GeneralizeQueryUseCase(),
         composeSearchQuery = ComposeSearchQueryUseCase(),
         audioRecorder = recorder,
         transcribeVoiceSearch = TranscribeVoiceSearchUseCase(stt),
@@ -105,30 +103,44 @@ class ProductSearchViewModelTest {
     }
 
     @Test
-    fun given_no_results_then_runs_alternatives_and_shows_unhappy() = runTest(mainDispatcher.dispatcher) {
+    fun given_no_results_then_shows_unhappy_with_response_suggestions() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(
-            result = Result.success(ProductFixtures.noResults()),
-            alternativeResult = Result.success(ProductFixtures.result(ProductFixtures.products(5))),
+            result = Result.success(ProductFixtures.noResults(products = ProductFixtures.products(3))),
         )
         val vm = viewModel(query = "taladro 20v", repository = repository)
 
         val phase = vm.uiState.value.phase
         assertTrue(phase is ProductSearchPhase.Unhappy)
         assertEquals(ProductSearchConstants.ALTERNATIVES_COUNT, (phase as ProductSearchPhase.Unhappy).alternatives.size)
-        assertEquals(2, repository.callCount)
-        assertEquals("Taladros", repository.queries[1]) // generalized keyword
+        // A single request — the unhappy suggestions come from the same response, no second search.
+        assertEquals(1, repository.callCount)
     }
 
     @Test
-    fun given_search_api_error_then_runs_alternatives() = runTest(mainDispatcher.dispatcher) {
+    fun given_unhappy_response_then_carries_suggested_category() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(
-            result = Result.failure(SearchException(SearchErrorCategory.SearchApi)),
-            alternativeResult = Result.success(ProductFixtures.result(ProductFixtures.products(3))),
+            result = Result.success(ProductFixtures.noResults(suggestedFromCategory = "lámpara")),
         )
         val vm = viewModel(repository = repository)
 
-        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Unhappy)
-        assertEquals(2, repository.callCount)
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Unhappy
+        assertEquals("lámpara", phase.suggestedFromCategory)
+    }
+
+    @Test
+    fun given_search_api_error_then_shows_unhappy_without_suggestions() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(
+            result = Result.failure(SearchException(SearchErrorCategory.SearchApi)),
+        )
+        val vm = viewModel(repository = repository)
+
+        val phase = vm.uiState.value.phase
+        assertTrue(phase is ProductSearchPhase.Unhappy)
+        phase as ProductSearchPhase.Unhappy
+        assertTrue(phase.alternatives.isEmpty())
+        assertNull(phase.suggestedFromCategory)
+        // A single request — no disguised alternative search.
+        assertEquals(1, repository.callCount)
     }
 
     @Test

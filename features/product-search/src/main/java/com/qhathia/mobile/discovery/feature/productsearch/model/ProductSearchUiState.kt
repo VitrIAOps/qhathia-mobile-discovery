@@ -27,14 +27,13 @@ data class ProductSearchUiState(
     val selectedFilters: ImmutableSet<SearchFilterOption> = persistentSetOf(),
     val selectedSuggestion: String? = null,
 ) {
-    /** True while voice is being captured or a search (original or alternative) is in flight. */
+    /** True while voice is being captured or a search is in flight. */
     val isProcessing: Boolean
         get() = phase is ProductSearchPhase.VoiceListening ||
             phase is ProductSearchPhase.VoiceTranscribing ||
             phase is ProductSearchPhase.VoiceSlowResponse ||
             phase is ProductSearchPhase.Searching ||
-            phase is ProductSearchPhase.SlowSearch ||
-            phase is ProductSearchPhase.SearchingAlternatives
+            phase is ProductSearchPhase.SlowSearch
 
     /** True while the consumer's voice is being captured or transcribed in-place. */
     val isVoiceCapturing: Boolean

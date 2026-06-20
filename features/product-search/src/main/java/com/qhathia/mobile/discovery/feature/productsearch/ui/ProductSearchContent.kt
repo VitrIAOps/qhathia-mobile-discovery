@@ -31,7 +31,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -64,7 +63,7 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiE
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
-import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
 import com.qhathia.mobile.discovery.core.ui.R as UiR
@@ -116,7 +115,6 @@ fun ProductSearchContent(
                         ProductSearchPhase.VoiceSlowResponse,
                         ProductSearchPhase.Searching,
                         ProductSearchPhase.SlowSearch,
-                        ProductSearchPhase.SearchingAlternatives,
                         -> ProcessingBody(
                             uiState = uiState,
                             onEvent = onEvent,
@@ -540,24 +538,31 @@ private fun UnhappyBody(
     ) {
         BrandDot()
         Spacer(modifier = Modifier.height(Spacing.md))
+        // Title: the apology, whose invite line is personalized from the category the backend drew the
+        // suggestions from ("Relacionado a 'lámpara' te podría interesar…") or the generic invite.
+        val invite = phase.suggestedFromCategory
+            ?.let { stringResource(R.string.ps_unhappy_invite_category, it) }
+            ?: stringResource(R.string.ps_unhappy_invite)
         Text(
-            text = stringResource(R.string.ps_unhappy_message),
+            text = "${stringResource(R.string.ps_unhappy_message)}\n$invite",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 576.dp),
         )
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            phase.alternatives.forEach { product ->
-                ProductCard(
-                    name = product.name,
-                    priceText = stringResource(R.string.ps_price, product.price),
-                    imageUrl = product.imageUrl,
-                    cartContentDescription = stringResource(R.string.ps_cart_cd),
-                    onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
-                    onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                )
+        if (phase.alternatives.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                phase.alternatives.forEach { product ->
+                    ProductCard(
+                        name = product.name,
+                        priceText = stringResource(R.string.ps_price, product.price),
+                        imageUrl = product.imageUrl,
+                        cartContentDescription = stringResource(R.string.ps_cart_cd),
+                        onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
+                        onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
+                    )
+                }
             }
         }
     }
@@ -650,6 +655,7 @@ private fun CloseConfirmDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.ps_close_dialog_title)) },
         text = { Text(stringResource(R.string.ps_close_dialog_message)) },
+        containerColor = MaterialTheme.colorScheme.surface,
         confirmButton = {
             TextButton(onClick = onConfirm) { Text(stringResource(R.string.ps_close_dialog_confirm)) }
         },
@@ -799,39 +805,48 @@ private fun SlowSearchTextPreview() {
     }
 }
 
-@Preview(name = "Searching alternatives — light", showBackground = true, widthDp = 1024, heightDp = 640)
-@Composable
-private fun SearchingAlternativesPreview() {
-    DiscoveryTheme(darkTheme = false) {
-        ProductSearchContent(
-            uiState = ProductSearchUiState(source = SearchSource.Voice, phase = ProductSearchPhase.SearchingAlternatives),
-            onEvent = {},
-        )
-    }
-}
-
-@Preview(name = "Unhappy — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Preview(name = "Unhappy + category — light", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable
 private fun UnhappyLightPreview() {
     DiscoveryTheme(darkTheme = false) {
         ProductSearchContent(
             uiState = ProductSearchUiState(
                 source = SearchSource.Text,
-                phase = ProductSearchPhase.Unhappy(sampleProducts(3).toImmutableList()),
+                phase = ProductSearchPhase.Unhappy(
+                    alternatives = sampleProducts(3).toImmutableList(),
+                    suggestedFromCategory = "lámpara",
+                ),
             ),
             onEvent = {},
         )
     }
 }
 
-@Preview(name = "Unhappy — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Preview(name = "Unhappy + category — dark", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable
 private fun UnhappyDarkPreview() {
     DiscoveryTheme(darkTheme = true) {
         ProductSearchContent(
             uiState = ProductSearchUiState(
                 source = SearchSource.Text,
-                phase = ProductSearchPhase.Unhappy(sampleProducts(3).toImmutableList()),
+                phase = ProductSearchPhase.Unhappy(
+                    alternatives = sampleProducts(3).toImmutableList(),
+                    suggestedFromCategory = "lámpara",
+                ),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Unhappy — apology only (API error)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun UnhappyApologyOnlyPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Unhappy(alternatives = persistentListOf()),
             ),
             onEvent = {},
         )

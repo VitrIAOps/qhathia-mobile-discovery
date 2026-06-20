@@ -7,9 +7,9 @@ import kotlinx.coroutines.delay
 /**
  * Configurable [ProductSearchRepository] for tests.
  *
- * [result] is returned for the first (original) search. [alternativeResult], when set, is returned
- * for subsequent searches (the disguised alternative search), letting tests drive the
- * original → alternatives → unhappy flow with distinct data. [delayMillis] simulates a slow search so
+ * [result] is returned for the first search. [alternativeResult], when set, is returned for every
+ * subsequent search, letting tests drive multi-search flows (e.g. a follow-up query, or back
+ * navigation across distinct results) with distinct data. [delayMillis] simulates a slow search so
  * the slow-search message and the search timeout can be exercised on virtual time.
  */
 class FakeProductSearchRepository(

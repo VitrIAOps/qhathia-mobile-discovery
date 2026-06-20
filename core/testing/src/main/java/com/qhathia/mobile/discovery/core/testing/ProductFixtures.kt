@@ -43,6 +43,7 @@ object ProductFixtures {
         understood: Boolean = true,
         noResults: Boolean = false,
         fallbackMessage: String? = null,
+        suggestedFromCategory: String? = null,
         filters: List<SearchFilter> = filters(),
         suggestions: List<String> = suggestions(),
     ): ProductSearchResult = ProductSearchResult(
@@ -51,15 +52,28 @@ object ProductFixtures {
         understood = understood,
         noResults = noResults,
         fallbackMessage = fallbackMessage,
+        suggestedFromCategory = suggestedFromCategory,
         filters = filters,
         suggestions = suggestions,
     )
 
-    fun noResults(): ProductSearchResult = ProductSearchResult(
-        products = emptyList(),
+    /**
+     * Unhappy-path result: the backend returns `noResults=true` with up to 3 store suggestions in
+     * [products] plus the [suggestedFromCategory] they were drawn from. Defaults mirror the Fase 8
+     * contract; pass `products = emptyList()` to model a store with no AVAILABLE suggestions.
+     */
+    fun noResults(
+        products: List<Product> = products(3),
+        suggestedFromCategory: String? = "taladro",
+        fallbackMessage: String? = "No encontré productos para tu búsqueda.",
+    ): ProductSearchResult = ProductSearchResult(
+        products = products,
         displayText = "",
         understood = true,
         noResults = true,
-        fallbackMessage = "No encontré productos para tu búsqueda.",
+        fallbackMessage = fallbackMessage,
+        suggestedFromCategory = suggestedFromCategory,
+        filters = emptyList(),
+        suggestions = emptyList(),
     )
 }

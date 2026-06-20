@@ -8,8 +8,8 @@ import kotlinx.collections.immutable.persistentListOf
 /**
  * The mutually-exclusive phases of the product-search screen.
  *
- * Processing phases ([Searching], [SlowSearch], [SearchingAlternatives]) show an animated processing
- * message; settled phases ([Results], [Unhappy], [NetworkError]) show content the consumer can act on.
+ * Processing phases ([Searching], [SlowSearch]) show an animated processing message; settled phases
+ * ([Results], [Unhappy], [NetworkError]) show content the consumer can act on.
  */
 sealed interface ProductSearchPhase {
 
@@ -28,9 +28,6 @@ sealed interface ProductSearchPhase {
     /** The query has been in flight beyond the slow-search threshold (20s). */
     data object SlowSearch : ProductSearchPhase
 
-    /** A disguised alternative search is running after a no-results / search-error outcome. */
-    data object SearchingAlternatives : ProductSearchPhase
-
     /**
      * The search returned [products]; [displayText] is the results headline. [filters] and
      * [suggestions] drive the refine-by-selection section (both empty hides it).
@@ -42,8 +39,15 @@ sealed interface ProductSearchPhase {
         val suggestions: ImmutableList<String> = persistentListOf(),
     ) : ProductSearchPhase
 
-    /** No results or a search (API) error; [alternatives] holds up to 3 suggested products. */
-    data class Unhappy(val alternatives: ImmutableList<Product>) : ProductSearchPhase
+    /**
+     * No results (the response's `noResults=true`) or a search (API) error. [alternatives] holds up
+     * to 3 suggested products the response returned (empty on a search error). [suggestedFromCategory]
+     * personalizes the apology's invite line (null → generic invite).
+     */
+    data class Unhappy(
+        val alternatives: ImmutableList<Product>,
+        val suggestedFromCategory: String? = null,
+    ) : ProductSearchPhase
 
     /** The search failed due to lost/unstable connectivity; the screen is kept with a connection message. */
     data object NetworkError : ProductSearchPhase

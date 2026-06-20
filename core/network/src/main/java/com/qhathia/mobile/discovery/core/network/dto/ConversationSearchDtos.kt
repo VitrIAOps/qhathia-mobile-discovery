@@ -20,13 +20,16 @@ data class ConversationSearchRequestDto(
  * `ignoreUnknownKeys` drops the rest (e.g. `interpretedQuery`, `spokenText`).
  *
  * [filters] and [suggestions] (Fase 9) refine the kiosk results; both are `[]` on the unhappy path.
- * Their defaults keep older responses backward-compatible under `ignoreUnknownKeys`.
+ * On the unhappy path (`noResults=true`) [results] still carries up to 3 store suggestions and
+ * [suggestedFromCategory] (Fase 8) names the category they were drawn from (null when generic).
+ * The defaults keep older responses backward-compatible under `ignoreUnknownKeys`.
  */
 @Serializable
 data class ConversationSearchResponseDto(
     val understood: Boolean = false,
     val results: List<SearchProductDto> = emptyList(),
     val noResults: Boolean = false,
+    val suggestedFromCategory: String? = null,
     val displayText: String = "",
     val fallbackMessage: String? = null,
     val filters: List<SearchFilterDto> = emptyList(),
