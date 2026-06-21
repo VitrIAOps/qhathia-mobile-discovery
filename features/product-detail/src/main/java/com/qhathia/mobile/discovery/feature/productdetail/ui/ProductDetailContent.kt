@@ -18,14 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +42,8 @@ import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.ProductImage
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
+import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
+import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ProductImageGallery
@@ -127,7 +127,7 @@ private fun TopBar(
     ) {
         IconTextButton(
             iconRes = UiR.drawable.ic_arrow_back,
-            text = stringResource(R.string.pd_back),
+            text = stringResource(UiR.string.discovery_action_back),
             contentDescription = stringResource(R.string.pd_back_cd),
             onClick = onBack,
             leadingIcon = true,
@@ -135,15 +135,15 @@ private fun TopBar(
         Spacer(modifier = Modifier.weight(1f))
         IconTextButton(
             iconRes = UiR.drawable.ic_refresh,
-            text = stringResource(R.string.pd_new_search),
-            contentDescription = stringResource(R.string.pd_new_search_cd),
+            text = stringResource(UiR.string.discovery_action_new_search),
+            contentDescription = stringResource(UiR.string.discovery_cd_new_search),
             onClick = onNewSearch,
         )
         Spacer(modifier = Modifier.width(Spacing.md))
         CartButton(
             itemCount = cartItemCount,
-            label = stringResource(R.string.pd_go_to_cart),
-            contentDescription = stringResource(R.string.pd_cart_cd),
+            label = stringResource(UiR.string.discovery_action_go_to_cart),
+            contentDescription = stringResource(UiR.string.discovery_action_go_to_cart),
             onClick = onCart,
         )
     }
@@ -254,11 +254,11 @@ private fun ProductInfo(
         )
         StockRow(availability = detail.availability)
         Text(
-            text = stringResource(R.string.pd_price, detail.price),
+            text = stringResource(UiR.string.discovery_price_format, detail.price),
             style = MaterialTheme.typography.headlineMedium,
             color = DiscoveryColors.CatalogText,
         )
-        Box(modifier = Modifier.fillMaxWidth().size(1.dp).background(DiscoveryColors.Divider))
+        DiscoveryDivider()
         Text(
             text = detail.description,
             style = MaterialTheme.typography.bodySmall,
@@ -300,20 +300,20 @@ private fun ActionRow(
             quantity = quantity,
             onDecrease = { onEvent(ProductDetailUiEvent.DecreaseQuantity) },
             onIncrease = { onEvent(ProductDetailUiEvent.IncreaseQuantity) },
-            decreaseContentDescription = stringResource(R.string.pd_qty_decrease_cd),
-            increaseContentDescription = stringResource(R.string.pd_qty_increase_cd),
+            decreaseContentDescription = stringResource(UiR.string.discovery_cd_qty_decrease),
+            increaseContentDescription = stringResource(UiR.string.discovery_cd_qty_increase),
             canDecrease = quantity > 1,
             canIncrease = quantity < maxQuantity,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             ActionButton(
-                text = stringResource(R.string.pd_add_to_cart),
+                text = stringResource(UiR.string.discovery_action_add_to_cart),
                 iconRes = UiR.drawable.ic_cart,
                 container = DiscoveryColors.Blue700,
                 onClick = { onEvent(ProductDetailUiEvent.AddToCart) },
             )
             ActionButton(
-                text = stringResource(R.string.pd_share_whatsapp),
+                text = stringResource(UiR.string.discovery_action_share),
                 iconRes = UiR.drawable.ic_whatsapp,
                 container = DiscoveryColors.Green500,
                 onClick = { onEvent(ProductDetailUiEvent.ShareWhatsApp) },
@@ -354,7 +354,7 @@ private fun RelatedProductsSection(
                 ProductRowCard(
                     name = product.name,
                     categoryName = product.categoryName,
-                    priceText = stringResource(R.string.pd_price, product.price),
+                    priceText = stringResource(UiR.string.discovery_price_format, product.price),
                     imageUrl = product.imageUrl,
                     onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
                 )
@@ -371,8 +371,8 @@ private fun ErrorBody(
 ) {
     val (titleRes, messageRes) = when (kind) {
         ProductDetailUiState.ErrorKind.NotFound -> R.string.pd_not_found_title to R.string.pd_not_found_message
-        ProductDetailUiState.ErrorKind.Network -> R.string.pd_network_error_title to R.string.pd_network_error_message
-        ProductDetailUiState.ErrorKind.Generic -> R.string.pd_generic_error_title to R.string.pd_generic_error_message
+        ProductDetailUiState.ErrorKind.Network -> UiR.string.discovery_error_network_title to UiR.string.discovery_error_network_message
+        ProductDetailUiState.ErrorKind.Generic -> UiR.string.discovery_error_generic_title to R.string.pd_generic_error_message
     }
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
@@ -396,7 +396,7 @@ private fun ErrorBody(
             onClick = { onEvent(ProductDetailUiEvent.Retry) },
             modifier = Modifier.heightIn(min = 48.dp),
         ) {
-            Text(text = stringResource(R.string.pd_retry))
+            Text(text = stringResource(UiR.string.discovery_action_retry))
         }
     }
 }
@@ -424,7 +424,7 @@ private fun BottomBar(
                 modifier = Modifier.size(28.dp),
             )
             Text(
-                text = stringResource(R.string.pd_prompt),
+                text = stringResource(UiR.string.discovery_search_prompt),
                 style = MaterialTheme.typography.titleSmall,
                 color = DiscoveryColors.Blue800,
             )
@@ -433,14 +433,14 @@ private fun BottomBar(
             query = query,
             onQueryChange = { onEvent(ProductDetailUiEvent.QueryChanged(it)) },
             onSearch = { onEvent(ProductDetailUiEvent.SubmitSearch) },
-            placeholder = stringResource(R.string.pd_search_placeholder),
-            searchIconContentDescription = stringResource(R.string.pd_search_icon_cd),
+            placeholder = stringResource(UiR.string.discovery_search_placeholder),
+            searchIconContentDescription = stringResource(UiR.string.discovery_cd_search),
             modifier = Modifier.weight(1f),
         )
         MicButton(
             isListening = false,
             compact = true,
-            contentDescription = stringResource(R.string.pd_mic_cd),
+            contentDescription = stringResource(UiR.string.discovery_cd_voice_search),
             onClick = { onEvent(ProductDetailUiEvent.ActivateMic) },
         )
     }
@@ -461,17 +461,14 @@ private fun CloseConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.pd_close_dialog_title)) },
-        text = { Text(stringResource(R.string.pd_close_dialog_message)) },
+    ConfirmationDialog(
+        title = stringResource(R.string.pd_close_dialog_title),
+        message = stringResource(R.string.pd_close_dialog_message),
+        confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
+        dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text(stringResource(R.string.pd_close_dialog_confirm)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.pd_close_dialog_dismiss)) }
-        },
     )
 }
 

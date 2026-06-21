@@ -63,12 +63,12 @@ fun SettingsSideMenu(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_arrow_back),
-                    contentDescription = stringResource(R.string.network_settings_back_cd),
+                    contentDescription = stringResource(UiR.string.discovery_cd_back),
                     tint = DiscoveryColors.Blue50,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = stringResource(R.string.network_back),
+                    text = stringResource(UiR.string.discovery_action_back),
                     style = MaterialTheme.typography.labelLarge,
                     color = DiscoveryColors.Blue50,
                 )

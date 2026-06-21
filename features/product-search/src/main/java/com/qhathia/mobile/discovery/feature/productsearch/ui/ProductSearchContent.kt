@@ -22,11 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +47,8 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
+import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
+import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
@@ -167,23 +167,23 @@ private fun TopBar(
         ) {
             IconTextButton(
                 iconRes = UiR.drawable.ic_arrow_back,
-                text = stringResource(R.string.ps_back),
-                contentDescription = stringResource(R.string.ps_back_cd),
+                text = stringResource(UiR.string.discovery_action_back),
+                contentDescription = stringResource(UiR.string.discovery_cd_back),
                 onClick = onBack,
                 leadingIcon = true,
             )
             Spacer(modifier = Modifier.weight(1f))
             IconTextButton(
                 iconRes = UiR.drawable.ic_refresh,
-                text = stringResource(R.string.ps_new_search),
-                contentDescription = stringResource(R.string.ps_new_search_cd),
+                text = stringResource(UiR.string.discovery_action_new_search),
+                contentDescription = stringResource(UiR.string.discovery_cd_new_search),
                 onClick = onNewSearch,
             )
             Spacer(modifier = Modifier.width(Spacing.md))
             CartButton(
                 itemCount = cartItemCount,
-                label = stringResource(R.string.ps_go_to_cart),
-                contentDescription = stringResource(R.string.ps_go_to_cart),
+                label = stringResource(UiR.string.discovery_action_go_to_cart),
+                contentDescription = stringResource(UiR.string.discovery_action_go_to_cart),
                 onClick = onCart,
             )
         }
@@ -255,7 +255,7 @@ private fun ProcessingBody(
         if (uiState.showProcessingMicAnimation) {
             MicButton(
                 isListening = true,
-                contentDescription = stringResource(R.string.ps_mic_cd),
+                contentDescription = stringResource(UiR.string.discovery_cd_voice_search),
                 onClick = micOnClick,
             )
         } else {
@@ -298,9 +298,9 @@ private fun ResultsBody(
         ) { product ->
             ProductCard(
                 name = product.name,
-                priceText = stringResource(R.string.ps_price, product.price),
+                priceText = stringResource(UiR.string.discovery_price_format, product.price),
                 imageUrl = product.imageUrl,
-                cartContentDescription = stringResource(R.string.ps_cart_cd),
+                cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
             )
@@ -351,12 +351,7 @@ private fun FiltersSuggestionsPanel(
                 style = MaterialTheme.typography.bodySmall,
                 color = DiscoveryColors.TextMuted,
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(DiscoveryColors.Divider),
-            )
+            DiscoveryDivider()
         }
 
         // Criterion sections take the remaining height (scrolling on overflow) so the highlighted
@@ -556,9 +551,9 @@ private fun UnhappyBody(
                 phase.alternatives.forEach { product ->
                     ProductCard(
                         name = product.name,
-                        priceText = stringResource(R.string.ps_price, product.price),
+                        priceText = stringResource(UiR.string.discovery_price_format, product.price),
                         imageUrl = product.imageUrl,
-                        cartContentDescription = stringResource(R.string.ps_cart_cd),
+                        cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                         onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
                     )
@@ -575,14 +570,14 @@ private fun NetworkErrorBody(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(R.string.ps_network_error_title),
+            text = stringResource(UiR.string.discovery_error_network_title),
             style = MaterialTheme.typography.headlineMedium,
             color = DiscoveryColors.Blue600,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Spacing.sm))
         Text(
-            text = stringResource(R.string.ps_network_error_message),
+            text = stringResource(UiR.string.discovery_error_network_message),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
@@ -623,14 +618,14 @@ private fun BottomBar(
             query = query,
             onQueryChange = { onEvent(ProductSearchUiEvent.QueryChanged(it)) },
             onSearch = { onEvent(ProductSearchUiEvent.SubmitSearch) },
-            placeholder = stringResource(R.string.ps_search_placeholder),
-            searchIconContentDescription = stringResource(R.string.ps_search_icon_cd),
+            placeholder = stringResource(UiR.string.discovery_search_placeholder),
+            searchIconContentDescription = stringResource(UiR.string.discovery_cd_search),
             modifier = Modifier.weight(1f),
         )
         MicButton(
             isListening = false,
             compact = true,
-            contentDescription = stringResource(R.string.ps_mic_cd),
+            contentDescription = stringResource(UiR.string.discovery_cd_voice_search),
             onClick = { onEvent(ProductSearchUiEvent.ActivateMic) },
         )
     }
@@ -651,17 +646,14 @@ private fun CloseConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.ps_close_dialog_title)) },
-        text = { Text(stringResource(R.string.ps_close_dialog_message)) },
+    ConfirmationDialog(
+        title = stringResource(R.string.ps_close_dialog_title),
+        message = stringResource(R.string.ps_close_dialog_message),
+        confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
+        dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text(stringResource(R.string.ps_close_dialog_confirm)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.ps_close_dialog_dismiss)) }
-        },
     )
 }
 

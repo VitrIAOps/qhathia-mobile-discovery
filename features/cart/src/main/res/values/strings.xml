@@ -12,15 +12,10 @@
     <string name="cart_empty_message">Tu carrito está vacío</string>
     <string name="cart_empty_hint">Agrega productos para realizar tu pedido.</string>
 
-    <!-- Price (Peruvian Sol). -->
-    <string name="cart_price">S/ %1$.2f</string>
-
     <!-- Cart line. -->
     <string name="cart_line_remove_cd">Quitar producto del carrito</string>
     <string name="cart_go_to_detail">Ver detalle</string>
     <string name="cart_go_to_detail_cd">Ver el detalle del producto</string>
-    <string name="cart_qty_decrease_cd">Quitar una unidad</string>
-    <string name="cart_qty_increase_cd">Agregar una unidad</string>
 
     <!-- Consumer-data form. -->
     <string name="cart_form_title">Completa tus datos para continuar</string>
@@ -41,6 +36,5 @@
     <!-- Actions. -->
     <string name="cart_place_order">Realizar pedido</string>
     <string name="cart_keep_shopping">Seguir buscando</string>
-    <string name="cart_share_whatsapp">Compartir</string>
     <string name="cart_share_whatsapp_cd">Compartir por WhatsApp</string>
 </resources>

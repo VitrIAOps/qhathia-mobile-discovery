@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.feature.productsearch.ui
 import androidx.annotation.StringRes
 import com.qhathia.mobile.discovery.feature.productsearch.R
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
+import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Resolves a processing [ProductSearchPhase] to its animated message base text resource (the
@@ -12,9 +13,9 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPha
  */
 @StringRes
 internal fun ProductSearchPhase.processingTextRes(): Int? = when (this) {
-    ProductSearchPhase.VoiceListening -> R.string.ps_listening
-    ProductSearchPhase.VoiceTranscribing -> R.string.ps_organizing
-    ProductSearchPhase.VoiceSlowResponse -> R.string.ps_slow_stt
+    ProductSearchPhase.VoiceListening -> UiR.string.discovery_voice_listening
+    ProductSearchPhase.VoiceTranscribing -> UiR.string.discovery_voice_organizing
+    ProductSearchPhase.VoiceSlowResponse -> UiR.string.discovery_voice_slow_response
     ProductSearchPhase.Searching -> R.string.ps_searching
     ProductSearchPhase.SlowSearch -> R.string.ps_slow_search
     is ProductSearchPhase.Results,

@@ -1,18 +1,14 @@
 package com.qhathia.mobile.discovery.feature.cart.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,10 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,6 +33,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.ui.component.CloseIconButton
+import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
+import com.qhathia.mobile.discovery.core.ui.component.DiscoveryTextField
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
 import com.qhathia.mobile.discovery.core.ui.component.QuantityStepper
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -54,6 +50,7 @@ import com.qhathia.mobile.discovery.core.ui.R as UiR
  * a rounded sheet with a "Carrito" header + item-count subtitle and a close control, a divider, and a
  * two-column body: the scrollable product list on the left and a footer panel on the right with the
  * consumer-data form, a receipt-styled totals section, and the order / keep-shopping / share buttons.
+ * Built from the shared `core:ui` design-system components.
  */
 @Composable
 fun CartDialogContent(
@@ -68,7 +65,7 @@ fun CartDialogContent(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Header(itemCount = uiState.totalItemCount, onClose = { onEvent(CartUiEvent.Close) })
-            HorizontalDivider()
+            DiscoveryDivider()
             Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     if (uiState.isEmpty) {
@@ -104,27 +101,13 @@ private fun Header(itemCount: Int, onClose: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .border(1.dp, DiscoveryColors.Divider, RoundedCornerShape(10.dp))
-                .clickable(onClick = onClose),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(UiR.drawable.ic_close),
-                contentDescription = stringResource(R.string.cart_close_cd),
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+        CloseIconButton(
+            onClick = onClose,
+            contentDescription = stringResource(R.string.cart_close_cd),
+            size = 48.dp,
+            iconSize = 16.dp,
+        )
     }
-}
-
-@Composable
-private fun HorizontalDivider() {
-    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DiscoveryColors.Divider))
 }
 
 // --- Product list ---
@@ -177,27 +160,22 @@ private fun CartLineCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onEvent(CartUiEvent.RemoveLine(item.productId)) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(UiR.drawable.ic_close),
-                            contentDescription = stringResource(R.string.cart_line_remove_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
+                    CloseIconButton(
+                        onClick = { onEvent(CartUiEvent.RemoveLine(item.productId)) },
+                        contentDescription = stringResource(R.string.cart_line_remove_cd),
+                        size = 48.dp,
+                        iconSize = 14.dp,
+                        cornerRadius = 8.dp,
+                        bordered = false,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     Text(
-                        text = stringResource(R.string.cart_price, item.priceUnit),
+                        text = stringResource(UiR.string.discovery_price_format, item.priceUnit),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
@@ -215,8 +193,8 @@ private fun CartLineCard(
                         quantity = item.quantity,
                         onDecrease = { onEvent(CartUiEvent.DecreaseLine(item.productId)) },
                         onIncrease = { onEvent(CartUiEvent.IncreaseLine(item.productId)) },
-                        decreaseContentDescription = stringResource(R.string.cart_qty_decrease_cd),
-                        increaseContentDescription = stringResource(R.string.cart_qty_increase_cd),
+                        decreaseContentDescription = stringResource(UiR.string.discovery_cd_qty_decrease),
+                        increaseContentDescription = stringResource(UiR.string.discovery_cd_qty_increase),
                         canIncrease = item.quantity < item.maxQuantity,
                     )
                 }
@@ -278,81 +256,26 @@ private fun ConsumerForm(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        FormField(
-            label = stringResource(R.string.cart_name_label),
+        DiscoveryTextField(
             value = uiState.name,
-            placeholder = stringResource(R.string.cart_name_placeholder),
-            iconRes = UiR.drawable.ic_user,
-            errorText = if (uiState.showNameError) stringResource(R.string.cart_name_error) else null,
-            keyboardType = KeyboardType.Text,
             onValueChange = { onEvent(CartUiEvent.NameChanged(it)) },
+            label = stringResource(R.string.cart_name_label),
+            placeholder = stringResource(R.string.cart_name_placeholder),
+            isError = uiState.showNameError,
+            errorText = if (uiState.showNameError) stringResource(R.string.cart_name_error) else null,
+            leadingIconRes = UiR.drawable.ic_user,
+            keyboardType = KeyboardType.Text,
         )
-        FormField(
-            label = stringResource(R.string.cart_phone_label),
+        DiscoveryTextField(
             value = uiState.phone,
-            placeholder = stringResource(R.string.cart_phone_placeholder),
-            iconRes = UiR.drawable.ic_phone,
-            errorText = if (uiState.showPhoneError) stringResource(R.string.cart_phone_error) else null,
-            keyboardType = KeyboardType.Phone,
             onValueChange = { onEvent(CartUiEvent.PhoneChanged(it)) },
+            label = stringResource(R.string.cart_phone_label),
+            placeholder = stringResource(R.string.cart_phone_placeholder),
+            isError = uiState.showPhoneError,
+            errorText = if (uiState.showPhoneError) stringResource(R.string.cart_phone_error) else null,
+            leadingIconRes = UiR.drawable.ic_phone,
+            keyboardType = KeyboardType.Phone,
         )
-    }
-}
-
-@Composable
-private fun FormField(
-    label: String,
-    value: String,
-    placeholder: String,
-    iconRes: Int,
-    errorText: String?,
-    keyboardType: KeyboardType,
-    onValueChange: (String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Text(text = label, style = MaterialTheme.typography.bodySmall, color = DiscoveryColors.TextMuted)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .border(
-                    width = 1.dp,
-                    color = if (errorText != null) MaterialTheme.colorScheme.error else DiscoveryColors.Divider,
-                    shape = RoundedCornerShape(8.dp),
-                )
-                .padding(horizontal = Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
-            )
-            Box(modifier = Modifier.weight(1f)) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-                    textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        if (errorText != null) {
-            Text(text = errorText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
     }
 }
 
@@ -373,12 +296,12 @@ private fun TotalsSection(itemCount: Int, total: Double) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = stringResource(R.string.cart_price, total),
+                text = stringResource(UiR.string.discovery_price_format, total),
                 style = MaterialTheme.typography.bodySmall,
                 color = DiscoveryColors.CatalogText,
             )
         }
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DiscoveryColors.Blue200))
+        DiscoveryDivider(color = DiscoveryColors.Blue200)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = stringResource(R.string.cart_total_label),
@@ -387,7 +310,7 @@ private fun TotalsSection(itemCount: Int, total: Double) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = stringResource(R.string.cart_price, total),
+                text = stringResource(UiR.string.discovery_price_format, total),
                 style = MaterialTheme.typography.headlineMedium,
                 color = DiscoveryColors.CatalogText,
             )
@@ -402,63 +325,27 @@ private fun ActionButtons(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         // Primary: "Realizar pedido" — render-only (no order API yet); enabled only when data is valid.
-        FilledActionButton(
+        PrimaryActionButton(
             text = stringResource(R.string.cart_place_order),
-            container = if (isOrderEnabled) DiscoveryColors.Blue700 else DiscoveryColors.Divider,
-            contentColor = if (isOrderEnabled) Color.White else DiscoveryColors.TextDisabled,
-            enabled = isOrderEnabled,
             onClick = { onEvent(CartUiEvent.PlaceOrder) },
+            enabled = isOrderEnabled,
+            containerColor = if (isOrderEnabled) DiscoveryColors.Blue700 else DiscoveryColors.Divider,
+            contentColor = if (isOrderEnabled) Color.White else DiscoveryColors.TextDisabled,
         )
-        FilledActionButton(
+        PrimaryActionButton(
             text = stringResource(R.string.cart_keep_shopping),
-            container = Color.Transparent,
-            contentColor = DiscoveryColors.CatalogText,
-            enabled = true,
             onClick = { onEvent(CartUiEvent.KeepShopping) },
+            containerColor = Color.Transparent,
+            contentColor = DiscoveryColors.CatalogText,
         )
-        FilledActionButton(
-            text = stringResource(R.string.cart_share_whatsapp),
-            container = DiscoveryColors.Green500,
-            contentColor = Color.White,
-            enabled = true,
-            iconRes = UiR.drawable.ic_whatsapp,
-            iconContentDescription = stringResource(R.string.cart_share_whatsapp_cd),
+        PrimaryActionButton(
+            text = stringResource(UiR.string.discovery_action_share),
             onClick = { onEvent(CartUiEvent.ShareWhatsApp) },
+            containerColor = DiscoveryColors.Green500,
+            contentColor = Color.White,
+            leadingIconRes = UiR.drawable.ic_whatsapp,
+            iconContentDescription = stringResource(R.string.cart_share_whatsapp_cd),
         )
-    }
-}
-
-@Composable
-private fun FilledActionButton(
-    text: String,
-    container: Color,
-    contentColor: Color,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    iconRes: Int? = null,
-    iconContentDescription: String? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(container)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = Spacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text(text = text, style = MaterialTheme.typography.labelLarge, color = contentColor)
-        if (iconRes != null) {
-            Spacer(modifier = Modifier.width(Spacing.sm))
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = iconContentDescription,
-                tint = contentColor,
-                modifier = Modifier.size(16.dp),
-            )
-        }
     }
 }
 

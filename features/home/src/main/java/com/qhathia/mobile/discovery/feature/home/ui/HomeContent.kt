@@ -49,6 +49,7 @@ import com.qhathia.mobile.discovery.feature.home.R
 import com.qhathia.mobile.discovery.feature.home.model.HomeUiEvent
 import com.qhathia.mobile.discovery.feature.home.model.HomeUiState
 import com.qhathia.mobile.discovery.feature.home.model.MicState
+import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Stateless Home UI — a pure function of [HomeUiState], built from the Qhathia design system.
@@ -177,17 +178,17 @@ private fun HeroSection(
     ) {
         when (val micState = uiState.micState) {
             is MicState.Listening -> ProcessingHero(
-                baseText = stringResource(R.string.home_listening_label),
+                baseText = stringResource(UiR.string.discovery_voice_listening),
                 micContentDescription = stringResource(R.string.home_mic_listening_cd),
                 onMicClick = { onEvent(HomeUiEvent.StopRecording) },
             )
             MicState.Transcribing -> ProcessingHero(
-                baseText = stringResource(R.string.home_processing_organizing),
+                baseText = stringResource(UiR.string.discovery_voice_organizing),
                 micContentDescription = stringResource(R.string.home_mic_processing_cd),
                 onMicClick = { onEvent(HomeUiEvent.CancelMic) },
             )
             MicState.SlowResponse -> ProcessingHero(
-                baseText = stringResource(R.string.home_processing_slow),
+                baseText = stringResource(UiR.string.discovery_voice_slow_response),
                 micContentDescription = stringResource(R.string.home_mic_processing_cd),
                 onMicClick = { onEvent(HomeUiEvent.CancelMic) },
             )
@@ -209,7 +210,6 @@ private fun ProcessingHero(
         contentDescription = micContentDescription,
         onClick = onMicClick,
     )
-    Spacer(modifier = Modifier.height(Spacing.lg))
     ProcessingMessage(
         baseText = baseText,
         style = MaterialTheme.typography.titleLarge,
@@ -240,21 +240,19 @@ private fun IdleHero(
         textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(max = 576.dp),
     )
-    Spacer(modifier = Modifier.height(Spacing.xl))
     MicButton(
         isListening = false,
         contentDescription = stringResource(
-            if (isRetry) R.string.home_mic_retry_cd else R.string.home_mic_cd,
+            if (isRetry) R.string.home_mic_retry_cd else UiR.string.discovery_cd_voice_search,
         ),
         onClick = { onEvent(if (isRetry) HomeUiEvent.RetryMic else HomeUiEvent.ActivateMic) },
     )
-    Spacer(modifier = Modifier.height(Spacing.lg))
     DiscoverySearchBar(
         query = query,
         onQueryChange = { onEvent(HomeUiEvent.QueryChanged(it)) },
         onSearch = { onEvent(HomeUiEvent.SubmitSearch) },
         placeholder = stringResource(R.string.home_search_placeholder),
-        searchIconContentDescription = stringResource(R.string.home_search_icon_cd),
+        searchIconContentDescription = stringResource(UiR.string.discovery_cd_search),
         modifier = Modifier.width(600.dp),
     )
 }

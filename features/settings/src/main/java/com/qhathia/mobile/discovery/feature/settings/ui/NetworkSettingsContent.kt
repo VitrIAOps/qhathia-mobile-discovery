@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.domain.model.WifiNetwork
+import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -160,7 +161,7 @@ private fun Toolbar(onSearch: () -> Unit) {
                 )
             }
         }
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DiscoveryColors.Blue200))
+        DiscoveryDivider(color = DiscoveryColors.Blue200)
     }
 }
 

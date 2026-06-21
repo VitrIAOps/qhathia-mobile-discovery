@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Processing messages (animated 3-dot indicator appends the dots; base text only here). -->
-    <string name="ps_listening">Escuchando</string>
-    <string name="ps_organizing">Organizando ideas</string>
-    <string name="ps_slow_stt">Está tardando más de lo que esperaba</string>
+    <!-- Processing messages (animated 3-dot indicator appends the dots; base text only here).
+         Shared voice copy (Escuchando / Organizando ideas / slow response) lives in core:ui. -->
     <string name="ps_searching">Revisando catálogo</string>
     <string name="ps_slow_search">Buscando minuciosamente</string>
 
@@ -33,32 +31,10 @@
     <string name="ps_unhappy_invite">De pronto te interesaría…</string>
     <string name="ps_unhappy_invite_category">Relacionado a \'%1$s\' te podría interesar…</string>
 
-    <!-- Network error (screen kept). -->
-    <string name="ps_network_error_title">Perdí la conexión…</string>
-    <string name="ps_network_error_message">Parece que la red está inestable. Verifica tu internet e intenta nuevamente.</string>
-
-    <!-- Top bar. -->
-    <string name="ps_back">Volver</string>
-    <string name="ps_new_search">Nueva búsqueda</string>
-    <string name="ps_go_to_cart">Ir al carrito</string>
-
-    <!-- Content descriptions. -->
-    <string name="ps_back_cd">Volver</string>
-    <string name="ps_new_search_cd">Nueva búsqueda</string>
-    <string name="ps_cart_cd">Agregar al carrito</string>
-    <string name="ps_mic_cd">Buscar por voz</string>
-    <string name="ps_search_icon_cd">Buscar</string>
-
-    <!-- Bottom search bar. -->
+    <!-- Bottom search bar (feature-specific prompt). -->
     <string name="ps_prompt">Cuéntame más</string>
-    <string name="ps_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
 
-    <!-- Price (Peruvian Sol). -->
-    <string name="ps_price">S/ %1$.2f</string>
-
-    <!-- Close-current-search confirmation dialog. -->
+    <!-- Close-current-search confirmation dialog (feature-specific title/message). -->
     <string name="ps_close_dialog_title">¿Cerrar la búsqueda actual?</string>
     <string name="ps_close_dialog_message">Se cerrará la búsqueda y volverás al inicio.</string>
-    <string name="ps_close_dialog_confirm">Sí, cerrar</string>
-    <string name="ps_close_dialog_dismiss">Cancelar</string>
 </resources>

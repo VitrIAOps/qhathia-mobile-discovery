@@ -40,10 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qhathia.mobile.discovery.core.domain.PairingConstants
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
+import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import com.qhathia.mobile.discovery.feature.settings.R
+import com.qhathia.mobile.discovery.core.ui.R as UiR
 import com.qhathia.mobile.discovery.feature.settings.model.PairingPhase
 import com.qhathia.mobile.discovery.feature.settings.model.PairingUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.PairingUiState
@@ -87,7 +89,7 @@ fun PairingContent(
             )
             PairingPhase.Error -> MessageState(
                 message = stringResource(R.string.pairing_error),
-                actionLabel = stringResource(R.string.pairing_retry),
+                actionLabel = stringResource(UiR.string.discovery_action_retry),
                 onAction = { onEvent(PairingUiEvent.GenerateCode) },
             )
             PairingPhase.Paired -> uiState.device?.let { PairedState(device = it, onEvent = onEvent) }
@@ -109,7 +111,7 @@ private fun PairingTopBar(linked: Boolean) {
             )
             if (linked) LinkedChip()
         }
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DiscoveryColors.Blue200))
+        DiscoveryDivider(color = DiscoveryColors.Blue200)
     }
 }
 
@@ -431,7 +433,7 @@ private fun DetailRow(label: String, value: String) {
 
 @Composable
 private fun RowDivider() {
-    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DiscoveryColors.Divider))
+    DiscoveryDivider()
 }
 
 @Composable

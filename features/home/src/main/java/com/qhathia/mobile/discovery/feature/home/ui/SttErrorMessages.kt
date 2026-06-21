@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.feature.home.ui
 import androidx.annotation.StringRes
 import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.feature.home.R
+import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Resolves an [SttErrorCategory] to its error-screen title/message string resources. Kept in
@@ -16,8 +17,8 @@ internal data class SttErrorCopy(
 
 internal fun SttErrorCategory.toCopy(): SttErrorCopy = when (this) {
     SttErrorCategory.Network -> SttErrorCopy(
-        R.string.stt_error_network_title,
-        R.string.stt_error_network_message,
+        UiR.string.discovery_error_network_title,
+        UiR.string.discovery_error_network_message,
     )
     SttErrorCategory.AudioTooLong -> SttErrorCopy(
         R.string.stt_error_audio_too_long_title,
@@ -36,7 +37,7 @@ internal fun SttErrorCategory.toCopy(): SttErrorCopy = when (this) {
         R.string.stt_error_timeout_message,
     )
     SttErrorCategory.Generic -> SttErrorCopy(
-        R.string.stt_error_generic_title,
+        UiR.string.discovery_error_generic_title,
         R.string.stt_error_generic_message,
     )
 }
