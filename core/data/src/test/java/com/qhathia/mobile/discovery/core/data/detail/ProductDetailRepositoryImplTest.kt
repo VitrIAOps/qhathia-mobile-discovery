@@ -7,6 +7,8 @@ import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.MediaDto
 import com.qhathia.mobile.discovery.core.network.dto.ProductDetailResponseDto
+import com.qhathia.mobile.discovery.core.network.dto.ProductSuggestionsResponseDto
+import com.qhathia.mobile.discovery.core.network.dto.SuggestedProductDto
 import com.qhathia.mobile.discovery.core.network.service.ProductApiService
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -95,5 +97,70 @@ class ProductDetailRepositoryImplTest {
 
         assertTrue(result.isSuccess)
         assertEquals("Taladro", result.getOrNull()!!.name)
+    }
+
+    private fun suggested(id: String) = SuggestedProductDto(
+        id = id,
+        categoryName = "Accesorios",
+        name = "Producto $id",
+        price = 19.9,
+        availability = "AVAILABLE",
+        primaryImageUrl = "$id.jpg",
+    )
+
+    @Test
+    fun given_suggestions_when_get_then_maps_and_caps_at_five() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { productApiService.getSuggestions("jwt", "p1") } returns NetworkResult.Success(
+            ProductSuggestionsResponseDto(
+                productId = "p1",
+                suggestions = (1..7).map { suggested("s$it") },
+                source = "llm",
+            ),
+        )
+
+        val products = repository().getSuggestions("p1").getOrNull()!!
+
+        assertEquals(5, products.size)
+        assertEquals("s1", products.first().id)
+        assertEquals("Producto s1", products.first().name)
+    }
+
+    @Test
+    fun given_empty_suggestions_when_get_then_empty_success() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { productApiService.getSuggestions(any(), any()) } returns NetworkResult.Success(
+            ProductSuggestionsResponseDto(productId = "p1", suggestions = emptyList(), source = "empty"),
+        )
+
+        val result = repository().getSuggestions("p1")
+
+        assertTrue(result.isSuccess)
+        assertTrue(result.getOrNull()!!.isEmpty())
+    }
+
+    @Test
+    fun given_server_error_when_get_suggestions_then_detail_api_failure() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { productApiService.getSuggestions(any(), any()) } returns NetworkResult.HttpError(500, "Server Error")
+
+        val result = repository().getSuggestions("p1")
+
+        assertEquals(DetailErrorCategory.DetailApi, (result.exceptionOrNull() as DetailException).category)
+    }
+
+    @Test
+    fun given_401_when_get_suggestions_then_clears_token_and_retries_once() = runTest {
+        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
+        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
+        coEvery { productApiService.getSuggestions("stale", "p1") } returns NetworkResult.HttpError(401, "Unauthorized")
+        coEvery { productApiService.getSuggestions("fresh", "p1") } returns NetworkResult.Success(
+            ProductSuggestionsResponseDto(productId = "p1", suggestions = listOf(suggested("s1")), source = "llm"),
+        )
+
+        val result = repository().getSuggestions("p1")
+
+        assertTrue(result.isSuccess)
+        assertEquals(1, result.getOrNull()!!.size)
     }
 }

@@ -3,6 +3,7 @@
     <!-- Sections. -->
     <string name="pd_detail_headline">Este es el detalle</string>
     <string name="pd_related_headline">Podrías acompañar este producto con…</string>
+    <string name="pd_related_empty">No hay productos relacionados disponibles por el momento.</string>
 
     <!-- Availability labels (mapped from the API AvailabilityStatus enum). -->
     <string name="pd_availability_available">Disponible</string>

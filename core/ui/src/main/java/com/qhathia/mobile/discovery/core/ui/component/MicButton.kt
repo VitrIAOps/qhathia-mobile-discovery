@@ -73,7 +73,7 @@ fun MicButton(
         targetValue = if (isListening) listeningGlow else idleGlow,
         label = "micGlowPadding",
     )
-    val containerSize = circleSize + glowPadding * 2
+    val containerSize = circleSize + glowPadding
 
     val transition = rememberInfiniteTransition(label = "micPulse")
     // A single 0→1 ripple progress; a second ring is derived at +0.5 phase for continuity.

@@ -1,9 +1,11 @@
 package com.qhathia.mobile.discovery.core.data.detail
 
+import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.ProductImage
 import com.qhathia.mobile.discovery.core.network.dto.MediaDto
 import com.qhathia.mobile.discovery.core.network.dto.ProductDetailResponseDto
+import com.qhathia.mobile.discovery.core.network.dto.SuggestedProductDto
 
 /** Maps a media DTO to the domain [ProductImage]. */
 internal fun MediaDto.toDomain(): ProductImage = ProductImage(
@@ -28,4 +30,19 @@ internal fun ProductDetailResponseDto.toDomain(): ProductDetail = ProductDetail(
         .filter { it.mediaType.equals("IMAGE", ignoreCase = true) }
         .sortedWith(compareByDescending(MediaDto::primary).thenBy(MediaDto::position))
         .map { it.toDomain() },
+)
+
+/**
+ * Maps a suggested-product DTO (`ProductSummaryResponse`) to the domain [Product] used by the
+ * related-products strip. No description is provided by this endpoint, so it maps to empty.
+ */
+internal fun SuggestedProductDto.toDomain(): Product = Product(
+    id = id,
+    name = name,
+    description = "",
+    price = price,
+    availability = availability,
+    categoryName = categoryName,
+    imageUrl = primaryImageUrl.orEmpty(),
+    allowDiscountInquiry = allowDiscountInquiry,
 )

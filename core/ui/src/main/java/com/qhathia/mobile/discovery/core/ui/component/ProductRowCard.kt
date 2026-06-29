@@ -1,30 +1,37 @@
 package com.qhathia.mobile.discovery.core.ui.component
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.qhathia.mobile.discovery.core.ui.R
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -32,13 +39,17 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 /**
  * Design-system horizontal product card (Figma `Product-cards`) used by the product-detail "related
  * products" strip: a square image on the left and a body on the right with the category tag, product
- * name, and price. Domain-free — the caller passes already-formatted primitives.
+ * name, the price, and a dark circular add-to-cart button. Domain-free — the caller passes
+ * already-formatted primitives.
  *
  * @param name product display name.
  * @param categoryName category tag shown above the name (uppercased visually by the caller's data).
  * @param priceText already-formatted price (e.g. "S/ 380.00").
  * @param imageUrl primary image URL (a neutral placeholder shows while empty/loading).
- * @param onClick invoked when the card is tapped.
+ * @param cartContentDescription localized description for the add-to-cart button (required, non-null).
+ * @param onClick invoked when the card surface (outside the cart button) is tapped.
+ * @param onAddToCart invoked when the add-to-cart button is tapped. Kept separate from [onClick] so the
+ *   button keeps its own tap while the card surface stays navigable.
  */
 @Composable
 fun ProductRowCard(
@@ -46,14 +57,13 @@ fun ProductRowCard(
     categoryName: String,
     priceText: String,
     imageUrl: String,
+    cartContentDescription: String,
     onClick: () -> Unit,
+    onAddToCart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier.width(CARD_WIDTH).height(CARD_HEIGHT).clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, DiscoveryColors.SearchBorder),
+    Box(
+        modifier = modifier.width(CARD_WIDTH).height(CARD_HEIGHT).clickable(onClick = onClick)
     ) {
         Row {
             AsyncImage(
@@ -67,6 +77,7 @@ fun ProductRowCard(
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
+                    .weight(1f)
                     .padding(horizontal = 14.dp, vertical = Spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
@@ -84,14 +95,44 @@ fun ProductRowCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = priceText,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                )
+                Spacer(modifier = Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = priceText,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                    AddToCartButton(contentDescription = cartContentDescription, onClick = onAddToCart)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AddToCartButton(
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(DiscoveryColors.CatalogText)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_cart),
+            contentDescription = contentDescription,
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -107,7 +148,9 @@ private fun ProductRowCardLightPreview() {
             categoryName = "Taladros",
             priceText = "S/ 380.00",
             imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
             onClick = {},
+            onAddToCart = {},
         )
     }
 }
@@ -121,7 +164,9 @@ private fun ProductRowCardDarkPreview() {
             categoryName = "Accesorios",
             priceText = "S/ 49.90",
             imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
             onClick = {},
+            onAddToCart = {},
         )
     }
 }

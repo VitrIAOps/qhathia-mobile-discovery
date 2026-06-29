@@ -28,6 +28,7 @@ fun NavGraphBuilder.productDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateHomeIdle: () -> Unit,
     onNavigateToSearch: (String) -> Unit,
+    onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -41,6 +42,7 @@ fun NavGraphBuilder.productDetailScreen(
             onNavigateBack = onNavigateBack,
             onNavigateHomeIdle = onNavigateHomeIdle,
             onNavigateToSearch = onNavigateToSearch,
+            onNavigateToDetail = onNavigateToDetail,
             onOpenCart = onOpenCart,
             modifier = modifier,
         )

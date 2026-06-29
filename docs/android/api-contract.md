@@ -9,9 +9,13 @@
 
 ---
 
-## Cambios recientes (Fase 1-9)
+## Cambios recientes (Fase 1-10)
 
-**Fase 9 — 2026-06-16 (último deploy, ClickUp 86e1r9epc):**
+**Fase 10 — 2026-06-28 (último deploy):**
+- **BizAPI: productos sugeridos en pantalla detalle**: nuevo endpoint `GET /api/v1/products/{id}/suggestions` devuelve hasta 5 productos complementarios del mismo store al producto base (mockup "Detalle de producto" → "Podrías acompañar este producto con…"). Heurística cascading: LLM Groq genera keywords complementarios → si no matchea, cae a misma categoría → si no llena 5, completa con productos populares del store. Campo `source` indica qué camino contribuyó (`"llm" | "same-category" | "store-popular" | "mixed" | "empty"`). Detalle en sección 8.6.
+- **biz-api ahora también usa LLM Groq**: misma key `LLM_API_KEY` que vo-api. Property opt-in `LLM_COMPLEMENTARY_ENABLED=true`. Fail-open universal: si Groq cae, el endpoint sigue funcionando con cascading sin LLM.
+
+**Fase 9 — 2026-06-16 (ClickUp 86e1r9epc):**
 - **VoAPI search devuelve `filters` y `suggestions` para el sidebar del kiosko (Mockup 5)**: el response de `POST /api/v1/conversations/search` ahora incluye `filters: [{criterion, options[]}]` (max 5 criterios × 5 options, strings planos) y `suggestions: List<String>` (max 5). Cuando `noResults=true` ambos van `[]`. Detalle en sección 12.
 - **`MAX_RESULTS` del search sube de 5 a 20**.
 - **Cada `results[*]` ahora incluye `brand: String, nullable` y `tags: List<String>`** — el frontend filtra client-side cuando el cliente toca una opción del sidebar.
@@ -51,7 +55,7 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 **Auto-tag con visión (Fase 6 + 6.1):**
 - `POST /api/v1/products/{id}/suggest-tags` — para producto ya existente (foto cargada vía `mediaId` o URL).
 - `POST /api/v1/tags/suggest-from-image` — para foto en `drafts/` antes de crear el producto. Útil cuando el comerciante elige una foto, pide tags, y recién después confirma el guardado.
-Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) y filtran defensivamente contra el catálogo del (mall × rubro).
+  Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) y filtran defensivamente contra el catálogo del (mall × rubro).
 
 ---
 
@@ -65,7 +69,7 @@ Ambos llaman al `VisionGateway` (Groq Llama 4 Scout por default; `stub` en dev) 
 6. [Auth API — STT Token](#6-auth-api--stt-token)
 7. [BizAPI — Categorías](#7-bizapi--categorías)
 8. [BizAPI — Productos](#8-bizapi--productos)
-8.5. [BizAPI — Catálogo agregado (Fase 8)](#85-bizapi--catálogo-agregado-fase-8)
+   8.5. [BizAPI — Catálogo agregado (Fase 8)](#85-bizapi--catálogo-agregado-fase-8)
 9. [BizAPI — Órdenes](#9-bizapi--órdenes)
 10. [BizAPI — Device Sync](#10-bizapi--device-sync)
 11. [BizAPI — Analytics](#11-bizapi--analytics)
@@ -1567,15 +1571,15 @@ curl -X DELETE \
 
 - **Top-level: array de categorías**. Si el store no tiene productos AVAILABLE, devuelve `[]`.
 - **Filtros de productos**:
-  - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
-  - Solo productos activos (`isActive=true`).
-  - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
+   - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
+   - Solo productos activos (`isActive=true`).
+   - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
 - **Categorías que se omiten**:
-  - Categorías sin ningún producto AVAILABLE no aparecen en el array.
-  - Categorías inactivas no aparecen.
+   - Categorías sin ningún producto AVAILABLE no aparecen en el array.
+   - Categorías inactivas no aparecen.
 - **Orden**:
-  - Categorías: por `position ASC, name ASC`.
-  - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
+   - Categorías: por `position ASC, name ASC`.
+   - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
 - **Multi-tenant**: filtrado por `storeId` del JWT. Nunca se mezclan productos de otras tiendas.
 
 **Campos del producto** (`ProductSummaryResponse` — reutilizado del listado plano `/api/v1/products`):
@@ -1606,6 +1610,88 @@ curl -X DELETE \
 **curl:**
 ```bash
 curl -X GET http://87.99.156.164/api/v1/catalog/by-category \
+  -H "Authorization: Bearer eyJ..."
+```
+
+---
+
+## 8.6. BizAPI — Productos sugeridos (Fase 10)
+
+### GET /api/v1/products/{id}/suggestions
+
+**Descripción:** Devuelve hasta 5 productos complementarios al producto base (mockup "Detalle de producto" del kiosko → sección "Podrías acompañar este producto con…"). Heurística cascading en 4 caminos: (1) LLM Groq genera keywords complementarios y busca productos del store cuyos campos los matcheen; (2) si vacío, productos de la misma categoría del base; (3) si <5, completa con productos populares del store; (4) si el store solo tiene el base, `[]`. El campo `source` indica qué camino contribuyó al resultado.
+
+**Autenticación:** JWT requerido (cualquier rol autenticado: `OWNER`, `SELLER`, `ADMIN`, `DEVICE`)
+**URL producción:** `http://87.99.156.164/api/v1/products/{id}/suggestions`
+
+**Headers:** `Authorization: Bearer <accessToken>`
+**Path params:**
+- `id` — UUID del producto base.
+
+**Request:** sin query params, sin body. El `storeId` sale del JWT.
+
+**Response 200 (happy path con LLM):**
+```json
+{
+  "productId": "b2c1d3cc-a91d-4a2b-b134-faba31325300",
+  "suggestions": [
+    {
+      "id": "uuid-brocas",
+      "categoryId": "uuid-herramientas",
+      "categoryName": "Herramientas",
+      "name": "Brocas SDS Plus 6mm",
+      "price": 25.00,
+      "availability": "AVAILABLE",
+      "allowDiscountInquiry": true,
+      "position": 3,
+      "primaryImageUrl": "https://...",
+      "brand": "Bosch"
+    },
+    {
+      "id": "uuid-disco",
+      "name": "Disco de corte 4.5\"",
+      "...": "..."
+    }
+  ],
+  "source": "llm"
+}
+```
+
+**Reglas del response:**
+
+- **`productId`**: id del producto base (eco del path param).
+- **`suggestions`**: lista de **0 a 5** productos. Reusa `ProductSummaryResponse` (mismo shape que `/products` y `/catalog/by-category`).
+- **El producto base NUNCA aparece en `suggestions`** — siempre se excluye.
+- **Dedup por id** entre caminos: si LLM y "misma categoría" devuelven el mismo producto, aparece una sola vez.
+- **Filtros**: cada producto sugerido es `availability="AVAILABLE"` AND `isActive=true`.
+- **Multi-tenant**: todos los productos son del **mismo store** del producto base (= store del JWT).
+- **`source`**: indica qué camino del cascading contribuyó al resultado. Valores legales:
+
+| Valor | Significado |
+|---|---|
+| `"llm"` | El LLM Groq matcheó productos del catálogo. |
+| `"same-category"` | Fallback a la misma categoría del producto base. |
+| `"store-popular"` | Fallback a productos populares del store (cualquier categoría). |
+| `"mixed"` | Combinación de 2 o más caminos anteriores. |
+| `"empty"` | El store solo tiene el producto base. `suggestions=[]`. El frontend oculta la sección. |
+
+**Errores:**
+- `401` — JWT ausente o inválido.
+- `404` — `RESOURCE_NOT_FOUND`: el producto no existe o pertenece a otro store (multi-tenant).
+- `400` — `BAD_REQUEST`: el path param no es un UUID válido.
+
+**Fail-open**: si el LLM Groq falla (timeout, 5xx, JSON malformado), el endpoint NO devuelve 5xx. Loguea un WARN y procede al Camino 2 (misma categoría). El cliente nunca ve un error de LLM.
+
+**Notas para el frontend:**
+
+- El campo `source` es informativo. Si solo querés renderizar/ocultar la sección, mirá si `suggestions` es vacío.
+- Si `source === "empty"` → ocultar la sección "Podrías acompañar".
+- Si `source === "store-popular"` y querés un copy distinto ("Otros productos del store"), podés diferenciarlo. Opcional.
+- Cada `suggestions[*]` trae `brand` y `tags` para filtrado client-side futuro (consistente con `/conversations/search` Fase 9).
+
+**curl:**
+```bash
+curl -X GET http://87.99.156.164/api/v1/products/b2c1d3cc-a91d-4a2b-b134-faba31325300/suggestions \
   -H "Authorization: Bearer eyJ..."
 ```
 
@@ -2105,8 +2191,8 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 **Notas sobre `filters` y `suggestions` (Fase 9, ClickUp 86e1r9epc):**
 
 - **`filters`** es un array de objetos `{criterion, options}` para el sidebar de filtros del kiosko (Mockup 5). Máximo 5 criterios, máximo 5 opciones por criterio. Strings planos en `options` — NO llevan `count`. Vacío `[]` cuando `noResults=true`.
-  - El criterio **"Marca"** viene del campo `brand` de cada producto resuelto. Aparece primero si tiene opciones. Ordenadas por frecuencia descendente, desempate alfabético.
-  - Otros criterios vienen de **tags agrupados** por la nueva columna `group` del tag catalog (ej. "voltaje" → criterio "Voltaje" con opciones "12V/18V/20V"). Solo los tags con `group` no nulo aparecen. El admin del catálogo asigna el `group` a cada tag. Tags con `group` null siguen contando al ranking pero no aparecen como filtros.
+   - El criterio **"Marca"** viene del campo `brand` de cada producto resuelto. Aparece primero si tiene opciones. Ordenadas por frecuencia descendente, desempate alfabético.
+   - Otros criterios vienen de **tags agrupados** por la nueva columna `group` del tag catalog (ej. "voltaje" → criterio "Voltaje" con opciones "12V/18V/20V"). Solo los tags con `group` no nulo aparecen. El admin del catálogo asigna el `group` a cada tag. Tags con `group` null siguen contando al ranking pero no aparecen como filtros.
 - **`suggestions`** es un array plano de hasta 5 strings con frases cortas para que el cliente refine su búsqueda ("Para uso doméstico", "Inalámbrico", etc.). Generado por LLM (Groq) cuando `vitria.llm.suggestions.enabled=true`; fallback a templates por categoría cuando el LLM falla. Si no hay templates para la categoría (o la categoría no se entendió) → `[]`. Vacío `[]` cuando `noResults=true`.
 - **Frontend filtra client-side**: cada producto ahora trae `brand` y `tags` para que el frontend filtre la lista localmente cuando el cliente toca una opción del sidebar (no hace falta nuevo request al backend).
 - **`MAX_RESULTS` subió de 5 a 20** — el sidebar tiene sentido con más opciones para filtrar.
@@ -2115,14 +2201,14 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 
 - **`noResults` indica "no hubo match al query"**, NO "array vacío". `results` puede tener hasta 3 sugerencias aunque `noResults=true`. Pensar el flag como "el ranking falló" y `results` como "lo que sirve mostrar al usuario".
 - **`suggestedFromCategory` (NUEVO, nullable)**:
-  - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
-  - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
-  - Si `noResults=false` (happy path) → siempre `null`.
+   - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
+   - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
+   - Si `noResults=false` (happy path) → siempre `null`.
 - **`fallbackMessage`** sigue presente cuando `noResults=true` con el mensaje de "Lo sentimos…". Es el copy "de cabecera" de la pantalla unhappy. Las sugerencias van debajo.
 - **`results[*].relevanceScore = 0`** identifica que el producto vino de las sugerencias del unhappy path, no del ranking real. Útil para tracking.
 - **Tamaño**:
-  - Happy path: hasta 20 productos.
-  - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
+   - Happy path: hasta 5 productos.
+   - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
 - **Filtros de las sugerencias**: solo `AVAILABLE` + `isActive=true`. LOW_STOCK y CONSULT quedan fuera.
 - **Orden de las sugerencias**: `position ASC, name ASC` (determinístico, lo mismo en consultas sucesivas).
 - **Backward compat**: si renderizan `results` siempre, los clientes viejos funcionarán igual. El campo `suggestedFromCategory` es opcional — ignorenlo si no lo usan todavía.
