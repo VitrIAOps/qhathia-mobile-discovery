@@ -143,7 +143,8 @@ private fun TopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            .padding(horizontal = Spacing.lg)
+            .padding(top = Spacing.md, bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconTextButton(
@@ -344,7 +345,8 @@ private fun BottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.xl,),
+            .padding(horizontal = Spacing.xl)
+            .padding(bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {

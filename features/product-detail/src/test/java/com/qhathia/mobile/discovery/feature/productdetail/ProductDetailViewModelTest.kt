@@ -6,6 +6,7 @@ import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductDetailRepository
@@ -38,6 +39,7 @@ class ProductDetailViewModelTest {
     ) = ProductDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_PRODUCT_ID to productId)),
         getProductDetail = GetProductDetailUseCase(repository),
+        getSuggestions = GetProductSuggestionsUseCase(repository),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
     )
@@ -46,14 +48,74 @@ class ProductDetailViewModelTest {
     fun given_product_when_initialized_then_loaded_with_related() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductDetailRepository(
             result = Result.success(ProductDetailFixtures.productDetail(id = "p1", name = "Taladro")),
+            suggestionsResult = Result.success(ProductDetailFixtures.suggestions()),
         )
         val vm = viewModel(repository = repository)
 
         val status = vm.uiState.value.status
         assertTrue(status is ProductDetailUiState.Status.Loaded)
         assertEquals("Taladro", (status as ProductDetailUiState.Status.Loaded).detail.name)
-        assertTrue(status.relatedProducts.isNotEmpty()) // mock related products
+        val related = vm.uiState.value.relatedProducts
+        assertTrue(related is ProductDetailUiState.RelatedProducts.Loaded)
+        assertTrue((related as ProductDetailUiState.RelatedProducts.Loaded).items.isNotEmpty())
         assertEquals(listOf("p1"), repository.requestedIds)
+        assertEquals(listOf("p1"), repository.suggestionRequestedIds)
+    }
+
+    @Test
+    fun given_empty_suggestions_when_initialized_then_related_empty() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(suggestionsResult = Result.success(emptyList()))
+        val vm = viewModel(repository = repository)
+
+        assertEquals(ProductDetailUiState.RelatedProducts.Empty, vm.uiState.value.relatedProducts)
+    }
+
+    @Test
+    fun given_suggestions_failure_when_initialized_then_related_empty() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(
+            result = Result.success(ProductDetailFixtures.productDetail()),
+            suggestionsResult = Result.failure(DetailException(DetailErrorCategory.DetailApi)),
+        )
+        val vm = viewModel(repository = repository)
+
+        // The detail still loads even though suggestions failed.
+        assertTrue(vm.uiState.value.status is ProductDetailUiState.Status.Loaded)
+        assertEquals(ProductDetailUiState.RelatedProducts.Empty, vm.uiState.value.relatedProducts)
+    }
+
+    @Test
+    fun given_related_product_tapped_then_emits_navigate_to_detail() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductDetailUiEvent.RelatedProductTapped("rel-42"))
+            assertEquals(ProductDetailUiEffect.NavigateToDetail("rel-42"), awaitItem())
+        }
+    }
+
+    @Test
+    fun given_related_product_add_to_cart_then_adds_that_product() = runTest(mainDispatcher.dispatcher) {
+        val related = ProductDetailFixtures.suggestions(count = 3)
+        val repository = FakeProductDetailRepository(suggestionsResult = Result.success(related))
+        val cartRepository = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        val target = related.first()
+        vm.onEvent(ProductDetailUiEvent.RelatedProductAddToCart(target.id))
+
+        val line = cartRepository.current.items.single()
+        assertEquals(target.id, line.productId)
+        assertEquals(1, line.quantity)
+    }
+
+    @Test
+    fun given_unknown_related_id_when_add_to_cart_then_cart_unchanged() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository()
+        val vm = viewModel(cartRepository = cartRepository)
+
+        vm.onEvent(ProductDetailUiEvent.RelatedProductAddToCart("does-not-exist"))
+
+        assertTrue(cartRepository.current.items.isEmpty())
     }
 
     @Test

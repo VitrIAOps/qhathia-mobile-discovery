@@ -42,6 +42,9 @@ sealed interface ProductDetailUiEvent {
     /** Submit the bottom search-bar query as a new text search. */
     data object SubmitSearch : ProductDetailUiEvent
 
-    /** Tap a related product (mock — no navigation until the related-products API lands). */
+    /** Tap a related product — opens that product's own detail. */
     data class RelatedProductTapped(val productId: String) : ProductDetailUiEvent
+
+    /** Tap a related product's add-to-cart button — adds that product to the cart (quantity 1). */
+    data class RelatedProductAddToCart(val productId: String) : ProductDetailUiEvent
 }

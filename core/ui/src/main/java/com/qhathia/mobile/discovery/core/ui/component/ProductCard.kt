@@ -63,7 +63,7 @@ fun ProductCard(
             .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier),
         shape = RoundedCornerShape(12.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, DiscoveryColors.SearchBorder),
+        shadowElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier.padding(Spacing.sm),
@@ -125,8 +125,8 @@ private fun CartButton(
     }
 }
 
-private val CARD_WIDTH = 176.dp
-private val IMAGE_HEIGHT = 150.dp
+private val CARD_WIDTH = 156.dp
+private val IMAGE_HEIGHT = 140.dp
 
 @Preview(name = "ProductCard — light", showBackground = true, backgroundColor = 0xFFF8F8F8)
 @Composable

@@ -1,10 +1,24 @@
 package com.qhathia.mobile.discovery.core.testing
 
+import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.ProductImage
 
 /** Canonical product-detail test data so tests don't re-declare detail/image shapes. */
 object ProductDetailFixtures {
+
+    /** Sample related products (the "Podrías acompañar este producto con…" strip). */
+    fun suggestions(count: Int = 3): List<Product> = (1..count).map {
+        Product(
+            id = "rel$it",
+            name = "Producto relacionado $it",
+            description = "",
+            price = 19.90 * it,
+            availability = "AVAILABLE",
+            categoryName = "Accesorios",
+            imageUrl = "https://example.com/rel-$it.jpg",
+        )
+    }
 
     fun image(
         url: String = "https://example.com/taladro-1.jpg",

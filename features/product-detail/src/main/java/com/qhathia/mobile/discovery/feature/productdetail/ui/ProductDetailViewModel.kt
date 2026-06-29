@@ -10,8 +10,8 @@ import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
-import com.qhathia.mobile.discovery.feature.productdetail.data.RelatedProductsMock
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEffect
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEvent
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiState
@@ -39,6 +39,7 @@ import javax.inject.Inject
 class ProductDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getProductDetail: GetProductDetailUseCase,
+    private val getSuggestions: GetProductSuggestionsUseCase,
     observeCart: ObserveCartUseCase,
     private val addToCart: AddToCartUseCase,
 ) : ViewModel() {
@@ -56,6 +57,7 @@ class ProductDetailViewModel @Inject constructor(
 
     init {
         load()
+        loadSuggestions()
         viewModelScope.launch {
             observeCart().collect { cart ->
                 _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
@@ -76,10 +78,12 @@ class ProductDetailViewModel @Inject constructor(
             ProductDetailUiEvent.IncreaseQuantity -> adjustQuantity(delta = 1)
             ProductDetailUiEvent.DecreaseQuantity -> adjustQuantity(delta = -1)
             ProductDetailUiEvent.OpenCart -> emit(ProductDetailUiEffect.OpenCart)
-            // Render-only / mock interactions — out of scope for this change.
+            is ProductDetailUiEvent.RelatedProductTapped ->
+                emit(ProductDetailUiEffect.NavigateToDetail(event.productId))
+            is ProductDetailUiEvent.RelatedProductAddToCart -> onAddRelatedToCart(event.productId)
+            // Render-only interactions — out of scope for this change.
             ProductDetailUiEvent.ShareWhatsApp,
             ProductDetailUiEvent.ActivateMic,
-            is ProductDetailUiEvent.RelatedProductTapped,
             -> Unit
         }
     }
@@ -88,6 +92,12 @@ class ProductDetailViewModel @Inject constructor(
         val detail = loadedDetail() ?: return
         val quantity = _uiState.value.quantity
         viewModelScope.launch { addToCart(detail.toCartItem(quantity)) }
+    }
+
+    private fun onAddRelatedToCart(productId: String) {
+        val related = _uiState.value.relatedProducts as? ProductDetailUiState.RelatedProducts.Loaded ?: return
+        val product = related.items.firstOrNull { it.id == productId } ?: return
+        viewModelScope.launch { addToCart(product.toCartItem()) }
     }
 
     private fun adjustQuantity(delta: Int) {
@@ -110,20 +120,30 @@ class ProductDetailViewModel @Inject constructor(
         viewModelScope.launch {
             getProductDetail(productId).fold(
                 onSuccess = { detail ->
-                    _uiState.update {
-                        it.copy(
-                            status = ProductDetailUiState.Status.Loaded(
-                                detail = detail,
-                                // PLACEHOLDER: mock related products until the related-products API lands.
-                                relatedProducts = RelatedProductsMock.forProduct(detail.id).toImmutableList(),
-                            ),
-                        )
-                    }
+                    _uiState.update { it.copy(status = ProductDetailUiState.Status.Loaded(detail = detail)) }
                 },
                 onFailure = { error ->
                     _uiState.update { it.copy(status = ProductDetailUiState.Status.Error(error.toErrorKind())) }
                 },
             )
+        }
+    }
+
+    /**
+     * Loads the related products independently of [load]: a non-empty success shows the strip; an empty
+     * success or any failure collapses to the empty state, so a suggestions error never breaks the
+     * detail screen.
+     */
+    private fun loadSuggestions() {
+        _uiState.update { it.copy(relatedProducts = ProductDetailUiState.RelatedProducts.Loading) }
+        viewModelScope.launch {
+            val related = getSuggestions(productId)
+                .map { products ->
+                    if (products.isEmpty()) ProductDetailUiState.RelatedProducts.Empty
+                    else ProductDetailUiState.RelatedProducts.Loaded(products.toImmutableList())
+                }
+                .getOrDefault(ProductDetailUiState.RelatedProducts.Empty)
+            _uiState.update { it.copy(relatedProducts = related) }
         }
     }
 

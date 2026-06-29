@@ -102,7 +102,7 @@ fun HomeContent(
                 Icon(
                     imageVector = Icons.Filled.Settings,
                     contentDescription = stringResource(R.string.home_settings_cd),
-                    tint = MaterialTheme.colorScheme.onBackground,
+                    tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(32.dp),
                 )
             }

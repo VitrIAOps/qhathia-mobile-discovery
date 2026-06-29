@@ -2,6 +2,7 @@ package com.qhathia.mobile.discovery.feature.productdetail.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,7 +90,7 @@ fun ProductDetailContent(
                     is ProductDetailUiState.Status.Loaded ->
                         LoadedBody(
                             detail = status.detail,
-                            related = status.relatedProducts,
+                            related = uiState.relatedProducts,
                             quantity = uiState.quantity,
                             onEvent = onEvent,
                         )
@@ -200,7 +203,7 @@ private fun LoadingBody(modifier: Modifier = Modifier) {
 @Composable
 private fun LoadedBody(
     detail: ProductDetail,
-    related: ImmutableList<Product>,
+    related: ProductDetailUiState.RelatedProducts,
     quantity: Int,
     onEvent: (ProductDetailUiEvent) -> Unit,
 ) {
@@ -343,25 +346,63 @@ private fun ActionButton(
 
 @Composable
 private fun RelatedProductsSection(
-    related: ImmutableList<Product>,
+    related: ProductDetailUiState.RelatedProducts,
     onEvent: (ProductDetailUiEvent) -> Unit,
 ) {
-    // PLACEHOLDER: related products come from a mock until the related-products API lands.
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         HeadingRow(text = stringResource(R.string.pd_related_headline))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            related.forEach { product ->
-                ProductRowCard(
-                    name = product.name,
-                    categoryName = product.categoryName,
-                    priceText = stringResource(UiR.string.discovery_price_format, product.price),
-                    imageUrl = product.imageUrl,
-                    onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
+        when (related) {
+            ProductDetailUiState.RelatedProducts.Loading -> RelatedProductsPlaceholderBox {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+
+            is ProductDetailUiState.RelatedProducts.Loaded ->
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    related.items.forEach { product ->
+                        key(product.id) {
+                            ProductRowCard(
+                                name = product.name,
+                                categoryName = product.categoryName,
+                                priceText = stringResource(UiR.string.discovery_price_format, product.price),
+                                imageUrl = product.imageUrl,
+                                cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
+                                onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
+                                onAddToCart = { onEvent(ProductDetailUiEvent.RelatedProductAddToCart(product.id)) },
+                            )
+                        }
+                    }
+                }
+
+            ProductDetailUiState.RelatedProducts.Empty -> RelatedProductsPlaceholderBox {
+                Text(
+                    text = stringResource(R.string.pd_related_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DiscoveryColors.TextMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = Spacing.lg),
                 )
             }
         }
     }
 }
+
+/** A box matching the related-products strip height, centering its [content] (empty / loading states). */
+@Composable
+private fun RelatedProductsPlaceholderBox(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(RELATED_STRIP_HEIGHT),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+private val RELATED_STRIP_HEIGHT = 120.dp
 
 @Composable
 private fun ErrorBody(
@@ -502,27 +543,38 @@ private fun sampleRelated(): ImmutableList<Product> = listOf(
     Product("rel3", "Lentes de seguridad", "", 19.90, "AVAILABLE", "Seguridad", ""),
 ).toImmutableList()
 
-@Preview(name = "Detail loaded (3 photos) — light", showBackground = true, widthDp = 1024, heightDp = 720)
+private fun loadedState(
+    imageCount: Int,
+    related: ProductDetailUiState.RelatedProducts = ProductDetailUiState.RelatedProducts.Loaded(sampleRelated()),
+    showCloseConfirmDialog: Boolean = false,
+): ProductDetailUiState = ProductDetailUiState(
+    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount)),
+    relatedProducts = related,
+    showCloseConfirmDialog = showCloseConfirmDialog,
+)
+
+@Preview(name = "Detail loaded (related) — light", showBackground = true, widthDp = 1024, heightDp = 720)
 @Composable
 private fun DetailLoadedLightPreview() {
     DiscoveryTheme(darkTheme = false) {
-        ProductDetailContent(
-            uiState = ProductDetailUiState(
-                status = ProductDetailUiState.Status.Loaded(sampleDetail(4), sampleRelated()),
-            ),
-            onEvent = {},
-        )
+        ProductDetailContent(uiState = loadedState(imageCount = 4), onEvent = {})
     }
 }
 
-@Preview(name = "Detail loaded (3 photos) — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Preview(name = "Detail loaded (related) — dark", showBackground = true, widthDp = 1024, heightDp = 720)
 @Composable
 private fun DetailLoadedDarkPreview() {
     DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail loaded (no related) — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailRelatedEmptyPreview() {
+    DiscoveryTheme(darkTheme = false) {
         ProductDetailContent(
-            uiState = ProductDetailUiState(
-                status = ProductDetailUiState.Status.Loaded(sampleDetail(4), sampleRelated()),
-            ),
+            uiState = loadedState(imageCount = 4, related = ProductDetailUiState.RelatedProducts.Empty),
             onEvent = {},
         )
     }
@@ -532,12 +584,7 @@ private fun DetailLoadedDarkPreview() {
 @Composable
 private fun DetailSinglePhotoPreview() {
     DiscoveryTheme(darkTheme = false) {
-        ProductDetailContent(
-            uiState = ProductDetailUiState(
-                status = ProductDetailUiState.Status.Loaded(sampleDetail(1), sampleRelated()),
-            ),
-            onEvent = {},
-        )
+        ProductDetailContent(uiState = loadedState(imageCount = 1), onEvent = {})
     }
 }
 
@@ -576,10 +623,7 @@ private fun DetailNetworkErrorPreview() {
 private fun DetailCloseDialogPreview() {
     DiscoveryTheme(darkTheme = false) {
         ProductDetailContent(
-            uiState = ProductDetailUiState(
-                status = ProductDetailUiState.Status.Loaded(sampleDetail(2), sampleRelated()),
-                showCloseConfirmDialog = true,
-            ),
+            uiState = loadedState(imageCount = 2, showCloseConfirmDialog = true),
             onEvent = {},
         )
     }

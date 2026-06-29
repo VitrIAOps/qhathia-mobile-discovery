@@ -5,6 +5,7 @@ import com.qhathia.mobile.discovery.core.data.BuildConfig
 import com.qhathia.mobile.discovery.core.data.stt.SessionTokenProvider
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
+import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.repository.ProductDetailRepository
 import com.qhathia.mobile.discovery.core.network.NetworkResult
@@ -46,6 +47,30 @@ class ProductDetailRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getSuggestions(id: String): Result<List<Product>> {
+        val token = sessionTokenProvider.accessToken()
+            .getOrElse { return Result.failure(DetailException(DetailErrorMapper.fromTokenFailure(it))) }
+
+        var response = productApiService.getSuggestions(token, id)
+        if (response is NetworkResult.HttpError && response.code == HTTP_UNAUTHORIZED) {
+            sessionTokenProvider.clear()
+            val refreshed = sessionTokenProvider.accessToken(forceRefresh = true)
+                .getOrElse { return Result.failure(DetailException(DetailErrorMapper.fromTokenFailure(it))) }
+            response = productApiService.getSuggestions(refreshed, id)
+        }
+
+        return when (response) {
+            is NetworkResult.Success -> {
+                val products = response.data.suggestions.map { it.toDomain() }.take(MAX_SUGGESTIONS)
+                if (BuildConfig.DEBUG) Log.d(TAG, "suggestions result: id=$id count=${products.size}")
+                Result.success(products)
+            }
+            is NetworkResult.HttpError -> Result.failure(DetailException(DetailErrorCategory.DetailApi))
+            is NetworkResult.NetworkError ->
+                Result.failure(DetailException(DetailErrorMapper.fromNetworkError(response.kind)))
+        }
+    }
+
     private fun success(detail: ProductDetail): Result<ProductDetail> {
         if (BuildConfig.DEBUG) Log.d(TAG, "detail result: id=${detail.id} images=${detail.images.size}")
         return Result.success(detail)
@@ -60,5 +85,6 @@ class ProductDetailRepositoryImpl @Inject constructor(
         const val TAG = "ProductDetail"
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_NOT_FOUND = 404
+        const val MAX_SUGGESTIONS = 5
     }
 }

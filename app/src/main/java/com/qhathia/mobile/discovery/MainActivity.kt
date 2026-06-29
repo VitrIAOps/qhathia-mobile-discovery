@@ -139,6 +139,7 @@ private fun DiscoveryAppRoot(
                         onNavigateToSearch = { query ->
                             navController.navigate(productSearchRoute(query, SearchSource.Text))
                         },
+                        onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
                         onOpenCart = { showCart = true },
                     )
                     networkSettingsScreen(
