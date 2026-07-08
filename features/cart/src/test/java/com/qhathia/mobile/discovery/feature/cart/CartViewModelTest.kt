@@ -1,6 +1,8 @@
 package com.qhathia.mobile.discovery.feature.cart
 
 import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
@@ -8,9 +10,11 @@ import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseC
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
+import com.qhathia.mobile.discovery.core.testing.FakeOrderRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
+import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
 import com.qhathia.mobile.discovery.feature.cart.ui.CartViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -27,13 +31,24 @@ class CartViewModelTest {
     @RegisterExtension
     val mainDispatcher = MainDispatcherExtension()
 
-    private fun viewModel(repository: FakeCartRepository = FakeCartRepository()) = CartViewModel(
+    private fun viewModel(
+        repository: FakeCartRepository = FakeCartRepository(),
+        orderRepository: FakeOrderRepository = FakeOrderRepository(),
+    ) = CartViewModel(
         observeCart = ObserveCartUseCase(repository),
         updateQuantity = UpdateCartItemQuantityUseCase(repository),
         removeItem = RemoveCartItemUseCase(repository),
         validateName = ValidateConsumerNameUseCase(),
         validatePhone = ValidateConsumerPhoneUseCase(),
+        createOrder = CreateOrderUseCase(orderRepository),
+        clearCart = ClearCartUseCase(repository),
     )
+
+    /** Enters valid consumer data so the order can be placed. */
+    private fun CartViewModel.enterValidData() {
+        onEvent(CartUiEvent.NameChanged("Ana Pérez"))
+        onEvent(CartUiEvent.PhoneChanged("987 654 321"))
+    }
 
     @Test
     fun given_cart_when_observed_then_state_has_items_and_totals() = runTest(mainDispatcher.dispatcher) {
@@ -112,16 +127,107 @@ class CartViewModelTest {
     }
 
     @Test
-    fun given_place_order_and_share_then_no_op_no_effect() = runTest(mainDispatcher.dispatcher) {
+    fun given_share_then_no_op() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeCartRepository(CartFixtures.cart())
         val vm = viewModel(repository)
 
         vm.uiEffect.test {
-            vm.onEvent(CartUiEvent.PlaceOrder)
             vm.onEvent(CartUiEvent.ShareWhatsApp)
             expectNoEvents()
         }
-        // The basket is untouched by the render-only actions.
+        assertFalse(repository.current.isEmpty)
+    }
+
+    @Test
+    fun given_valid_data_when_place_order_then_success_with_summary() = runTest(mainDispatcher.dispatcher) {
+        val orderRepository = FakeOrderRepository()
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), orderRepository)
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        val submission = vm.uiState.value.submission
+        assertTrue(submission is OrderSubmission.Success)
+        assertEquals(2, (submission as OrderSubmission.Success).summary.size)
+        assertEquals(1, orderRepository.callCount)
+        // The ViewModel forwards the raw form value; the data layer normalizes it before the API.
+        assertEquals("987 654 321", orderRepository.lastCall?.phone)
+    }
+
+    @Test
+    fun given_failure_when_place_order_then_error() = runTest(mainDispatcher.dispatcher) {
+        val orderRepository = FakeOrderRepository().apply { failWith() }
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), orderRepository)
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+    }
+
+    @Test
+    fun given_invalid_data_when_place_order_then_no_submission() = runTest(mainDispatcher.dispatcher) {
+        val orderRepository = FakeOrderRepository()
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), orderRepository)
+        // No consumer data entered → order disabled.
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
+        assertEquals(0, orderRepository.callCount)
+    }
+
+    @Test
+    fun given_non_idle_when_place_order_again_then_ignored() = runTest(mainDispatcher.dispatcher) {
+        val orderRepository = FakeOrderRepository()
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), orderRepository)
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder) // → Success
+        vm.onEvent(CartUiEvent.PlaceOrder) // blocked: submission is not Idle
+
+        assertEquals(1, orderRepository.callCount)
+    }
+
+    @Test
+    fun given_success_when_accept_then_clears_cart_and_returns_home() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeCartRepository(CartFixtures.cart())
+        val vm = viewModel(repository)
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        vm.uiEffect.test {
+            vm.onEvent(CartUiEvent.AcceptSuccess)
+            assertEquals(CartUiEffect.ReturnHome, awaitItem())
+        }
+        assertTrue(repository.current.isEmpty)
+    }
+
+    @Test
+    fun given_error_when_cancel_then_clears_cart_and_returns_home() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeCartRepository(CartFixtures.cart())
+        val vm = viewModel(repository, FakeOrderRepository().apply { failWith() })
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        vm.uiEffect.test {
+            vm.onEvent(CartUiEvent.CancelOrder)
+            assertEquals(CartUiEffect.ReturnHome, awaitItem())
+        }
+        assertTrue(repository.current.isEmpty)
+    }
+
+    @Test
+    fun given_error_when_dismiss_then_idle_and_cart_preserved() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeCartRepository(CartFixtures.cart())
+        val vm = viewModel(repository, FakeOrderRepository().apply { failWith() })
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+
+        vm.onEvent(CartUiEvent.DismissError)
+
+        assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
         assertFalse(repository.current.isEmpty)
     }
 }

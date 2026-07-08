@@ -21,11 +21,20 @@ sealed interface CartUiEvent {
     /** The consumer cell-phone field changed. */
     data class PhoneChanged(val phone: String) : CartUiEvent
 
-    /** Tap "Realizar pedido" (render-only — no order API until it lands). */
+    /** Tap "Realizar pedido" — validate and submit the order to the API. */
     data object PlaceOrder : CartUiEvent
 
     /** Tap "Compartir por WhatsApp" (render-only — no WhatsApp action until it lands). */
     data object ShareWhatsApp : CartUiEvent
+
+    /** Tap "Aceptar" on the success screen — clear the session and return Home. */
+    data object AcceptSuccess : CartUiEvent
+
+    /** Tap "Entendido" on the error screen — return to the cart summary to retry. */
+    data object DismissError : CartUiEvent
+
+    /** Tap "Cancelar orden" on the error screen — clear the session and return Home. */
+    data object CancelOrder : CartUiEvent
 
     /** Tap "Seguir buscando" — dismiss the dialog, keeping the cart. */
     data object KeepShopping : CartUiEvent

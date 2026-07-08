@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The shopping-cart capability lets in-store consumers collect products discovered through search and detail into a single, session-scoped basket and review them in a cart dialog. It owns the in-memory basket shared across screens, adding products from search results and the product-detail screen, per-product quantity management bounded by stock, the cart control with its item-count badge, the cart dialog presentation (item list, receipt-styled totals, consumer-data form, and order/share actions), the consumer-data form validation, the render-only "Realizar pedido" and "Compartir por WhatsApp" actions, and the cart session lifecycle (inactivity clearing off the Home screen).
+The shopping-cart capability lets in-store consumers collect products discovered through search and detail into a single, session-scoped basket and review them in a cart dialog. It owns the in-memory basket shared across screens, adding products from search results and the product-detail screen, per-product quantity management bounded by stock, the cart control with its item-count badge, the cart dialog presentation (item list, receipt-styled totals, consumer-data form, and order/share actions), the consumer-data form validation, the "Realizar pedido" action (which submits a purchase order per the cart-order-submission capability) and the render-only "Compartir por WhatsApp" action, and the cart session lifecycle (inactivity clearing off the Home screen, plus clearing on successful order placement and on order cancellation).
 
 ## Requirements
 
@@ -129,12 +129,12 @@ The cart dialog SHALL provide a consumer-data form requiring a **name** and a **
 
 ### Requirement: Render-only order and share actions
 
-The **"Realizar pedido"** and **"Compartir por WhatsApp"** actions SHALL be render-only because their backends do not exist yet. Tapping "Realizar pedido" SHALL NOT perform a network request to place an order, and tapping "Compartir por WhatsApp" SHALL NOT open WhatsApp or perform a share. Both deferred behaviors SHALL be marked in code as `TODO` to be implemented when their APIs are available.
+The **"Compartir por WhatsApp"** action SHALL be render-only because its backend does not exist yet. Tapping "Compartir por WhatsApp" SHALL NOT open WhatsApp or perform a share, and this deferred behavior SHALL be marked in code as `TODO` to be implemented when its API is available. The **"Realizar pedido"** action SHALL NO LONGER be render-only — it submits a purchase order as defined by the `cart-order-submission` capability.
 
-#### Scenario: Place order performs no network action
+#### Scenario: Realizar pedido submits an order
 
 - **WHEN** the consumer taps "Realizar pedido" with valid data
-- **THEN** the app does not perform an order network request (the action is a TODO placeholder)
+- **THEN** the app submits a purchase order (see the `cart-order-submission` capability)
 
 #### Scenario: Share performs no action
 
@@ -153,7 +153,7 @@ Closing the cart dialog via the **"Seguir buscando"** button or the top close ("
 
 ### Requirement: Cart session lifecycle
 
-The cart basket SHALL be cleared after 1 minute of inactivity on any screen that is not the Home screen. On the Home screen the inactivity clear SHALL NOT apply. The basket SHALL also be cleared when the consumer places an order (deferred until the order action is implemented).
+The cart basket SHALL be cleared after 1 minute of inactivity on any screen that is not the Home screen. On the Home screen the inactivity clear SHALL NOT apply. The basket SHALL also be cleared when the consumer places an order successfully and when the consumer cancels the order from the order-error state.
 
 #### Scenario: Inactivity off Home clears the cart
 
@@ -169,6 +169,11 @@ The cart basket SHALL be cleared after 1 minute of inactivity on any screen that
 
 - **WHEN** the consumer is on the Home screen and does not interact for 1 minute
 - **THEN** the cart basket is not cleared by the inactivity rule
+
+#### Scenario: Successful order clears the cart
+
+- **WHEN** the consumer places an order successfully and accepts the confirmation
+- **THEN** the cart basket is cleared
 
 ### Requirement: Theming and accessibility compliance
 

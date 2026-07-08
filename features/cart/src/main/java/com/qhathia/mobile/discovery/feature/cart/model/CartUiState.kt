@@ -17,6 +17,7 @@ import kotlinx.collections.immutable.persistentListOf
  * @property nameError the name validation error, or `null` when valid.
  * @property phoneError the phone validation error, or `null` when valid.
  * @property isOrderEnabled whether the consumer data is complete and valid (gates "Realizar pedido").
+ * @property submission the order-submission phase overlaid on the dialog (loading / success / error).
  */
 data class CartUiState(
     val items: ImmutableList<CartItem> = persistentListOf(),
@@ -27,9 +28,13 @@ data class CartUiState(
     val nameError: ConsumerNameError? = ConsumerNameError.Empty,
     val phoneError: ConsumerPhoneError? = ConsumerPhoneError.Empty,
     val isOrderEnabled: Boolean = false,
+    val submission: OrderSubmission = OrderSubmission.Idle,
 ) {
     /** True when the basket has no lines. */
     val isEmpty: Boolean get() = items.isEmpty()
+
+    /** True while an order request is in flight — the dialog blocks all inputs. */
+    val isSubmitting: Boolean get() = submission is OrderSubmission.Submitting
 
     /** Show the name error message only once the field has content (a blank field is not "wrong" yet). */
     val showNameError: Boolean get() = name.isNotBlank() && nameError != null

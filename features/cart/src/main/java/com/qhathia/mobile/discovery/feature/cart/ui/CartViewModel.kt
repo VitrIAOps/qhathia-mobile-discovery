@@ -2,6 +2,8 @@ package com.qhathia.mobile.discovery.feature.cart.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
@@ -10,6 +12,8 @@ import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUse
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiState
+import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
+import com.qhathia.mobile.discovery.feature.cart.model.OrderedLine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.BufferOverflow
@@ -25,9 +29,12 @@ import javax.inject.Inject
 
 /**
  * Drives the cart dialog. Observes the session cart and maps it (with totals) into the UI state,
- * validates the consumer-data form on input, and adjusts line quantities / removes lines. Line taps
- * and the close controls are surfaced as one-shot effects. "Realizar pedido" and "Compartir por
- * WhatsApp" are intentional no-ops for this slice (their APIs do not exist yet).
+ * validates the consumer-data form on input, and adjusts line quantities / removes lines. "Realizar
+ * pedido" submits the basket + consumer data to the order API and drives the submission phase
+ * ([OrderSubmission]): a blocking loader while in flight, a success summary on `201`, or a simplified
+ * error otherwise. Accepting the success or cancelling the error clears the session and returns Home;
+ * "Entendido" returns to the cart summary. Line taps and the close controls surface as one-shot
+ * effects. "Compartir por WhatsApp" remains an intentional no-op (its API does not exist yet).
  */
 @HiltViewModel
 class CartViewModel @Inject constructor(
@@ -36,6 +43,8 @@ class CartViewModel @Inject constructor(
     private val removeItem: RemoveCartItemUseCase,
     private val validateName: ValidateConsumerNameUseCase,
     private val validatePhone: ValidateConsumerPhoneUseCase,
+    private val createOrder: CreateOrderUseCase,
+    private val clearCart: ClearCartUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CartUiState())
@@ -70,10 +79,39 @@ class CartViewModel @Inject constructor(
             is CartUiEvent.NameChanged -> onNameChanged(event.name)
             is CartUiEvent.PhoneChanged -> onPhoneChanged(event.phone)
             CartUiEvent.KeepShopping, CartUiEvent.Close -> emit(CartUiEffect.Dismiss)
-            // TODO(order-api): place the order when the cart/order API lands; clear the cart on success.
-            CartUiEvent.PlaceOrder -> Unit
+            CartUiEvent.PlaceOrder -> placeOrder()
+            CartUiEvent.AcceptSuccess, CartUiEvent.CancelOrder -> finishAndReturnHome()
+            CartUiEvent.DismissError -> _uiState.update { it.copy(submission = OrderSubmission.Idle) }
             // TODO(whatsapp-api): build and send the WhatsApp message when the share contract lands.
             CartUiEvent.ShareWhatsApp -> Unit
+        }
+    }
+
+    private fun placeOrder() {
+        val state = _uiState.value
+        // Guard: valid data and no submission already in flight (blocks double-submit).
+        if (!state.isOrderEnabled || state.submission != OrderSubmission.Idle) return
+
+        val summary = state.items
+            .map { OrderedLine(imageUrl = it.imageUrl, name = it.name, quantity = it.quantity) }
+            .toImmutableList()
+
+        _uiState.update { it.copy(submission = OrderSubmission.Submitting) }
+        viewModelScope.launch {
+            createOrder(state.name, state.phone, state.items)
+                .onSuccess {
+                    _uiState.update { it.copy(submission = OrderSubmission.Success(summary)) }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(submission = OrderSubmission.Error) }
+                }
+        }
+    }
+
+    private fun finishAndReturnHome() {
+        viewModelScope.launch {
+            clearCart()
+            _uiEffect.emit(CartUiEffect.ReturnHome)
         }
     }
 

@@ -156,6 +156,12 @@ private fun DiscoveryAppRoot(
                     navController.navigate(productDetailRoute(productId))
                 },
                 onDismiss = { showCart = false },
+                onReturnHome = {
+                    // Order placed (accepted) or cancelled from the error state: the session was
+                    // cleared in the ViewModel; close the overlay and pop back to Home.
+                    showCart = false
+                    navController.popBackStack(HOME_ROUTE, inclusive = false)
+                },
             )
         }
 
