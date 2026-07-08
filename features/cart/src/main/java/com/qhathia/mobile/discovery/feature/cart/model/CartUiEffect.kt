@@ -8,4 +8,7 @@ sealed interface CartUiEffect {
 
     /** Dismiss the cart dialog, leaving the basket and underlying screen unchanged. */
     data object Dismiss : CartUiEffect
+
+    /** Dismiss the cart dialog and return to the Home screen (the session has been cleared). */
+    data object ReturnHome : CartUiEffect
 }

@@ -34,6 +34,7 @@ import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
 fun CartDialog(
     onNavigateToDetail: (String) -> Unit,
     onDismiss: () -> Unit,
+    onReturnHome: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CartViewModel = hiltViewModel(),
 ) {
@@ -44,6 +45,7 @@ fun CartDialog(
             when (effect) {
                 is CartUiEffect.NavigateToDetail -> onNavigateToDetail(effect.productId)
                 CartUiEffect.Dismiss -> onDismiss()
+                CartUiEffect.ReturnHome -> onReturnHome()
             }
         }
     }

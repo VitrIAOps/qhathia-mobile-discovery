@@ -2,6 +2,7 @@ package com.qhathia.mobile.discovery.feature.cart.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,18 +10,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,7 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -43,18 +51,102 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import com.qhathia.mobile.discovery.feature.cart.R
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiState
+import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
+import com.qhathia.mobile.discovery.feature.cart.model.OrderedLine
+import kotlinx.collections.immutable.ImmutableList
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
- * Stateless cart UI — a pure function of [CartUiState], following the cart Figma (node `758-25521`):
- * a rounded sheet with a "Carrito" header + item-count subtitle and a close control, a divider, and a
- * two-column body: the scrollable product list on the left and a footer panel on the right with the
- * consumer-data form, a receipt-styled totals section, and the order / keep-shopping / share buttons.
- * Built from the shared `core:ui` design-system components.
+ * Stateless cart UI — a pure function of [CartUiState], following the cart Figma (node `758-25521`).
+ * The [CartUiState.submission] phase decides what is shown: the normal cart (with a blocking loading
+ * overlay while [OrderSubmission.Submitting]), the success confirmation summary, or the simplified
+ * error screen. Built from the shared `core:ui` design-system components.
  */
 @Composable
 fun CartDialogContent(
     uiState: CartUiState,
+    onEvent: (CartUiEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (val submission = uiState.submission) {
+        is OrderSubmission.Success ->
+            OrderSuccessContent(summary = submission.summary, onEvent = onEvent, modifier = modifier)
+
+        OrderSubmission.Error ->
+            OrderErrorContent(onEvent = onEvent, modifier = modifier)
+
+        OrderSubmission.Idle, OrderSubmission.Submitting ->
+            CartContent(uiState = uiState, onEvent = onEvent, modifier = modifier)
+    }
+}
+
+// --- Cart body (idle + submitting overlay) ---
+
+@Composable
+private fun CartContent(
+    uiState: CartUiState,
+    onEvent: (CartUiEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Header(itemCount = uiState.totalItemCount, onClose = { onEvent(CartUiEvent.Close) })
+                DiscoveryDivider()
+                Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        if (uiState.isEmpty) {
+                            EmptyState(modifier = Modifier.align(Alignment.Center))
+                        } else {
+                            ProductList(items = uiState.items, onEvent = onEvent)
+                        }
+                    }
+                    FooterPanel(uiState = uiState, onEvent = onEvent)
+                }
+            }
+        }
+        if (uiState.isSubmitting) {
+            SubmittingOverlay()
+        }
+    }
+}
+
+/**
+ * Full-surface blocking overlay shown while the order request is in flight. A dimmed scrim (an
+ * API-agnostic stand-in for a blur, since `Modifier.blur` needs API 31+ and minSdk is 26) intercepts
+ * every pointer event so the underlying form, steppers, and buttons cannot be touched, and a centered
+ * loader announces the loading state to assistive technology.
+ */
+@Composable
+private fun SubmittingOverlay() {
+    val loadingLabel = stringResource(R.string.cart_submitting_cd)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = SCRIM_ALPHA))
+            // Consume all taps so no input below the overlay is reachable during submission.
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(
+            color = Color.White,
+            modifier = Modifier
+                .size(48.dp)
+                .semantics { stateDescription = loadingLabel },
+        )
+    }
+}
+
+// --- Success confirmation ---
+
+@Composable
+private fun OrderSuccessContent(
+    summary: ImmutableList<OrderedLine>,
     onEvent: (CartUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -63,19 +155,147 @@ fun CartDialogContent(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Header(itemCount = uiState.totalItemCount, onClose = { onEvent(CartUiEvent.Close) })
-            DiscoveryDivider()
-            Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    if (uiState.isEmpty) {
-                        EmptyState(modifier = Modifier.align(Alignment.Center))
-                    } else {
-                        ProductList(items = uiState.items, onEvent = onEvent)
-                    }
-                }
-                FooterPanel(uiState = uiState, onEvent = onEvent)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(Spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
+        ) {
+            Text(
+                text = stringResource(R.string.cart_success_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = DiscoveryColors.Green500,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.cart_success_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+            )
+            OrderedSummaryList(summary = summary)
+            Text(
+                text = stringResource(R.string.cart_success_check_phone),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+            )
+            PrimaryActionButton(
+                text = stringResource(R.string.cart_success_accept),
+                onClick = { onEvent(CartUiEvent.AcceptSuccess) },
+                containerColor = DiscoveryColors.Blue700,
+                contentColor = Color.White,
+                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OrderedSummaryList(summary: ImmutableList<OrderedLine>) {
+    Column(
+        modifier = Modifier
+            .widthIn(max = PANEL_MAX_WIDTH)
+            .heightIn(max = SUMMARY_MAX_HEIGHT)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        summary.forEach { line -> OrderedLineRow(line = line) }
+    }
+}
+
+@Composable
+private fun OrderedLineRow(line: OrderedLine) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, DiscoveryColors.Divider),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AsyncImage(
+                model = line.imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DiscoveryColors.Neutral50),
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(
+                    text = line.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = pluralStringResource(R.plurals.cart_success_qty, line.quantity, line.quantity),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+        }
+    }
+}
+
+// --- Error recovery ---
+
+@Composable
+private fun OrderErrorContent(
+    onEvent: (CartUiEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(Spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
+        ) {
+            Text(
+                text = stringResource(R.string.cart_error_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.cart_error_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+            )
+            // "Entendido" carries the higher priority (filled) — it returns to the cart to retry.
+            PrimaryActionButton(
+                text = stringResource(R.string.cart_error_understood),
+                onClick = { onEvent(CartUiEvent.DismissError) },
+                containerColor = DiscoveryColors.Blue700,
+                contentColor = Color.White,
+                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+            )
+            PrimaryActionButton(
+                text = stringResource(R.string.cart_error_cancel),
+                onClick = { onEvent(CartUiEvent.CancelOrder) },
+                containerColor = Color.Transparent,
+                contentColor = DiscoveryColors.CatalogText,
+                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+            )
         }
     }
 }
@@ -324,7 +544,7 @@ private fun ActionButtons(
     onEvent: (CartUiEvent) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        // Primary: "Realizar pedido" — render-only (no order API yet); enabled only when data is valid.
+        // Primary: "Realizar pedido" — enabled only when the consumer data is valid.
         PrimaryActionButton(
             text = stringResource(R.string.cart_place_order),
             onClick = { onEvent(CartUiEvent.PlaceOrder) },
@@ -350,6 +570,9 @@ private fun ActionButtons(
 }
 
 private val FOOTER_WIDTH = 420.dp
+private val PANEL_MAX_WIDTH = 480.dp
+private val SUMMARY_MAX_HEIGHT = 260.dp
+private const val SCRIM_ALPHA = 0.45f
 
 // --- Previews (landscape kiosk) ---
 
@@ -357,6 +580,12 @@ private fun sampleItems(): kotlinx.collections.immutable.ImmutableList<CartItem>
     kotlinx.collections.immutable.persistentListOf(
         CartItem("p1", "Taladro Percutor Bosch GSB 13 RE Professional 12V", 189.0, "", "AVAILABLE", 1, 99),
         CartItem("p2", "Set de brocas (5 piezas)", 49.9, "", "LOW_STOCK", 5, 5),
+    )
+
+private fun sampleSummary(): kotlinx.collections.immutable.ImmutableList<OrderedLine> =
+    kotlinx.collections.immutable.persistentListOf(
+        OrderedLine("", "Taladro Percutor Bosch GSB 13 RE Professional 12V", 1),
+        OrderedLine("", "Set de brocas (5 piezas)", 5),
     )
 
 @androidx.compose.ui.tooling.preview.Preview(name = "Cart — valid (light)", showBackground = true, widthDp = 1024, heightDp = 640)
@@ -407,6 +636,76 @@ private fun CartEmptyPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
         CartDialogContent(
             uiState = CartUiState(),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — submitting (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartSubmittingPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(
+                items = sampleItems(),
+                totalItemCount = 6,
+                totalAmount = 438.5,
+                name = "Ana Pérez",
+                phone = "987654321",
+                nameError = null,
+                phoneError = null,
+                isOrderEnabled = true,
+                submission = OrderSubmission.Submitting,
+            ),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — success (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderSuccessPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary())),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — success (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderSuccessDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary())),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — error (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderErrorPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Error),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — error (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderErrorDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Error),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )

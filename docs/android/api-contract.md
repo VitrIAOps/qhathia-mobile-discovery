@@ -9,9 +9,35 @@
 
 ---
 
-## Cambios recientes (Fase 1-10)
+## Cambios recientes (Fase 1-13)
 
-**Fase 10 — 2026-06-28 (último deploy):**
+**Fase 13 — 2026-06-29 (change `kiosk-cart-order`):**
+- **`POST /api/v1/orders` rediseñado** para carrito del kiosko: ahora soporta **N items con cantidad** (1-20 items, 1-99 qty cada uno) + **datos del cliente** (`customerName` + `customerPhone` peruano `^9\d{8}$` requeridos) + **subtotal/total server-side** con snapshot del precio al momento de crear (no recalculado después). **BREAKING** vs el shape legacy single-product — nadie usaba el viejo en producción.
+- **`POST /orders/{id}/confirm` ahora decrementa stock** de cada producto por su `quantity`. Si algún producto tiene insuficiente (`stock < qty`), responde **422 `STOCK_INSUFFICIENT`** con detail completo (productId, productName, available, requested) y la orden queda en PENDING (sin decremento parcial). Productos `CONSULT` (`stock=null`) no se tocan.
+- **`GET /orders?customerPhone=<digits>`** — nuevo filtro para que el comerciante busque las órdenes de un cliente cuando le devuelve la llamada.
+- **Schema V13**: nueva tabla `order_items`, `orders` agrega `customer_name/customer_phone/subtotal/total`, drop `orders.product_id`.
+- **Sync con V12 OUT_OF_STOCK**: cuando un `confirm` decrementa el stock de un producto a 0, automáticamente queda `availability=OUT_OF_STOCK` y desaparece del catálogo público.
+- Detalle de los 6 endpoints en sección 9.
+
+**Hotfix 2026-06-29 (tarde, V12):** se agregó el valor `OUT_OF_STOCK` al enum `availability`. La sync ahora deriva `stock=0 → OUT_OF_STOCK` (antes era `LOW_STOCK`, semánticamente incorrecto). Los productos `OUT_OF_STOCK` NO aparecen en catálogo público ni suggestions (queries filtran por `AVAILABLE`); SÍ se incluyen en el CSV de WhatsApp con valor `"out of stock"` (Meta los muestra greyed-out). Detalle en sección 8.2.
+
+**Hotfix 2026-06-29 (tarde):** `POST /api/v1/products/{id}/regenerate-description` cambió a **`POST /api/v1/products/regenerate-description`** (sin path param). El endpoint es stateless — sirve para producto en draft (antes de guardar) y para edición. Antes requería un id de producto ya creado, lo que rompía el flujo del mockup "Registro de producto". Detalle en sección 8.8.
+
+**Fase 12 — 2026-06-29 (change `product-images-r2-upload`, Fase B):**
+- **BizAPI: storage abstraction con Cloudflare R2** — nuevo `StorageGateway` (stub + R2 impl) siguiendo el patrón gateway+stub+impl ya usado por vision/llm. Activación vía `STORAGE_PROVIDER=r2` + credenciales R2 en `.env` del VPS. El frontend NUNCA toca el bucket.
+- **Nuevo endpoint `POST /api/v1/products/with-images`** (multipart): recibe `product` part (JSON) + N parts `images` (binarias, max 10 × 5MB). El backend valida todo, sube las fotos a R2, crea el producto + media rows en **una transacción atómica** (rollback total si cualquier upload falla). Detalle en sección 8.9.
+- **Nuevo endpoint `POST /api/v1/products/{id}/images`** (multipart): adjunta 1..N fotos adicionales a un producto existente. Posiciones continúan desde el max actual, primary=false. Detalle en sección 8.10.
+- **Coexistencia Firebase + R2**: productos legacy con URLs Firebase siguen funcionando sin migración. `ProductMedia.url` es opaco al origen.
+- **`POST /api/v1/products` JSON-only** (sección 8.2) y **`POST /api/v1/products/{id}/media` con URL pre-hosteado** (legacy) NO cambian — backward-compatible.
+
+**Fase 11 — 2026-06-29 (change `product-stock-and-ai-draft`, Fase A):**
+- **BizAPI: campo `stock` numérico en productos** — nueva columna `stock INTEGER NULL` (V11). Sync automática `stock ↔ availability` en `POST/PUT /api/v1/products`: si el caller omite `availability` y envía `stock`, el backend deriva `null→CONSULT`, `0→LOW_STOCK`, `>0→AVAILABLE`. Si el caller envía ambos, su `availability` gana. Productos legacy (sin `stock`) siguen funcionando sin cambios.
+- **BizAPI: nuevo endpoint `POST /api/v1/products/draft-from-image`** (multipart, max 5 MB) — el LLM Groq multimodal genera descripción + categoría sugerida + tags a partir de UNA foto. **No crea producto** y **no sube la imagen a storage** (procesamiento en memoria con base64 inline a Groq). Defense-in-depth: categoría filtrada al conjunto del store, tags filtrados al catálogo cerrado. Fail-open total. Detalle en sección 8.7.
+- **BizAPI: nuevo endpoint `POST /api/v1/products/{id}/regenerate-description`** — paráfrasis IA de la descripción existente, sin inventar facts. Reusa `LlmGateway` (Groq Llama 3.3 70B). Fail-open: si el LLM no responde, devuelve la descripción original. Detalle en sección 8.8.
+- **Search projection (Mongo `vitria_search`)** ahora incluye `stock` para futuro filtrado por vo-api.
+- **Fase B** (R2 storage + upload de fotos al guardar) queda fuera de scope; vendrá en un change posterior.
+
+**Fase 10 — 2026-06-28:**
 - **BizAPI: productos sugeridos en pantalla detalle**: nuevo endpoint `GET /api/v1/products/{id}/suggestions` devuelve hasta 5 productos complementarios del mismo store al producto base (mockup "Detalle de producto" → "Podrías acompañar este producto con…"). Heurística cascading: LLM Groq genera keywords complementarios → si no matchea, cae a misma categoría → si no llena 5, completa con productos populares del store. Campo `source` indica qué camino contribuyó (`"llm" | "same-category" | "store-popular" | "mixed" | "empty"`). Detalle en sección 8.6.
 - **biz-api ahora también usa LLM Groq**: misma key `LLM_API_KEY` que vo-api. Property opt-in `LLM_COMPLEMENTARY_ENABLED=true`. Fail-open universal: si Groq cae, el endpoint sigue funcionando con cascading sin LLM.
 
@@ -1264,13 +1290,31 @@ curl "http://87.99.156.164/api/v1/products?availability=AVAILABLE" \
   "name": "string (requerido, max 200 chars)",
   "description": "string (opcional)",
   "price": 89.90,
-  "availability": "AVAILABLE | LOW_STOCK | CONSULT (opcional, default: AVAILABLE)",
+  "availability": "AVAILABLE | LOW_STOCK | OUT_OF_STOCK | CONSULT (opcional — si se omite y se envía stock, se deriva automáticamente)",
+  "stock": 5,
   "allowDiscountInquiry": false,
   "categoryId": "uuid (opcional)",
   "tags": ["string", "string"],
   "position": 0
 }
 ```
+
+**Sync `stock` ↔ `availability`** (change `product-stock-and-ai-draft` Fase A + fix V12):
+- Si el caller envía **ambos**, `availability` del caller gana siempre.
+- Si el caller envía **sólo `stock`** (sin `availability`):
+    - `stock = null` → `availability = CONSULT`
+    - `stock = 0`    → `availability = OUT_OF_STOCK` *(corregido en V12 — antes era LOW_STOCK, semánticamente incorrecto)*
+    - `stock > 0`    → `availability = AVAILABLE`
+- En `PUT`, si el caller omite `stock`, el valor actual del producto se preserva.
+
+**Visibilidad por `availability`:**
+
+| Valor | Aparece en `GET /products` | Aparece en `/catalog/by-category` | Aparece en `/suggestions` | Va al CSV WhatsApp (RF-51) |
+|---|---|---|---|---|
+| `AVAILABLE` | ✓ | ✓ | ✓ | `"in stock"` |
+| `LOW_STOCK` | ✓ (si filtras) | ✗ | ✗ | `"in stock"` |
+| `OUT_OF_STOCK` | ✓ (si filtras) | ✗ | ✗ | `"out of stock"` |
+| `CONSULT` | ✓ (si filtras) | ✗ | ✗ | `"preorder"` |
 
 **Response 201:**
 ```json
@@ -1283,6 +1327,7 @@ curl "http://87.99.156.164/api/v1/products?availability=AVAILABLE" \
   "description": "Lámpara decorativa estilo vintage",
   "price": 89.90,
   "availability": "AVAILABLE",
+  "stock": 5,
   "allowDiscountInquiry": false,
   "tags": ["decoracion", "vintage"],
   "position": 0,
@@ -1297,6 +1342,7 @@ curl "http://87.99.156.164/api/v1/products?availability=AVAILABLE" \
 **Errores:**
 - `400` — Precio inválido (debe ser > 0)
 - `403` — Límite de productos del plan alcanzado
+- `422` — `stock` negativo (Bean Validation `@Min(0)`)
 
 **curl:**
 ```bash
@@ -1571,15 +1617,15 @@ curl -X DELETE \
 
 - **Top-level: array de categorías**. Si el store no tiene productos AVAILABLE, devuelve `[]`.
 - **Filtros de productos**:
-   - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
-   - Solo productos activos (`isActive=true`).
-   - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
+    - Solo `availability == AVAILABLE` (LOW_STOCK y CONSULT se omiten en este endpoint).
+    - Solo productos activos (`isActive=true`).
+    - Solo productos con `categoryId != null` (productos sin categoría NO se incluyen).
 - **Categorías que se omiten**:
-   - Categorías sin ningún producto AVAILABLE no aparecen en el array.
-   - Categorías inactivas no aparecen.
+    - Categorías sin ningún producto AVAILABLE no aparecen en el array.
+    - Categorías inactivas no aparecen.
 - **Orden**:
-   - Categorías: por `position ASC, name ASC`.
-   - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
+    - Categorías: por `position ASC, name ASC`.
+    - Productos dentro de cada categoría: por `created_at ASC` (más antiguo primero).
 - **Multi-tenant**: filtrado por `storeId` del JWT. Nunca se mezclan productos de otras tiendas.
 
 **Campos del producto** (`ProductSummaryResponse` — reutilizado del listado plano `/api/v1/products`):
@@ -1697,50 +1743,303 @@ curl -X GET http://87.99.156.164/api/v1/products/b2c1d3cc-a91d-4a2b-b134-faba313
 
 ---
 
-## 9. BizAPI — Órdenes
+## 8.7. BizAPI — Borrador IA del producto (Fase 11)
 
-### POST /api/v1/orders
+### POST /api/v1/products/draft-from-image
 
-**Descripción:** El dispositivo kiosk crea una orden de interés en un producto (estado inicial: `PENDING`).  
-**Autenticación:** JWT requerido (rol: `DEVICE`)  
-**URL producción:** `http://87.99.156.164/api/v1/orders`
+**Descripción:** Recibe una foto en multipart y devuelve descripción + categoría sugerida + tags generados por el LLM Groq multimodal (Llama 4 Scout). Alimenta el formulario "Registro de producto" del mockup del front. **NO crea el producto** y **NO sube la imagen a ningún storage** — la imagen se procesa en memoria y se descarta cuando el response sale. El producto se crea luego con `POST /api/v1/products`.
 
-**Headers:** `Authorization: Bearer <deviceAccessToken>`
+**Autenticación:** JWT requerido. Roles permitidos: `OWNER`, `SELLER`, `ADMIN`.
+**URL producción:** `http://87.99.156.164/api/v1/products/draft-from-image`
+
+**Headers:** `Authorization: Bearer <accessToken>` · `Content-Type: multipart/form-data`
+
+**Form Part:**
+- `image` — archivo `image/jpeg` / `image/png` / `image/webp`. Tamaño máximo **5 MB**.
+
+**Response 200 (happy path):**
+```json
+{
+  "description": "Foco LED de 9W con luz cálida 2700K y rosca E27. Ideal para iluminación de hogar.",
+  "categoryId": "550e8400-e29b-41d4-a716-446655440000",
+  "tags": ["foco-led", "luz-calida", "e27"],
+  "source": "groq"
+}
+```
+
+**Reglas del response:**
+
+- **`description`** — string en español, nunca null (vacío = el LLM no pudo describir).
+- **`categoryId`** — UUID de una categoría existente del store del caller, o `null` si el LLM no reconoció ninguna. **Defense-in-depth**: doble validación (gateway + service) contra el conjunto de categorías del store; categorías ajenas se filtran a `null`.
+- **`tags`** — subset del catálogo cerrado por `(shopping_center_id × store_category)` del caller. Tags inventados se filtran defensivamente.
+- **`source`** — `"groq"` cuando el LLM activo respondió, `"stub"` cuando se usó el provider stub (dev o fail-open).
+
+**Fail-open:** si el LLM Groq falla (timeout, 5xx, JSON malformado, API key inválida), el endpoint **siempre responde 200** con `{description:"", categoryId:null, tags:[], source:"stub"}`. El front muestra los campos vacíos y el comerciante llena a mano — sin error visible al usuario.
+
+**Errores:**
+- `400 MULTIPART_INVALID` — `image` ausente, vacío, content-type no es `image/*`, o tamaño > 5 MB.
+- `400 BAD_REQUEST` — JWT no lleva tienda activa (hacer `POST /auth/switch-store/{storeId}` antes).
+- `401` — JWT ausente o inválido.
+- `403 FORBIDDEN` — rol distinto a `OWNER`/`SELLER`/`ADMIN` (ej. `DEVICE`).
+
+**Notas para el frontend:**
+
+- El front carga la primera foto LOCAL (`URL.createObjectURL` en blob), llama este endpoint, pinta los campos del formulario con la respuesta. Las fotos adicionales que el usuario cargue después NO disparan este endpoint a menos que el usuario presione "Generar con IA" sobre otra foto.
+- La imagen NO queda persistida en el backend — el front mantiene el blob local hasta que el usuario haga "Guardar". El upload final a storage llegará en **Fase B** del change (`product-stock-and-ai-draft`).
+- El campo `tags` es subset CERRADO del catálogo del mall × rubro: si el front quiere mostrar chips para que el comerciante elimine alguno antes de guardar, todos los tags son válidos sin re-validar.
+
+**curl:**
+```bash
+curl -X POST http://87.99.156.164/api/v1/products/draft-from-image \
+  -H "Authorization: Bearer eyJ..." \
+  -F "image=@./foco.jpg;type=image/jpeg"
+```
+
+---
+
+## 8.8. BizAPI — Regenerar descripción (stateless, Fase 11)
+
+### POST /api/v1/products/regenerate-description
+
+**Descripción:** Recibe una descripción y devuelve una **paráfrasis en español** preservando todos los hechos (especificaciones, marca, modelo, dimensiones, garantía, voltaje). El LLM Groq Llama 3.3 70B (text) está instruido para NO inventar facts nuevos.
+
+**Stateless** — NO requiere `productId`. Sirve tanto para producto en draft (antes de guardar, mockup "Registro de producto") como para edición de producto ya existente. El front decide cuándo persistir el resultado con `PUT /products/{id}` o como parte del `POST /products/with-images`.
+
+**Autenticación:** JWT requerido. Roles: `OWNER`, `SELLER`, `ADMIN`.
+**URL producción:** `http://87.99.156.164/api/v1/products/regenerate-description`
+
+**Headers:** `Authorization: Bearer <accessToken>` · `Content-Type: application/json`
 
 **Request Body:**
 ```json
 {
-  "productId": "uuid (requerido)",
-  "sessionId": "string (opcional — ID de sesión conversacional)",
-  "customerNote": "string (opcional — nota del cliente al dueño)"
+  "currentDescription": "Foco LED 9W luz cálida E27 para iluminación de hogar."
 }
 ```
+
+Validaciones:
+- `currentDescription` requerido (`@NotBlank`), max 2000 caracteres.
+
+**Response 200 (happy path):**
+```json
+{
+  "description": "Bombilla LED de 9W con rosca E27 y luz cálida, ideal para iluminar tu hogar."
+}
+```
+
+**Fail-open:** si el LLM no está disponible, throws, o devuelve vacío/blanco, el endpoint **siempre responde 200** con `{description: <currentDescription original>}` (echo). El front no ve cambio pero tampoco un error.
+
+**Errores:**
+- `422 VALIDATION_ERROR` — `currentDescription` vacío, blank, o > 2000 chars.
+- `401` — JWT ausente.
+- `403 FORBIDDEN` — rol distinto a `OWNER`/`SELLER`/`ADMIN`.
+
+**curl:**
+```bash
+curl -X POST "http://87.99.156.164/api/v1/products/regenerate-description" \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"currentDescription":"Foco LED 9W luz cálida E27 para iluminación de hogar."}'
+```
+
+**NOTA — breaking change menor (2026-06-29):** este endpoint inicialmente se diseñó como `POST /api/v1/products/{id}/regenerate-description` (con path param). Se quitó el `{id}` para soportar el flujo del mockup "Registro de producto" (regenerar antes de guardar). El path actual es **`/products/regenerate-description`** sin id.
+
+---
+
+## 8.9. BizAPI — Crear producto con imágenes en multipart (Fase 12)
+
+### POST /api/v1/products/with-images
+
+**Descripción:** Crea un producto y sube N imágenes al storage configurado (Cloudflare R2 en producción) en **una sola transacción atómica**. El frontend nunca toca el bucket — el backend recibe el multipart, valida, sube las fotos, crea el producto y persiste las URLs. Si CUALQUIER upload falla, rollback completo (no se crea producto huérfano sin sus imágenes).
+
+**Autenticación:** JWT requerido. Roles: `OWNER`, `SELLER`, `ADMIN`.
+**URL producción:** `http://87.99.156.164/api/v1/products/with-images`
+
+**Headers:** `Authorization: Bearer <accessToken>` · `Content-Type: multipart/form-data`
+
+**Parts del multipart:**
+
+- **`product`** (1, JSON) — body de un `ProductRequest` válido (los mismos campos que `POST /products` sección 8.2: `name`, `description`, `price`, `availability`, `stock`, `allowDiscountInquiry`, `categoryId`, `tags`, `brand`, `position`). La sync `stock ↔ availability` del change Fase A aplica igual.
+- **`images`** (1 a 10, binario) — cada part es un archivo `image/jpeg` / `image/png` / `image/webp`. Tamaño máximo **5 MB por imagen**. El request multipart total máximo **60 MB**.
+
+El orden de los parts `images` determina el orden de `position` en la BD: el primero queda con `position=0` y `primary=true`; los siguientes con `position=1..N` y `primary=false`.
+
+**Response 201 (happy path):**
+```json
+{
+  "id": "uuid",
+  "storeId": "uuid",
+  "categoryId": "uuid",
+  "categoryName": "Iluminación",
+  "name": "Foco LED Smart 12W RGB",
+  "description": "...",
+  "price": 39.90,
+  "availability": "AVAILABLE",
+  "stock": 5,
+  "allowDiscountInquiry": false,
+  "tags": ["led", "rgb"],
+  "brand": "Philips",
+  "position": 0,
+  "active": true,
+  "media": [
+    { "id": "uuid-1", "url": "https://<r2-public>/products/<storeId>/<productId>/<mediaId-1>.jpg", "mediaType": "IMAGE", "position": 0, "primary": true, "createdAt": "2026-06-29T..." },
+    { "id": "uuid-2", "url": "https://<r2-public>/products/<storeId>/<productId>/<mediaId-2>.jpg", "mediaType": "IMAGE", "position": 1, "primary": false, "createdAt": "2026-06-29T..." }
+  ],
+  "discounts": [],
+  "createdAt": "2026-06-29T...",
+  "updatedAt": "2026-06-29T..."
+}
+```
+
+**Reglas y errores:**
+
+- `400 MULTIPART_INVALID` — falta el part `product`, falta `images`, content-type de una imagen no es `image/*`, una imagen vacía, o más de 10 imágenes.
+- `400 MULTIPART_INVALID` — request total > 60 MB o una imagen > 5 MB (Spring `MaxUploadSizeExceededException`).
+- `422 VALIDATION_ERROR` — el `product` part falla Bean Validation (precio ≤ 0, name vacío, stock negativo, currentDescription > 2000, etc.). NO se sube ninguna imagen.
+- `402 PLAN_LIMIT_EXCEEDED` — la tienda alcanzó el límite de productos del plan. NO se sube ninguna imagen.
+- `503 STORAGE_UNAVAILABLE` — R2 down, credenciales inválidas, timeout. Rollback total del producto + media.
+- `401` — JWT ausente.
+- `403 FORBIDDEN` — rol `DEVICE` u otro fuera de `OWNER`/`SELLER`/`ADMIN`.
+
+**Atomicidad:**
+- Si la 1ra foto se sube OK y la 2da falla → todo rollback. El producto NO se persiste. Los objetos en R2 que alcanzaron a subirse quedan como huérfanos (tech debt: scheduled job futuro que limpia).
+- Si validation falla antes de iterar imágenes → ningún upload, ningún DB write.
+
+**curl:**
+```bash
+curl -X POST "http://87.99.156.164/api/v1/products/with-images" \
+  -H "Authorization: Bearer eyJ..." \
+  -F 'product={"name":"Foco LED Smart","price":39.90,"stock":5,"categoryId":"550e8400-e29b-41d4-a716-446655440000","tags":["led","rgb"]};type=application/json' \
+  -F "images=@./foco1.jpg;type=image/jpeg" \
+  -F "images=@./foco2.jpg;type=image/jpeg"
+```
+
+---
+
+## 8.10. BizAPI — Adjuntar imágenes a un producto existente (Fase 12)
+
+### POST /api/v1/products/{id}/images
+
+**Descripción:** Adjunta 1..N imágenes adicionales a un producto existente del store del caller. Las nuevas posiciones continúan desde el max actual (`primary=false` para todas — la foto primaria no cambia). Total final no puede exceder el límite configurado (default 10 por producto). Para edición desde el panel del comerciante.
+
+**Autenticación:** JWT requerido. Roles: `OWNER`, `SELLER`, `ADMIN`.
+**URL producción:** `http://87.99.156.164/api/v1/products/{id}/images`
+
+**Headers:** `Authorization: Bearer <accessToken>` · `Content-Type: multipart/form-data`
+**Path params:**
+- `id` — UUID del producto. Debe pertenecer al store del caller (multi-tenant).
+
+**Parts del multipart:**
+- **`images`** (1 a N, binario) — mismas reglas de content-type / tamaño que `/products/with-images` (5 MB por imagen, request total 60 MB).
+
+**Response 201:**
+```json
+[
+  { "id": "uuid-a", "url": "https://<r2-public>/...", "mediaType": "IMAGE", "position": 3, "primary": false, "createdAt": "..." },
+  { "id": "uuid-b", "url": "https://<r2-public>/...", "mediaType": "IMAGE", "position": 4, "primary": false, "createdAt": "..." }
+]
+```
+
+**Errores:**
+- `400 MULTIPART_INVALID` — `images` vacío, content-type inválido, request > 60 MB, imagen > 5 MB.
+- `400 BAD_REQUEST` — la suma `medias actuales + nuevas` excede el límite (default 10) por producto.
+- `404 RESOURCE_NOT_FOUND` — producto no existe en el store del caller (404 también si existe en otro store — no leak).
+- `503 STORAGE_UNAVAILABLE` — R2 falla. Rollback de la fila(s) `ProductMedia` que se hubieran persistido.
+- `401` — JWT ausente.
+- `403 FORBIDDEN` — rol no autorizado.
+
+**curl:**
+```bash
+curl -X POST "http://87.99.156.164/api/v1/products/<id>/images" \
+  -H "Authorization: Bearer eyJ..." \
+  -F "images=@./extra1.jpg;type=image/jpeg" \
+  -F "images=@./extra2.jpg;type=image/jpeg"
+```
+
+---
+
+## 9. BizAPI — Órdenes (carrito del kiosko, Fase 13)
+
+### POST /api/v1/orders
+
+**Descripción:** El dispositivo kiosk crea una orden con **N items** (carrito) más los datos del cliente final (nombre + celular). Estado inicial: `PENDING`. El backend valida cada producto (existe en el store, está activo, `availability=AVAILABLE`), calcula el `subtotal`/`total` **server-side** con snapshot del precio actual, y persiste todo en una transacción atómica.
+
+**Autenticación:** JWT requerido (rol: `DEVICE`)
+**URL producción:** `http://87.99.156.164/api/v1/orders`
+
+**Headers:** `Authorization: Bearer <deviceAccessToken>` · `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "customerName":  "Juan Perez",
+  "customerPhone": "987654321",
+  "items": [
+    {"productId": "uuid-1", "quantity": 2},
+    {"productId": "uuid-2", "quantity": 1}
+  ],
+  "sessionId":    "sess-abc-123",
+  "customerNote": "Quiero verlo antes de pagar"
+}
+```
+
+**Validaciones (Bean Validation):**
+- `customerName` — `@NotBlank`, max 200 caracteres.
+- `customerPhone` — `@NotBlank`, formato peruano móvil (regex `^9\d{8}$` — exactamente 9 dígitos empezando en 9; sin espacios). El front debe normalizar antes de mandar.
+- `items` — `@NotEmpty`, max 20 entries. Cada item: `productId` requerido, `quantity` entre 1 y 99.
+- `sessionId` — opcional, max 200 caracteres.
+- `customerNote` — opcional, sin límite.
+- **No duplicados**: el mismo `productId` repetido en `items[]` rechazado con 400 (el front debe sumar al qty del item existente).
 
 **Response 201:**
 ```json
 {
   "id": "uuid",
   "storeId": "uuid",
-  "productId": "uuid",
-  "productName": "Lámpara de Pared Vintage",
-  "productPrice": 89.90,
-  "productAvailability": "AVAILABLE",
   "status": "PENDING",
   "source": "ASSISTANT",
-  "sessionId": "sess-123",
-  "customerNote": "¿Tiene en color negro?",
+  "customerName": "Juan Perez",
+  "customerPhone": "987654321",
+  "subtotal": 250.00,
+  "total": 250.00,
+  "items": [
+    {
+      "id": "item-uuid-1",
+      "productId": "uuid-1",
+      "productName": "Taladro Percutor Bosch GSB 13 RE",
+      "quantity": 2,
+      "unitPriceSnapshot": 100.00,
+      "lineTotal": 200.00
+    },
+    {
+      "id": "item-uuid-2",
+      "productId": "uuid-2",
+      "productName": "Brocas SDS Plus 6mm",
+      "quantity": 1,
+      "unitPriceSnapshot": 50.00,
+      "lineTotal": 50.00
+    }
+  ],
+  "sessionId": "sess-abc-123",
+  "customerNote": "Quiero verlo antes de pagar",
   "rejectionReason": null,
-  "createdAt": "2025-04-15T20:00:00Z",
-  "updatedAt": "2025-04-15T20:00:00Z",
-  "lastStatusChangedAt": "2025-04-15T20:00:00Z"
+  "createdAt": "2026-06-29T20:00:00Z",
+  "updatedAt": "2026-06-29T20:00:00Z",
+  "lastStatusChangedAt": "2026-06-29T20:00:00Z"
 }
 ```
 
+**Reglas del response:**
+- `subtotal` = SUM(`item.quantity × item.unitPriceSnapshot`) — calculado server-side, NUNCA recalculado después.
+- `total` = `subtotal` por ahora (columna separada para futuro de descuentos / envío).
+- `items[*].unitPriceSnapshot` — snapshot del `product.price` al momento de crear. NO cambia si el comerciante actualiza el precio después.
+- `items[*].productName` — nombre actual del producto del entity (NO snapshot inmutable — si el comerciante renombra, las órdenes viejas muestran el nombre nuevo).
+
 **Errores:**
-- `400` — Producto inactivo
-- `403` — Token de usuario (se requiere DEVICE)
-- `404` — Producto no encontrado
-- `422` — `productId` requerido
+- `400 BAD_REQUEST` — `productId` duplicado en items, producto inactivo, o producto con `availability != AVAILABLE`.
+- `403 FORBIDDEN` — JWT no es DEVICE.
+- `404 RESOURCE_NOT_FOUND` — algún `productId` no pertenece al store del DEVICE.
+- `422 VALIDATION_ERROR` — `customerName`/`customerPhone` faltan o formato inválido, `items` empty, `quantity` fuera de [1,99], items > 20.
 
 **curl:**
 ```bash
@@ -1748,9 +2047,13 @@ curl -X POST http://87.99.156.164/api/v1/orders \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
-    "productId": "550e8400-e29b-41d4-a716-446655440000",
-    "sessionId": "sess-abc123",
-    "customerNote": "¿Hay en color negro?"
+    "customerName":"Juan Perez",
+    "customerPhone":"987654321",
+    "items":[
+      {"productId":"550e8400-e29b-41d4-a716-446655440000","quantity":2},
+      {"productId":"550e8400-e29b-41d4-a716-446655440001","quantity":1}
+    ],
+    "sessionId":"sess-abc-123"
   }'
 ```
 
@@ -1758,32 +2061,35 @@ curl -X POST http://87.99.156.164/api/v1/orders \
 
 ### GET /api/v1/orders
 
-**Descripción:** Lista órdenes de la tienda, paginadas. Filtrables por estado.  
-**Autenticación:** JWT requerido (roles: `OWNER`, `SELLER`, `ADMIN`)  
+**Descripción:** Lista órdenes de la tienda, paginadas. Filtrables por `status` y/o `customerPhone` (lookup cuando el cliente llama de vuelta).
+**Autenticación:** JWT requerido (roles: `OWNER`, `SELLER`, `ADMIN`)
 **URL producción:** `http://87.99.156.164/api/v1/orders`
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Params:**
 - `status` — `PENDING` | `CONFIRMED` | `REJECTED` | `CANCELLED` (opcional)
+- `customerPhone` — celular del cliente (opcional, formato `9XXXXXXXX`)
 - `page` — número de página (default: 0)
 - `size` — tamaño de página (default: 20)
 - `sort` — campo,dirección (default: `createdAt,DESC`)
 
-**Response 200:**
+**Response 200 (shape compacto — sin items[] para mantener payload chico):**
 ```json
 {
   "content": [
     {
       "id": "uuid",
       "storeId": "uuid",
-      "productId": "uuid",
-      "productName": "Lámpara de Pared Vintage",
       "status": "PENDING",
       "source": "ASSISTANT",
+      "customerName": "Juan Perez",
+      "customerPhone": "987654321",
+      "itemCount": 2,
+      "total": 250.00,
       "sessionId": "sess-123",
-      "createdAt": "2025-04-15T20:00:00Z",
-      "lastStatusChangedAt": "2025-04-15T20:00:00Z"
+      "createdAt": "2026-06-29T20:00:00Z",
+      "lastStatusChangedAt": "2026-06-29T20:00:00Z"
     }
   ],
   "totalElements": 1,
@@ -1793,9 +2099,16 @@ curl -X POST http://87.99.156.164/api/v1/orders \
 }
 ```
 
+Para ver el detalle con `items[]` completo, usar `GET /orders/{id}`.
+
 **curl:**
 ```bash
+# Solo PENDING
 curl "http://87.99.156.164/api/v1/orders?status=PENDING&size=10" \
+  -H "Authorization: Bearer eyJ..."
+
+# Buscar por cliente (caso: cliente llama de vuelta)
+curl "http://87.99.156.164/api/v1/orders?customerPhone=987654321" \
   -H "Authorization: Bearer eyJ..."
 ```
 
@@ -1803,13 +2116,13 @@ curl "http://87.99.156.164/api/v1/orders?status=PENDING&size=10" \
 
 ### GET /api/v1/orders/{id}
 
-**Descripción:** Retorna el detalle completo de una orden.  
+**Descripción:** Retorna el detalle completo de una orden, con `items[]`, customer fields y totales.
 **Autenticación:** JWT requerido (roles: `OWNER`, `SELLER`, `ADMIN`)
 
-**Response 200:** objeto `OrderResponse` completo.
+**Response 200:** mismo shape que el response 201 de `POST /orders` (objeto `OrderResponse` completo con `items[]`).
 
 **Errores:**
-- `404` — Orden no encontrada
+- `404` — Orden no encontrada (también si pertenece a otro store — no leak)
 
 **curl:**
 ```bash
@@ -1821,18 +2134,38 @@ curl http://87.99.156.164/api/v1/orders/550e8400-e29b-41d4-a716-446655440000 \
 
 ### POST /api/v1/orders/{id}/confirm
 
-**Descripción:** Confirma la orden (transición `PENDING → CONFIRMED`). Solo aplicable desde estado `PENDING`.  
-**Autenticación:** JWT requerido (roles: `OWNER`, `SELLER`, `ADMIN`)  
+**Descripción:** Confirma la orden (transición `PENDING → CONFIRMED`). **Decrementa el stock** de cada producto por la cantidad pedida en su item. Si algún producto tiene `stock != null` y `stock < quantity` → 422 `STOCK_INSUFFICIENT` y la orden queda en `PENDING` (rollback total, no decremento parcial). Productos con `stock=null` (CONSULT) no se tocan — el comerciante maneja manualmente.
+
+Cuando el decremento lleva `stock` a 0, la sync de V12 setea `availability=OUT_OF_STOCK` automáticamente (el producto deja de aparecer en catálogo público).
+
+**Autenticación:** JWT requerido (roles: `OWNER`, `SELLER`, `ADMIN`)
 **URL producción:** `http://87.99.156.164/api/v1/orders/{id}/confirm`
 
-**Headers:** `Authorization: Bearer <accessToken>`  
+**Headers:** `Authorization: Bearer <accessToken>`
 **Request Body:** ninguno
 
 **Response 200:** objeto `OrderResponse` con `status: "CONFIRMED"`.
 
 **Errores:**
 - `404` — Orden no encontrada
-- `422` — Transición inválida (ya está CONFIRMED/REJECTED/CANCELLED)
+- `422 STOCK_INSUFFICIENT` — algún item requiere más stock del disponible. Response extra fields: `productId`, `productName`, `available`, `requested`. La orden queda PENDING.
+- `422 INVALID_STATE_TRANSITION` — la orden ya está terminal (CONFIRMED/REJECTED/CANCELLED).
+
+**Ejemplo response 422 `STOCK_INSUFFICIENT`:**
+```json
+{
+  "type": "/errors/stock-insufficient",
+  "title": "Stock Insufficient",
+  "status": 422,
+  "detail": "Stock insuficiente para 'Foco LED Bosch 9W': disponible 3, requerido 10.",
+  "errorCode": "STOCK_INSUFFICIENT",
+  "productId": "550e8400-...",
+  "productName": "Foco LED Bosch 9W",
+  "available": 3,
+  "requested": 10,
+  "timestamp": "2026-06-29T20:05:00Z"
+}
+```
 
 **curl:**
 ```bash
@@ -2191,8 +2524,8 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 **Notas sobre `filters` y `suggestions` (Fase 9, ClickUp 86e1r9epc):**
 
 - **`filters`** es un array de objetos `{criterion, options}` para el sidebar de filtros del kiosko (Mockup 5). Máximo 5 criterios, máximo 5 opciones por criterio. Strings planos en `options` — NO llevan `count`. Vacío `[]` cuando `noResults=true`.
-   - El criterio **"Marca"** viene del campo `brand` de cada producto resuelto. Aparece primero si tiene opciones. Ordenadas por frecuencia descendente, desempate alfabético.
-   - Otros criterios vienen de **tags agrupados** por la nueva columna `group` del tag catalog (ej. "voltaje" → criterio "Voltaje" con opciones "12V/18V/20V"). Solo los tags con `group` no nulo aparecen. El admin del catálogo asigna el `group` a cada tag. Tags con `group` null siguen contando al ranking pero no aparecen como filtros.
+    - El criterio **"Marca"** viene del campo `brand` de cada producto resuelto. Aparece primero si tiene opciones. Ordenadas por frecuencia descendente, desempate alfabético.
+    - Otros criterios vienen de **tags agrupados** por la nueva columna `group` del tag catalog (ej. "voltaje" → criterio "Voltaje" con opciones "12V/18V/20V"). Solo los tags con `group` no nulo aparecen. El admin del catálogo asigna el `group` a cada tag. Tags con `group` null siguen contando al ranking pero no aparecen como filtros.
 - **`suggestions`** es un array plano de hasta 5 strings con frases cortas para que el cliente refine su búsqueda ("Para uso doméstico", "Inalámbrico", etc.). Generado por LLM (Groq) cuando `vitria.llm.suggestions.enabled=true`; fallback a templates por categoría cuando el LLM falla. Si no hay templates para la categoría (o la categoría no se entendió) → `[]`. Vacío `[]` cuando `noResults=true`.
 - **Frontend filtra client-side**: cada producto ahora trae `brand` y `tags` para que el frontend filtre la lista localmente cuando el cliente toca una opción del sidebar (no hace falta nuevo request al backend).
 - **`MAX_RESULTS` subió de 5 a 20** — el sidebar tiene sentido con más opciones para filtrar.
@@ -2201,14 +2534,14 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
 
 - **`noResults` indica "no hubo match al query"**, NO "array vacío". `results` puede tener hasta 3 sugerencias aunque `noResults=true`. Pensar el flag como "el ranking falló" y `results` como "lo que sirve mostrar al usuario".
 - **`suggestedFromCategory` (NUEVO, nullable)**:
-   - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
-   - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
-   - Si `noResults=false` (happy path) → siempre `null`.
+    - Si `noResults=true` y el LLM entendió la categoría Y al menos 1 sugerencia vino de esa categoría → string en minúsculas con la categoría (ej `"lámpara"`, `"aretes"`). Usarlo para personalizar el copy: *"Te puede interesar de lámparas:"*.
+    - Si `noResults=true` pero las 3 sugerencias vinieron del store sin filtrar (categoría no entendida o no encontrada) → `null`. Usar copy genérico: *"Te puede interesar:"*.
+    - Si `noResults=false` (happy path) → siempre `null`.
 - **`fallbackMessage`** sigue presente cuando `noResults=true` con el mensaje de "Lo sentimos…". Es el copy "de cabecera" de la pantalla unhappy. Las sugerencias van debajo.
 - **`results[*].relevanceScore = 0`** identifica que el producto vino de las sugerencias del unhappy path, no del ranking real. Útil para tracking.
 - **Tamaño**:
-   - Happy path: hasta 5 productos.
-   - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
+    - Happy path: hasta 5 productos.
+    - Unhappy path: hasta 3 sugerencias. Si el store tiene menos de 3 AVAILABLE, devuelve los que haya (puede ser 0, 1, 2 o 3).
 - **Filtros de las sugerencias**: solo `AVAILABLE` + `isActive=true`. LOW_STOCK y CONSULT quedan fuera.
 - **Orden de las sugerencias**: `position ASC, name ASC` (determinístico, lo mismo en consultas sucesivas).
 - **Backward compat**: si renderizan `results` siempre, los clientes viejos funcionarán igual. El campo `suggestedFromCategory` es opcional — ignorenlo si no lo usan todavía.

@@ -37,4 +37,23 @@
     <string name="cart_place_order">Realizar pedido</string>
     <string name="cart_keep_shopping">Seguir buscando</string>
     <string name="cart_share_whatsapp_cd">Compartir por WhatsApp</string>
+
+    <!-- Order submission — loading. -->
+    <string name="cart_submitting_cd">Generando tu pedido…</string>
+
+    <!-- Order submission — success. -->
+    <string name="cart_success_title">¡Pedido generado con éxito!</string>
+    <string name="cart_success_subtitle">Acércate al vendedor para recibir tu pedido y realizar el pago.</string>
+    <string name="cart_success_check_phone">Revisa tu celular para ver el detalle de tu pedido.</string>
+    <plurals name="cart_success_qty">
+        <item quantity="one">Cantidad: %d</item>
+        <item quantity="other">Cantidad: %d</item>
+    </plurals>
+    <string name="cart_success_accept">Aceptar</string>
+
+    <!-- Order submission — error. -->
+    <string name="cart_error_title">Algo salió mal</string>
+    <string name="cart_error_message">Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos.</string>
+    <string name="cart_error_understood">Entendido</string>
+    <string name="cart_error_cancel">Cancelar orden</string>
 </resources>
