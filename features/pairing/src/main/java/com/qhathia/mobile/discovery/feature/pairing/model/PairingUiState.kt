@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.feature.settings.model
+package com.qhathia.mobile.discovery.feature.pairing.model
 
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 

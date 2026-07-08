@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.feature.settings
+package com.qhathia.mobile.discovery.feature.pairing
 
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
@@ -12,10 +12,10 @@ import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeDevicePairingRepository
 import com.qhathia.mobile.discovery.core.testing.FakeStoreSessionRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
-import com.qhathia.mobile.discovery.feature.settings.model.PairingPhase
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiEffect
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiEvent
-import com.qhathia.mobile.discovery.feature.settings.ui.PairingViewModel
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEffect
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
+import com.qhathia.mobile.discovery.feature.pairing.ui.PairingViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -112,6 +112,21 @@ class PairingViewModelTest {
             val state = vm.uiState.value
             assertEquals(PairingPhase.Paired, state.phase)
             assertEquals(FakeDevicePairingRepository.DEFAULT_DEVICE, state.device)
+            vm.stop()
+        }
+
+    @Test
+    fun given_approved_and_exchange_succeeds_then_emits_paired_effect() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository()
+            val vm = viewModel(pairing)
+            vm.start()
+
+            vm.uiEffect.test {
+                pairing.emitStatus(PairingStatus.Approved)
+                assertEquals(PairingUiEffect.Paired, awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.stop()
         }
 

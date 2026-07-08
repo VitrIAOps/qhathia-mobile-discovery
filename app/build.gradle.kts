@@ -78,6 +78,7 @@ dependencies {
     implementation(project(":features:product-detail"))
     implementation(project(":features:cart"))
     implementation(project(":features:settings"))
+    implementation(project(":features:onboarding"))
     implementation(project(":core:ui"))
     // Domain types referenced by the NavHost wiring (e.g. SearchSource on the Home → ProductSearch handoff).
     implementation(project(":core:domain"))
@@ -94,6 +95,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // lifecycle-runtime-compose — collectAsStateWithLifecycle in the app-shell NavHost gate.
+    implementation(libs.lifecycle.runtime)
 
     // Navigation host
     implementation(libs.navigation.compose)

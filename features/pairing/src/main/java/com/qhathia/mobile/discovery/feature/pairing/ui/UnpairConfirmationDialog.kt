@@ -1,9 +1,9 @@
-package com.qhathia.mobile.discovery.feature.settings.ui
+package com.qhathia.mobile.discovery.feature.pairing.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
-import com.qhathia.mobile.discovery.feature.settings.R
+import com.qhathia.mobile.discovery.feature.pairing.R
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**

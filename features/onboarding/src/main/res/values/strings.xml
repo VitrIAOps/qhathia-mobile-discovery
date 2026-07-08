@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Welcome screen (first-run entry point). -->
+    <string name="onboarding_welcome_title">Te damos la bienvenida a</string>
+    <string name="onboarding_app_name">Qhathia</string>
+    <string name="onboarding_welcome_message">Configura tu tablet para comenzar a usar la aplicación. Presiona continuar para iniciar la configuración inicial.</string>
+    <string name="onboarding_continue">Continuar</string>
+
+    <!-- Initial configuration screen — pairing header title (replaces "TIENDA"). -->
+    <string name="onboarding_pairing_title">QHATHIA</string>
+</resources>

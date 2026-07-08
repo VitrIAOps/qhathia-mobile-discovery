@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.feature.settings.ui
+package com.qhathia.mobile.discovery.feature.pairing.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,10 +10,10 @@ import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePairingStatusUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
-import com.qhathia.mobile.discovery.feature.settings.model.PairingPhase
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiEffect
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiEvent
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiState
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEffect
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
@@ -35,6 +35,9 @@ import javax.inject.Inject
  * device token is already persisted) or generates a code and waits for the merchant's approval over
  * the status channel. The code's TTL drives a one-second countdown that, on reaching zero, requests a
  * fresh code — mirroring the server's `EXPIRED` push. Unpairing is wired but unavailable server-side.
+ *
+ * The ViewModel is host-agnostic: it always drives pairing to completion and announces success via
+ * [PairingUiEffect.Paired]; the host (Settings or onboarding) decides what success means.
  */
 @HiltViewModel
 class PairingViewModel @Inject constructor(
@@ -173,6 +176,9 @@ class PairingViewModel @Inject constructor(
             exchangeDeviceToken(sessionId)
                 .onSuccess { device ->
                     _uiState.update { it.copy(phase = PairingPhase.Paired, device = device) }
+                    // Pairing completed and the device token was persisted: announce success so the
+                    // host can react (Settings shows the details in place; onboarding navigates Home).
+                    _uiEffect.emit(PairingUiEffect.Paired)
                 }
                 .onFailure { _uiState.update { it.copy(phase = PairingPhase.Error) } }
         }

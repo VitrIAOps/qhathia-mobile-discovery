@@ -15,11 +15,6 @@ android {
         buildConfigField("String", "QHATHIA_BASE_URL", "\"http://87.99.156.164\"")
         buildConfigField("String", "DEEPGRAM_BASE_URL", "\"https://api.deepgram.com\"")
 
-        // Interim development credentials for POST /api/v1/auth/login — used only until device
-        // pairing/auth provides the real session JWT. Not a production secret.
-        buildConfigField("String", "QHATHIA_DEV_EMAIL", "\"juan@tienda.com\"")
-        buildConfigField("String", "QHATHIA_DEV_PASSWORD", "\"mipass123\"")
-
         // Ktor request/response logging toggle, decoupled from BuildConfig.DEBUG so a non-debuggable
         // build (e.g. the `profile` build type) can still surface the API call logs. Off by default;
         // debug builds also force it on via BuildConfig.DEBUG at the call site.

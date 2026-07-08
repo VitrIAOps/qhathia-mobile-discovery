@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.feature.settings.ui
+package com.qhathia.mobile.discovery.feature.pairing.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,25 +45,30 @@ import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
-import com.qhathia.mobile.discovery.feature.settings.R
+import com.qhathia.mobile.discovery.feature.pairing.R
 import com.qhathia.mobile.discovery.core.ui.R as UiR
-import com.qhathia.mobile.discovery.feature.settings.model.PairingPhase
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiEvent
-import com.qhathia.mobile.discovery.feature.settings.model.PairingUiState
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiState
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
  * Stateless pairing (Vincular) UI — a pure function of [PairingUiState]. Renders the "Código generado"
  * layout (Figma 1055-14805) while waiting for approval and the "Comercio vinculado" layout
- * (Figma 1080-1587) once paired, plus loading/rejected/error states. The shared side menu is hosted by
- * `SettingsScreen`.
+ * (Figma 1080-1587) once paired, plus loading/rejected/error states.
+ *
+ * Host-agnostic: [title] is the header title (TIENDA / QHATHIA) and [showBackButton] / [onBack] render
+ * the optional back affordance used by the onboarding host.
  */
 @Composable
 fun PairingContent(
     uiState: PairingUiState,
     onEvent: (PairingUiEvent) -> Unit,
+    title: String,
     modifier: Modifier = Modifier,
+    showBackButton: Boolean = false,
+    onBack: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -73,7 +79,12 @@ fun PairingContent(
             .padding(top = 40.dp, bottom = Spacing.xl),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        PairingTopBar(linked = uiState.phase == PairingPhase.Paired)
+        PairingTopBar(
+            title = title,
+            linked = uiState.phase == PairingPhase.Paired,
+            showBackButton = showBackButton,
+            onBack = onBack,
+        )
 
         when (uiState.phase) {
             PairingPhase.Loading, PairingPhase.Expired -> LoadingState()
@@ -97,14 +108,28 @@ fun PairingContent(
     }
 }
 
-// --- Shared top bar ("TIENDA" + optional "Vinculado" chip) ---
+// --- Shared top bar (title + optional back affordance + optional "Vinculado" chip) ---
 
 @Composable
-private fun PairingTopBar(linked: Boolean) {
+private fun PairingTopBar(
+    title: String,
+    linked: Boolean,
+    showBackButton: Boolean,
+    onBack: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (showBackButton) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        painter = painterResource(UiR.drawable.ic_arrow_back),
+                        contentDescription = stringResource(UiR.string.discovery_action_back),
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+            }
             Text(
-                text = stringResource(R.string.network_toolbar_title),
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f),
@@ -482,7 +507,7 @@ private fun samplePairedDevice() = PairedDevice(
     storeName = "Ferretería Don Pepe",
 )
 
-@Preview(name = "Pairing — code (light)", showBackground = true, widthDp = 960, heightDp = 800)
+@Preview(name = "Pairing — code TIENDA (light)", showBackground = true, widthDp = 960, heightDp = 800)
 @Composable
 private fun PairingCodePreview() {
     DiscoveryTheme(darkTheme = false) {
@@ -494,6 +519,25 @@ private fun PairingCodePreview() {
                 totalSeconds = 145,
             ),
             onEvent = {},
+            title = "TIENDA",
+        )
+    }
+}
+
+@Preview(name = "Pairing — code QHATHIA + back (dark)", showBackground = true, widthDp = 960, heightDp = 800)
+@Composable
+private fun PairingCodeOnboardingPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        PairingContent(
+            uiState = PairingUiState(
+                phase = PairingPhase.WaitingForApproval,
+                code = "2Y567",
+                remainingSeconds = 52,
+                totalSeconds = 145,
+            ),
+            onEvent = {},
+            title = "QHATHIA",
+            showBackButton = true,
         )
     }
 }
@@ -505,6 +549,7 @@ private fun PairingPairedPreview() {
         PairingContent(
             uiState = PairingUiState(phase = PairingPhase.Paired, device = samplePairedDevice()),
             onEvent = {},
+            title = "TIENDA",
         )
     }
 }
@@ -513,7 +558,7 @@ private fun PairingPairedPreview() {
 @Composable
 private fun PairingErrorPreview() {
     DiscoveryTheme(darkTheme = false) {
-        PairingContent(uiState = PairingUiState(phase = PairingPhase.Error), onEvent = {})
+        PairingContent(uiState = PairingUiState(phase = PairingPhase.Error), onEvent = {}, title = "TIENDA")
     }
 }
 
@@ -521,6 +566,6 @@ private fun PairingErrorPreview() {
 @Composable
 private fun PairingLoadingPreview() {
     DiscoveryTheme(darkTheme = true) {
-        PairingContent(uiState = PairingUiState(phase = PairingPhase.Loading), onEvent = {})
+        PairingContent(uiState = PairingUiState(phase = PairingPhase.Loading), onEvent = {}, title = "TIENDA")
     }
 }

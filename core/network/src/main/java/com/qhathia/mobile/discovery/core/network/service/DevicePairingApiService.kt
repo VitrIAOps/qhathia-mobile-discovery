@@ -16,7 +16,7 @@ import javax.inject.Inject
 /**
  * Tablet-side device pairing REST calls (api-contract.md §5). The pairing-token and token-exchange
  * endpoints are public (the tablet has no JWT yet); `/devices/me` is authenticated with the DEVICE
- * token obtained from the exchange. Every call folds into a [NetworkResult], mirroring [AuthApiService].
+ * token obtained from the exchange. Every call folds into a [NetworkResult].
  */
 class DevicePairingApiService @Inject constructor(
     private val client: HttpClient,
