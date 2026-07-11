@@ -88,6 +88,26 @@ The share/success/error phase overlaid on the cart dialog SHALL be reset to the 
 - **WHEN** the consumer completes or cancels a share and later reopens the cart
 - **THEN** the cart dialog shows the normal interactive cart, not the previous success or error screen
 
+### Requirement: Quote shared automatically when placing an order
+
+When the consumer places a purchase order ("Realizar pedido") successfully, the app SHALL also share the WhatsApp quote for the same basket and consumer data, retrying the share up to three times before giving up. The order confirmation SHALL be shown once the order is created, regardless of the share outcome. When every share attempt fails, the success screen SHALL replace the "check your phone" prompt with a fallback instruction telling the consumer to go to the seller and give their name to review the order.
+
+#### Scenario: Placing an order also shares the quote
+
+- **WHEN** the consumer places an order successfully
+- **THEN** the app also submits a WhatsApp quote share for the same basket and consumer data
+
+#### Scenario: Share retried before giving up
+
+- **WHEN** the quote share fails after the order was created
+- **THEN** the app retries the share up to three times before giving up
+
+#### Scenario: Order confirmed even when the quote is not delivered
+
+- **WHEN** the order was created but every share attempt failed
+- **THEN** the app still shows the order success screen
+- **AND** the confirmation instructs the consumer to go to the seller and give their name to review the order, instead of prompting to check their phone
+
 ### Requirement: Share submission theming and accessibility
 
 The share loading, success, and error states SHALL support light and dark themes and SHALL meet accessibility requirements. Their interactive controls (the "Aceptar", "Entendido", and "Cancelar orden" buttons) SHALL expose content descriptions where the label is not itself descriptive and provide touch targets of at least 48dp. The loading indicator SHALL expose a state description for assistive technology.

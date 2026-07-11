@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The product-detail capability lets in-store consumers open a single product from a search result and read its full detail — name, description and characteristics, price, availability, and its photo gallery — closing the discovery loop from "I found something that might match" to "I can read about it and decide". It owns fetching a product by id from the Qhathia backend, the detail screen layout and load states, the render-only purchase actions (Add-to-cart and Share via WhatsApp), the related-products section sourced from the suggestions API, and the retained microphone animation and top-bar navigation controls.
+The product-detail capability lets in-store consumers open a single product from a search result and read its full detail — name, description and characteristics, price, availability, and its photo gallery — closing the discovery loop from "I found something that might match" to "I can read about it and decide". It owns fetching a product by id from the Qhathia backend, the detail screen layout and load states, the purchase actions (Add-to-cart, and Share via WhatsApp which shares the viewed product as a WhatsApp quote per the cart-whatsapp-share capability), the related-products section sourced from the suggestions API, and the retained microphone animation and top-bar navigation controls.
 
 ## Requirements
 
@@ -54,9 +54,9 @@ When a product's detail is loaded, the app SHALL present it following the detail
 - **WHEN** a product detail has fewer than two photos
 - **THEN** the lateral image slots are filled with neutral gray placeholder squares
 
-### Requirement: Render-only purchase actions
+### Requirement: Purchase actions
 
-The product-detail screen SHALL display a quantity stepper, an **Add-to-cart** button, and a **Share via WhatsApp** button. The quantity stepper SHALL be functional and bound the selectable quantity by the product's stock-derived maximum. Tapping **Add-to-cart** SHALL add the product to the cart using the quantity selected in the stepper. The **Share via WhatsApp** button SHALL remain render-only: tapping it SHALL NOT navigate to a WhatsApp form or perform a share, and that deferred behavior SHALL be marked in code as `TODO`.
+The product-detail screen SHALL display a quantity stepper, an **Add-to-cart** button, and a **Share via WhatsApp** button. The quantity stepper SHALL be functional and bound the selectable quantity by the product's stock-derived maximum. Tapping **Add-to-cart** SHALL add the product to the cart using the quantity selected in the stepper. The **Share via WhatsApp** button SHALL NO LONGER be render-only — tapping it SHALL open a share dialog that shares the currently viewed product as a WhatsApp quote, as defined by the "Share this product as a WhatsApp quote" requirement.
 
 #### Scenario: Action buttons are present
 
@@ -68,10 +68,46 @@ The product-detail screen SHALL display a quantity stepper, an **Add-to-cart** b
 - **WHEN** the consumer sets the stepper to N and taps the Add-to-cart button
 - **THEN** the product is added to the cart with quantity N and the cart item count increases
 
-#### Scenario: Share via WhatsApp does not act
+#### Scenario: Share via WhatsApp opens the share dialog
 
-- **WHEN** the consumer taps the Share-via-WhatsApp button
-- **THEN** the app does not navigate to a WhatsApp form or perform a share (the action is a TODO placeholder)
+- **WHEN** the consumer taps the Share-via-WhatsApp button on a loaded product
+- **THEN** the app opens a dialog to collect the consumer's name and cell-phone and share this product as a WhatsApp quote
+
+### Requirement: Share this product as a WhatsApp quote
+
+From the product-detail screen the app SHALL let the consumer share the currently viewed product as a WhatsApp quote. Tapping **"Compartir por WhatsApp"** SHALL open a self-contained dialog with a consumer-data form (name and cell-phone) validated with the same rules the cart uses. On submit the app SHALL share a quote for this single product at the quantity selected in the detail's stepper, retrying up to three times before showing the error state, and SHALL reuse the shared blocking-loading, success, and error states. The share SHALL be submitted only when the form is valid, SHALL NOT create a purchase order, and SHALL NOT require the product to be in the cart.
+
+#### Scenario: Share dialog collects consumer data
+
+- **WHEN** the consumer taps "Compartir por WhatsApp" on a loaded product
+- **THEN** the app opens a dialog with a name field and a cell-phone field, disabled for submit until both are valid
+
+#### Scenario: Invalid data is never submitted
+
+- **WHEN** the share dialog's form is invalid (missing or malformed name or cell-phone)
+- **THEN** the "Compartir" action does not submit a share request
+
+#### Scenario: Shares the single product at the selected quantity
+
+- **WHEN** the consumer submits the share dialog with valid data
+- **THEN** the app submits a share request for this product with the quantity selected in the detail's stepper
+- **AND** retries the share up to three times before showing the error state
+
+#### Scenario: Blocking state during share
+
+- **WHEN** a share request from the dialog is in flight
+- **THEN** the dialog shows a centered loading indicator over a dimmed background and blocks its inputs
+- **AND** no second share request is submitted while one is in flight
+
+#### Scenario: Accept closes and resets the dialog
+
+- **WHEN** the share succeeds and the consumer taps "Aceptar"
+- **THEN** the dialog closes and its form is reset
+
+#### Scenario: Error offers retry or cancel
+
+- **WHEN** the share fails after the retries
+- **THEN** the dialog shows a simplified error with "Entendido" (returns to the form, preserving entered data) and "Cancelar" (closes the dialog)
 
 ### Requirement: Related products from the suggestions API
 
