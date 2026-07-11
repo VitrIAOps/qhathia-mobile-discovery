@@ -23,4 +23,36 @@
     <!-- Close-current-search confirmation dialog (feature-specific title/message). -->
     <string name="pd_close_dialog_title">¿Cerrar la búsqueda actual?</string>
     <string name="pd_close_dialog_message">Se cerrará la búsqueda y volverás al inicio.</string>
+
+    <!-- Share-quote dialog — form. -->
+    <string name="pd_share_title">Comparte esta cotización por WhatsApp</string>
+    <string name="pd_share_name_label">Nombres</string>
+    <string name="pd_share_name_placeholder">Nombres</string>
+    <string name="pd_share_name_error">Ingresa al menos un nombre</string>
+    <string name="pd_share_phone_label">Número de celular</string>
+    <string name="pd_share_phone_placeholder">Ej. 987 654 321</string>
+    <string name="pd_share_phone_error">Ingresa un número de celular válido</string>
+    <string name="pd_share_submit">Compartir</string>
+    <string name="pd_share_cancel">Cancelar</string>
+    <string name="pd_share_close_cd">Cerrar</string>
+    <string name="pd_share_whatsapp_cd">Compartir por WhatsApp</string>
+
+    <!-- Share-quote dialog — loading. -->
+    <string name="pd_share_submitting_cd">Enviando tu cotización…</string>
+
+    <!-- Share-quote dialog — success. -->
+    <string name="pd_share_success_title">¡Cotización enviada!</string>
+    <string name="pd_share_success_subtitle">Le compartimos la cotización de este producto al número indicado.</string>
+    <string name="pd_share_success_check_phone">Revisa tu celular para ver la cotización.</string>
+    <plurals name="pd_share_success_qty">
+        <item quantity="one">Cantidad: %d</item>
+        <item quantity="other">Cantidad: %d</item>
+    </plurals>
+    <string name="pd_share_success_accept">Aceptar</string>
+
+    <!-- Share-quote dialog — error. -->
+    <string name="pd_share_error_title">Algo salió mal</string>
+    <string name="pd_share_error_message">No pudimos enviar la cotización. Inténtalo de nuevo en unos momentos.</string>
+    <string name="pd_share_error_understood">Entendido</string>
+    <string name="pd_share_error_cancel">Cancelar</string>
 </resources>

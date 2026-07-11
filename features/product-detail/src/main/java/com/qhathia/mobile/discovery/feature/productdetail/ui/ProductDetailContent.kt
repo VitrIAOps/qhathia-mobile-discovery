@@ -110,6 +110,10 @@ fun ProductDetailContent(
                 onDismiss = { onEvent(ProductDetailUiEvent.DismissDialog) },
             )
         }
+
+        if (uiState.share.visible) {
+            ShareProductDialog(state = uiState.share, onEvent = onEvent)
+        }
     }
 }
 

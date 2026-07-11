@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The shopping-cart capability lets in-store consumers collect products discovered through search and detail into a single, session-scoped basket and review them in a cart dialog. It owns the in-memory basket shared across screens, adding products from search results and the product-detail screen, per-product quantity management bounded by stock, the cart control with its item-count badge, the cart dialog presentation (item list, receipt-styled totals, consumer-data form, and order/share actions), the consumer-data form validation, the "Realizar pedido" action (which submits a purchase order per the cart-order-submission capability) and the render-only "Compartir por WhatsApp" action, and the cart session lifecycle (inactivity clearing off the Home screen, plus clearing on successful order placement and on order cancellation).
+The shopping-cart capability lets in-store consumers collect products discovered through search and detail into a single, session-scoped basket and review them in a cart dialog. It owns the in-memory basket shared across screens, adding products from search results and the product-detail screen, per-product quantity management bounded by stock, the cart control with its item-count badge, the cart dialog presentation (item list, receipt-styled totals, consumer-data form, and order/share actions), the consumer-data form validation, the "Realizar pedido" action (which submits a purchase order per the cart-order-submission capability and then shares the WhatsApp quote per the cart-whatsapp-share capability) and the "Compartir por WhatsApp" action (which shares the WhatsApp quote per the cart-whatsapp-share capability), and the cart session lifecycle (inactivity clearing off the Home screen, plus clearing on successful order placement and on order cancellation).
 
 ## Requirements
 
@@ -127,19 +127,21 @@ The cart dialog SHALL provide a consumer-data form requiring a **name** and a **
 - **WHEN** a valid name and a valid cell-phone number are entered
 - **THEN** the "Realizar pedido" action becomes enabled
 
-### Requirement: Render-only order and share actions
+### Requirement: Order and share actions
 
-The **"Compartir por WhatsApp"** action SHALL be render-only because its backend does not exist yet. Tapping "Compartir por WhatsApp" SHALL NOT open WhatsApp or perform a share, and this deferred behavior SHALL be marked in code as `TODO` to be implemented when its API is available. The **"Realizar pedido"** action SHALL NO LONGER be render-only — it submits a purchase order as defined by the `cart-order-submission` capability.
+Both cart actions SHALL now be functional. The **"Realizar pedido"** action SHALL submit a purchase order as defined by the `cart-order-submission` capability and, on success, SHALL also share the WhatsApp quote for the same basket as defined by the `cart-whatsapp-share` capability. The **"Compartir por WhatsApp"** action SHALL NO LONGER be render-only — it SHALL trigger the WhatsApp quote share defined by the `cart-whatsapp-share` capability, submitting the basket and consumer data to the share endpoint and driving the share loading/success/error states. Tapping "Compartir por WhatsApp" SHALL NOT create a purchase order.
 
 #### Scenario: Realizar pedido submits an order
 
 - **WHEN** the consumer taps "Realizar pedido" with valid data
 - **THEN** the app submits a purchase order (see the `cart-order-submission` capability)
+- **AND** on success the app also shares the WhatsApp quote for the same basket (see the `cart-whatsapp-share` capability)
 
-#### Scenario: Share performs no action
+#### Scenario: Compartir por WhatsApp shares the cart
 
-- **WHEN** the consumer taps "Compartir por WhatsApp"
-- **THEN** the app does not open WhatsApp or perform a share (the action is a TODO placeholder)
+- **WHEN** the consumer taps "Compartir por WhatsApp" with valid data
+- **THEN** the app submits a WhatsApp quote share (see the `cart-whatsapp-share` capability)
+- **AND** the app does not create a purchase order
 
 ### Requirement: Closing the cart dialog
 

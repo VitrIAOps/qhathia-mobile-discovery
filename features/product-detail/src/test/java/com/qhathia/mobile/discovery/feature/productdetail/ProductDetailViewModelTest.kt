@@ -8,7 +8,11 @@ import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ShareCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
+import com.qhathia.mobile.discovery.core.testing.FakeCartShareRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductDetailRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.core.testing.ProductDetailFixtures
@@ -36,13 +40,31 @@ class ProductDetailViewModelTest {
         productId: String = "p1",
         repository: FakeProductDetailRepository = FakeProductDetailRepository(),
         cartRepository: FakeCartRepository = FakeCartRepository(),
+        shareRepository: FakeCartShareRepository = FakeCartShareRepository(),
     ) = ProductDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_PRODUCT_ID to productId)),
         getProductDetail = GetProductDetailUseCase(repository),
         getSuggestions = GetProductSuggestionsUseCase(repository),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
+        shareCart = ShareCartUseCase(shareRepository),
+        validateName = ValidateConsumerNameUseCase(),
+        validatePhone = ValidateConsumerPhoneUseCase(),
     )
+
+    /** A view model whose detail is loaded, so the share dialog can open. */
+    private fun loadedViewModel(shareRepository: FakeCartShareRepository = FakeCartShareRepository()) =
+        viewModel(
+            repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1"))),
+            shareRepository = shareRepository,
+        )
+
+    /** Opens the share dialog and enters valid consumer data. */
+    private fun ProductDetailViewModel.openShareWithValidData() {
+        onEvent(ProductDetailUiEvent.ShareWhatsApp)
+        onEvent(ProductDetailUiEvent.ShareNameChanged("Ana Pérez"))
+        onEvent(ProductDetailUiEvent.SharePhoneChanged("987 654 321"))
+    }
 
     @Test
     fun given_product_when_initialized_then_loaded_with_related() = runTest(mainDispatcher.dispatcher) {
@@ -238,5 +260,113 @@ class ProductDetailViewModelTest {
             vm.onEvent(ProductDetailUiEvent.OpenCart)
             assertEquals(ProductDetailUiEffect.OpenCart, awaitItem())
         }
+    }
+
+    // --- Share-quote dialog ---
+
+    @Test
+    fun given_detail_not_loaded_when_share_tapped_then_dialog_stays_hidden() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(
+            repository = FakeProductDetailRepository(result = Result.failure(DetailException(DetailErrorCategory.DetailApi))),
+        )
+
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        assertFalse(vm.uiState.value.share.visible)
+    }
+
+    @Test
+    fun given_loaded_when_share_tapped_then_dialog_opens() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        assertTrue(vm.uiState.value.share.visible)
+        assertFalse(vm.uiState.value.share.isShareEnabled) // empty form
+    }
+
+    @Test
+    fun given_invalid_then_valid_data_when_entered_then_share_enables() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        vm.onEvent(ProductDetailUiEvent.ShareNameChanged("Ana"))
+        vm.onEvent(ProductDetailUiEvent.SharePhoneChanged("123"))
+        assertFalse(vm.uiState.value.share.isShareEnabled) // phone invalid
+
+        vm.onEvent(ProductDetailUiEvent.SharePhoneChanged("987 654 321"))
+        assertTrue(vm.uiState.value.share.isShareEnabled)
+    }
+
+    @Test
+    fun given_valid_data_when_confirm_share_then_success_with_this_product() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository()
+        val vm = loadedViewModel(shareRepository)
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+        val submission = vm.uiState.value.share.submission
+        assertTrue(submission is ProductDetailUiState.ShareSubmission.Success)
+        assertEquals(1, (submission as ProductDetailUiState.ShareSubmission.Success).summary.size)
+        assertEquals(1, shareRepository.callCount)
+        assertEquals(listOf("p1"), shareRepository.lastCall?.items?.map { it.productId })
+        // The ViewModel forwards the raw form value; the data layer normalizes it before the API.
+        assertEquals("987 654 321", shareRepository.lastCall?.phone)
+    }
+
+    @Test
+    fun given_share_fails_when_confirm_then_error_after_retries() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository().apply { failWith() }
+        val vm = loadedViewModel(shareRepository)
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+        assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
+        assertEquals(3, shareRepository.callCount) // retried up to the max
+    }
+
+    @Test
+    fun given_invalid_data_when_confirm_share_then_no_submission() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository()
+        val vm = loadedViewModel(shareRepository)
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp) // opened, but no data entered
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+        assertEquals(ProductDetailUiState.ShareSubmission.Idle, vm.uiState.value.share.submission)
+        assertEquals(0, shareRepository.callCount)
+    }
+
+    @Test
+    fun given_success_when_accept_then_dialog_closes_and_form_resets() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+        vm.openShareWithValidData()
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        assertTrue(vm.uiState.value.share.submission is ProductDetailUiState.ShareSubmission.Success)
+
+        vm.onEvent(ProductDetailUiEvent.AcceptShareSuccess)
+
+        val share = vm.uiState.value.share
+        assertFalse(share.visible)
+        assertEquals("", share.name)
+        assertEquals("", share.phone)
+        assertEquals(ProductDetailUiState.ShareSubmission.Idle, share.submission)
+    }
+
+    @Test
+    fun given_error_when_dismissed_then_returns_to_form() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel(FakeCartShareRepository().apply { failWith() })
+        vm.openShareWithValidData()
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
+
+        vm.onEvent(ProductDetailUiEvent.DismissShareError)
+
+        val share = vm.uiState.value.share
+        assertTrue(share.visible) // still in the dialog
+        assertEquals(ProductDetailUiState.ShareSubmission.Idle, share.submission)
+        assertEquals("Ana Pérez", share.name) // entered data preserved for the retry
     }
 }

@@ -30,8 +30,26 @@ sealed interface ProductDetailUiEvent {
     /** Tap the top-bar Ir al carrito control — opens the cart dialog. */
     data object OpenCart : ProductDetailUiEvent
 
-    /** Tap "Compartir por WhatsApp" (render-only — no WhatsApp navigation until it lands). */
+    /** Tap "Compartir por WhatsApp" — opens the share dialog to collect the consumer's name + phone. */
     data object ShareWhatsApp : ProductDetailUiEvent
+
+    /** The share dialog's consumer name field changed. */
+    data class ShareNameChanged(val name: String) : ProductDetailUiEvent
+
+    /** The share dialog's consumer cell-phone field changed. */
+    data class SharePhoneChanged(val phone: String) : ProductDetailUiEvent
+
+    /** Tap "Compartir" in the dialog — validate and send the quote PDF for this product. */
+    data object ConfirmShare : ProductDetailUiEvent
+
+    /** Dismiss the share dialog without sending (the "X"/"Cancelar" or a scrim/back tap). */
+    data object DismissShare : ProductDetailUiEvent
+
+    /** Tap "Aceptar" on the share success screen — close the dialog and reset its form. */
+    data object AcceptShareSuccess : ProductDetailUiEvent
+
+    /** Tap "Entendido" on the share error screen — return to the form to retry. */
+    data object DismissShareError : ProductDetailUiEvent
 
     /** Tap the bottom microphone (render-only — in-place voice on detail is out of scope). */
     data object ActivateMic : ProductDetailUiEvent

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pairing section ("Vincular") — código generado (Figma 1055-14805). -->
+    <string name="pairing_heading">Usa este código para vincular comercio</string>
+    <string name="pairing_subheading">Ingresa el código en la sección de dispositivos vinculados de tu aplicación de gestión.</string>
+    <string name="pairing_expires_in">Expira en %1$s</string>
+    <string name="pairing_clock_cd">Tiempo restante</string>
+    <string name="pairing_footer">Ingresa este código en tu aplicación para vincular la tablet</string>
+    <string name="pairing_hint_catalog">Sincroniza la información del catálogo de productos.</string>
+    <string name="pairing_hint_remote">Gestiona la configuración de la tablet de forma remota.</string>
+    <string name="pairing_code_char_cd">Carácter %1$d del código</string>
+    <string name="pairing_loading">Generando código…</string>
+    <string name="pairing_error">No se pudo generar el código de vinculación</string>
+    <string name="pairing_rejected">El comercio rechazó la vinculación</string>
+    <string name="pairing_generate_new">Generar nuevo código</string>
+
+    <!-- Pairing section — comercio vinculado (Figma 1080-1587). -->
+    <string name="pairing_status_linked">Vinculado</string>
+    <string name="pairing_store_section">NOMBRE DEL COMERCIO</string>
+    <string name="pairing_store_account_tag">Cuenta de gestión</string>
+    <string name="pairing_device_section">ESTADO DEL DISPOSITIVO</string>
+    <string name="pairing_activity_label">Actividad</string>
+    <string name="pairing_platform_label">Plataforma</string>
+    <string name="pairing_code_used_label">Código usado</string>
+    <string name="pairing_catalog_section">HISTORIAL DE CATÁLOGO</string>
+    <string name="pairing_catalog_pending">El historial de catálogo estará disponible próximamente.</string>
+    <string name="pairing_pending">Pendiente</string>
+    <string name="pairing_synced_recently">Sincronizado hace un momento</string>
+    <plurals name="pairing_synced_minutes">
+        <item quantity="one">Sincronizado hace %d minuto</item>
+        <item quantity="other">Sincronizado hace %d minutos</item>
+    </plurals>
+
+    <!-- Unpair confirmation. -->
+    <string name="pairing_unpair">Desvincular comercio</string>
+    <string name="pairing_unpair_title">¿Desvincular comercio?</string>
+    <string name="pairing_unpair_message">Se desvinculará la tablet de este comercio y dejará de sincronizar el catálogo.</string>
+    <string name="pairing_unpair_confirm">Desvincular</string>
+    <string name="pairing_unpair_unavailable">La desvinculación del comercio aún no está disponible.</string>
+</resources>

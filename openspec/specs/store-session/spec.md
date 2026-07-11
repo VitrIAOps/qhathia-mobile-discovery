@@ -42,7 +42,7 @@ When no values have been stored yet, the store session SHALL expose a well-defin
 
 ### Requirement: Persisted device access token
 
-The store session SHALL hold a DEVICE access token obtained from the pairing flow, persisted locally so it survives app restarts. When a persisted device token is present, it SHALL be the source of the app's authenticated access token, taking precedence over the development-credential login fallback.
+The store session SHALL hold a DEVICE access token obtained from the pairing flow, persisted locally so it survives app restarts. The persisted device token SHALL be the **sole** source of the app's authenticated access token. The app SHALL NOT acquire an access token by logging in with development (or any other) credentials. When no device token has been persisted, the app SHALL have no access token, and authenticated calls SHALL fail cleanly rather than falling back to a login.
 
 #### Scenario: Device token persisted after pairing
 
@@ -52,12 +52,12 @@ The store session SHALL hold a DEVICE access token obtained from the pairing flo
 #### Scenario: Device token used for authentication
 
 - **WHEN** the app needs an authenticated access token and a persisted device token is present
-- **THEN** the persisted device token is used instead of logging in with development credentials
+- **THEN** the persisted device token is used
 
-#### Scenario: Fallback when no device token
+#### Scenario: No token when unpaired
 
 - **WHEN** the app needs an authenticated access token and no device token has been persisted
-- **THEN** the app falls back to the existing development-credential login
+- **THEN** no token is returned and the authenticated call fails cleanly without attempting a login
 
 ### Requirement: Device pairing state observable
 

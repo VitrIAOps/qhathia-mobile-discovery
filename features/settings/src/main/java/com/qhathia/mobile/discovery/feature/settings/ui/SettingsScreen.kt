@@ -10,12 +10,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.qhathia.mobile.discovery.feature.pairing.ui.PairingScreen
+import com.qhathia.mobile.discovery.feature.settings.R
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsSection
 
 /**
  * Settings host reached after the PIN gate. Owns the selected side-menu [SettingsSection] and composes
  * the shared dark side menu once (so the selection shadow animates) next to the section's panel —
  * Wi-Fi ("Red Wifi") or device pairing ("Vincular"). Back is hoisted to the caller.
+ *
+ * The pairing section is the shared `:features:pairing` slice, hosted here with the "TIENDA" title, the
+ * side menu present and no back affordance; a successful pairing keeps the merchant in place (the slice
+ * shows the paired-device details), so [PairingScreen]'s `onPaired` is a no-op.
  */
 @Composable
 fun SettingsScreen(
@@ -37,7 +44,7 @@ fun SettingsScreen(
         ) { current ->
             when (current) {
                 SettingsSection.Wifi -> NetworkSettingsScreen(onNavigateBack = onNavigateBack)
-                SettingsSection.Pairing -> PairingScreen()
+                SettingsSection.Pairing -> PairingScreen(title = stringResource(R.string.network_toolbar_title))
             }
         }
     }

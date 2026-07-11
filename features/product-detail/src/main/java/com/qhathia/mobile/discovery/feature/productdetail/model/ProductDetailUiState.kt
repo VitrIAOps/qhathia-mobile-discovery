@@ -2,6 +2,9 @@ package com.qhathia.mobile.discovery.feature.productdetail.model
 
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
+import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
+import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
+import com.qhathia.mobile.discovery.core.ui.component.SubmissionLine
 import kotlinx.collections.immutable.ImmutableList
 
 /**
@@ -14,6 +17,7 @@ import kotlinx.collections.immutable.ImmutableList
  * @property showCloseConfirmDialog whether the close-current-search confirmation dialog is visible.
  * @property quantity the quantity selected in the add-to-cart stepper (≥ 1, bounded by stock).
  * @property cartItemCount total items in the cart, shown on the Ir al carrito control's badge.
+ * @property share the "Compartir por WhatsApp" dialog sub-state (hidden until the button is tapped).
  */
 data class ProductDetailUiState(
     val status: Status = Status.Loading,
@@ -22,7 +26,55 @@ data class ProductDetailUiState(
     val showCloseConfirmDialog: Boolean = false,
     val quantity: Int = 1,
     val cartItemCount: Int = 0,
+    val share: ShareUiState = ShareUiState(),
 ) {
+
+    /**
+     * The share-quote dialog state. Mirrors the cart's consumer form + submission phase so the
+     * product-detail share reuses the same loading/success/error overlays from `core:ui`.
+     *
+     * @property visible whether the share dialog is shown.
+     * @property name the consumer's entered name.
+     * @property phone the consumer's entered cell-phone number.
+     * @property nameError the name validation error, or `null` when valid.
+     * @property phoneError the phone validation error, or `null` when valid.
+     * @property isShareEnabled whether the consumer data is complete and valid (gates "Compartir").
+     * @property submission the submission phase overlaid on the dialog (loading / success / error).
+     */
+    data class ShareUiState(
+        val visible: Boolean = false,
+        val name: String = "",
+        val phone: String = "",
+        val nameError: ConsumerNameError? = ConsumerNameError.Empty,
+        val phoneError: ConsumerPhoneError? = ConsumerPhoneError.Empty,
+        val isShareEnabled: Boolean = false,
+        val submission: ShareSubmission = ShareSubmission.Idle,
+    ) {
+        /** True while the share request is in flight — the dialog blocks all inputs. */
+        val isSubmitting: Boolean get() = submission is ShareSubmission.Submitting
+
+        /** Show the name error only once the field has content (a blank field is not "wrong" yet). */
+        val showNameError: Boolean get() = name.isNotBlank() && nameError != null
+
+        /** Show the phone error only once the field has content. */
+        val showPhoneError: Boolean get() = phone.isNotBlank() && phoneError != null
+    }
+
+    /** The share-submission phase, mirroring the cart's `OrderSubmission`. */
+    sealed interface ShareSubmission {
+
+        /** No share in progress — the form is interactive. */
+        data object Idle : ShareSubmission
+
+        /** A share request is in flight — inputs are blocked behind a loader. */
+        data object Submitting : ShareSubmission
+
+        /** The quote was sent — [summary] holds the shared product for the confirmation screen. */
+        data class Success(val summary: ImmutableList<SubmissionLine>) : ShareSubmission
+
+        /** The share failed after retrying — the simplified error screen is shown. */
+        data object Error : ShareSubmission
+    }
     /** The product-detail load status. */
     sealed interface Status {
 
