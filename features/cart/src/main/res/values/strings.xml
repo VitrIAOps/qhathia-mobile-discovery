@@ -45,6 +45,8 @@
     <string name="cart_success_title">¡Pedido generado con éxito!</string>
     <string name="cart_success_subtitle">Acércate al vendedor para recibir tu pedido y realizar el pago.</string>
     <string name="cart_success_check_phone">Revisa tu celular para ver el detalle de tu pedido.</string>
+    <!-- Order created but the WhatsApp quote could not be delivered after retrying. -->
+    <string name="cart_success_share_failed_subtitle">Se generó tu pedido. Acércate al vendedor e indícale tu nombre para revisar tu orden.</string>
     <plurals name="cart_success_qty">
         <item quantity="one">Cantidad: %d</item>
         <item quantity="other">Cantidad: %d</item>

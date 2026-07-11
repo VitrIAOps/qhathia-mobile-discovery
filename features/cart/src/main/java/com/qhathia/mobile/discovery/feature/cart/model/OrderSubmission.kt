@@ -29,8 +29,18 @@ sealed interface OrderSubmission {
     /** An order request is in flight — all inputs are blocked behind a centered loader. */
     data object Submitting : OrderSubmission
 
-    /** The order was created — [summary] lists the ordered products for the confirmation screen. */
-    data class Success(val summary: ImmutableList<OrderedLine>) : OrderSubmission
+    /**
+     * The submission succeeded — [summary] lists the products for the confirmation screen.
+     *
+     * @property shareDelivered whether the WhatsApp quote PDF was delivered. `true` for a standalone
+     *   share and for "Realizar pedido" when the order was created *and* its quote reached WhatsApp;
+     *   `false` when the order was created but every share retry failed, which switches the success
+     *   copy to the "go to the seller and give your name" fallback instead of "check your phone".
+     */
+    data class Success(
+        val summary: ImmutableList<OrderedLine>,
+        val shareDelivered: Boolean = true,
+    ) : OrderSubmission
 
     /** The order failed — the simplified error screen with "Entendido" / "Cancelar orden" is shown. */
     data object Error : OrderSubmission

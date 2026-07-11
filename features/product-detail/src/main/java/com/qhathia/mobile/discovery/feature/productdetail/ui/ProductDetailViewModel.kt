@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.CartConstants
+import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
@@ -12,11 +13,16 @@ import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ShareCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
+import com.qhathia.mobile.discovery.core.ui.component.SubmissionLine
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEffect
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEvent
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiState
 import com.qhathia.mobile.discovery.feature.productdetail.navigation.ARG_PRODUCT_ID
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -32,8 +38,12 @@ import javax.inject.Inject
 /**
  * Drives the product-detail screen. Reads the product id from [SavedStateHandle], fetches the detail
  * via [GetProductDetailUseCase] on init (and on retry), and exposes the load status. Volver and the
- * confirmed Nueva búsqueda are surfaced as one-shot navigation effects. The render-only actions
- * (add-to-cart, share, mic) and the mock related-products taps are intentional no-ops for this slice.
+ * confirmed Nueva búsqueda are surfaced as one-shot navigation effects.
+ *
+ * "Compartir por WhatsApp" opens a self-contained dialog that collects the consumer's name + phone
+ * (validated with the same rules as the cart) and shares a quote PDF of the selected product via
+ * [ShareCartUseCase] (retried up to [SHARE_MAX_ATTEMPTS]), reusing the cart's loading/success/error
+ * overlays. The mic action and the mock related-products taps remain no-ops for this slice.
  */
 @HiltViewModel
 class ProductDetailViewModel @Inject constructor(
@@ -42,6 +52,9 @@ class ProductDetailViewModel @Inject constructor(
     private val getSuggestions: GetProductSuggestionsUseCase,
     observeCart: ObserveCartUseCase,
     private val addToCart: AddToCartUseCase,
+    private val shareCart: ShareCartUseCase,
+    private val validateName: ValidateConsumerNameUseCase,
+    private val validatePhone: ValidateConsumerPhoneUseCase,
 ) : ViewModel() {
 
     private val productId: String = savedStateHandle.get<String>(ARG_PRODUCT_ID).orEmpty()
@@ -81,11 +94,77 @@ class ProductDetailViewModel @Inject constructor(
             is ProductDetailUiEvent.RelatedProductTapped ->
                 emit(ProductDetailUiEffect.NavigateToDetail(event.productId))
             is ProductDetailUiEvent.RelatedProductAddToCart -> onAddRelatedToCart(event.productId)
-            // Render-only interactions — out of scope for this change.
-            ProductDetailUiEvent.ShareWhatsApp,
-            ProductDetailUiEvent.ActivateMic,
-            -> Unit
+            ProductDetailUiEvent.ShareWhatsApp -> openShareDialog()
+            is ProductDetailUiEvent.ShareNameChanged -> onShareNameChanged(event.name)
+            is ProductDetailUiEvent.SharePhoneChanged -> onSharePhoneChanged(event.phone)
+            ProductDetailUiEvent.ConfirmShare -> confirmShare()
+            ProductDetailUiEvent.DismissShare -> closeShareDialog()
+            ProductDetailUiEvent.AcceptShareSuccess -> closeShareDialog()
+            ProductDetailUiEvent.DismissShareError -> updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
+            // Render-only interaction — out of scope for this change.
+            ProductDetailUiEvent.ActivateMic -> Unit
         }
+    }
+
+    // --- Share-quote dialog ---
+
+    /** Opens the share dialog (fresh, empty form) only when a product detail is actually loaded. */
+    private fun openShareDialog() {
+        if (loadedDetail() == null) return
+        updateShare { ProductDetailUiState.ShareUiState(visible = true) }
+    }
+
+    /** Closes the dialog and resets its form so a re-open — or the next share — starts blank. */
+    private fun closeShareDialog() {
+        updateShare { ProductDetailUiState.ShareUiState() }
+    }
+
+    private fun onShareNameChanged(name: String) {
+        val error = validateName(name)
+        updateShare { it.copy(name = name, nameError = error, isShareEnabled = error == null && it.phoneError == null) }
+    }
+
+    private fun onSharePhoneChanged(phone: String) {
+        val error = validatePhone(phone)
+        updateShare { it.copy(phone = phone, phoneError = error, isShareEnabled = it.nameError == null && error == null) }
+    }
+
+    /**
+     * Sends the quote PDF for the selected product (at the current stepper quantity), retried up to
+     * [SHARE_MAX_ATTEMPTS]. Guards valid data and no in-flight submission. Success shows the summary
+     * confirmation; exhausting the retries shows the simplified error screen.
+     */
+    private fun confirmShare() {
+        val detail = loadedDetail() ?: return
+        val share = _uiState.value.share
+        if (!share.isShareEnabled || share.submission != ProductDetailUiState.ShareSubmission.Idle) return
+
+        val quantity = _uiState.value.quantity
+        val item = detail.toCartItem(quantity)
+        val summary = persistentListOf(SubmissionLine(imageUrl = item.imageUrl, name = item.name, quantity = quantity))
+
+        updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Submitting) }
+        viewModelScope.launch {
+            val delivered = shareWithRetry(share.name, share.phone, listOf(item))
+            updateShare {
+                it.copy(
+                    submission = if (delivered) ProductDetailUiState.ShareSubmission.Success(summary)
+                    else ProductDetailUiState.ShareSubmission.Error,
+                )
+            }
+        }
+    }
+
+    /** Shares the quote, retrying up to [SHARE_MAX_ATTEMPTS] times; `true` once any attempt succeeds. */
+    private suspend fun shareWithRetry(name: String, phone: String, items: List<CartItem>): Boolean {
+        repeat(SHARE_MAX_ATTEMPTS) {
+            if (shareCart(name, phone, items).isSuccess) return true
+        }
+        return false
+    }
+
+    private inline fun updateShare(transform: (ProductDetailUiState.ShareUiState) -> ProductDetailUiState.ShareUiState) {
+        _uiState.update { it.copy(share = transform(it.share)) }
     }
 
     private fun onAddToCart() {
@@ -162,4 +241,9 @@ class ProductDetailViewModel @Inject constructor(
             DetailErrorCategory.Network -> ProductDetailUiState.ErrorKind.Network
             DetailErrorCategory.DetailApi -> ProductDetailUiState.ErrorKind.Generic
         }
+
+    private companion object {
+        /** Max attempts for the WhatsApp quote share before showing the error screen. */
+        const val SHARE_MAX_ATTEMPTS = 3
+    }
 }

@@ -2,10 +2,14 @@ package com.qhathia.mobile.discovery.feature.cart.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
+import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
+import com.qhathia.mobile.discovery.core.domain.usecase.ShareCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
@@ -32,9 +36,15 @@ import javax.inject.Inject
  * validates the consumer-data form on input, and adjusts line quantities / removes lines. "Realizar
  * pedido" submits the basket + consumer data to the order API and drives the submission phase
  * ([OrderSubmission]): a blocking loader while in flight, a success summary on `201`, or a simplified
- * error otherwise. Accepting the success or cancelling the error clears the session and returns Home;
- * "Entendido" returns to the cart summary. Line taps and the close controls surface as one-shot
- * effects. "Compartir por WhatsApp" remains an intentional no-op (its API does not exist yet).
+ * error otherwise. Accepting the success or cancelling the error clears the session (basket **and**
+ * consumer form) and returns Home; "Entendido" returns to the cart summary. Line taps and the close
+ * controls surface as one-shot effects.
+ *
+ * "Realizar pedido" creates the order and, on success, also shares the quote PDF to the consumer's
+ * WhatsApp (retried up to [SHARE_MAX_ATTEMPTS] times); if every share attempt fails the order still
+ * succeeds but the confirmation switches to the "go to the seller and give your name" fallback copy.
+ * "Compartir por WhatsApp" only shares the quote PDF (same retries) without creating an order, driving
+ * the same loading/success/error UX.
  */
 @HiltViewModel
 class CartViewModel @Inject constructor(
@@ -44,6 +54,7 @@ class CartViewModel @Inject constructor(
     private val validateName: ValidateConsumerNameUseCase,
     private val validatePhone: ValidateConsumerPhoneUseCase,
     private val createOrder: CreateOrderUseCase,
+    private val shareCart: ShareCartUseCase,
     private val clearCart: ClearCartUseCase,
 ) : ViewModel() {
 
@@ -80,27 +91,28 @@ class CartViewModel @Inject constructor(
             is CartUiEvent.PhoneChanged -> onPhoneChanged(event.phone)
             CartUiEvent.KeepShopping, CartUiEvent.Close -> emit(CartUiEffect.Dismiss)
             CartUiEvent.PlaceOrder -> placeOrder()
+            CartUiEvent.ShareWhatsApp -> share()
             CartUiEvent.AcceptSuccess, CartUiEvent.CancelOrder -> finishAndReturnHome()
             CartUiEvent.DismissError -> _uiState.update { it.copy(submission = OrderSubmission.Idle) }
-            // TODO(whatsapp-api): build and send the WhatsApp message when the share contract lands.
-            CartUiEvent.ShareWhatsApp -> Unit
         }
     }
 
+    /**
+     * "Realizar pedido": creates the order and, on success, shares the quote PDF too (retried up to
+     * [SHARE_MAX_ATTEMPTS]). An order failure resolves to [OrderSubmission.Error]; an order success
+     * resolves to [OrderSubmission.Success] whose `shareDelivered` reflects whether the quote reached
+     * WhatsApp — so a share that never lands still confirms the order (with the fallback copy).
+     */
     private fun placeOrder() {
-        val state = _uiState.value
-        // Guard: valid data and no submission already in flight (blocks double-submit).
-        if (!state.isOrderEnabled || state.submission != OrderSubmission.Idle) return
-
-        val summary = state.items
-            .map { OrderedLine(imageUrl = it.imageUrl, name = it.name, quantity = it.quantity) }
-            .toImmutableList()
-
-        _uiState.update { it.copy(submission = OrderSubmission.Submitting) }
+        val state = beginSubmission() ?: return
+        val summary = state.summary()
         viewModelScope.launch {
             createOrder(state.name, state.phone, state.items)
                 .onSuccess {
-                    _uiState.update { it.copy(submission = OrderSubmission.Success(summary)) }
+                    val delivered = shareWithRetry(state.name, state.phone, state.items)
+                    _uiState.update {
+                        it.copy(submission = OrderSubmission.Success(summary, shareDelivered = delivered))
+                    }
                 }
                 .onFailure {
                     _uiState.update { it.copy(submission = OrderSubmission.Error) }
@@ -108,9 +120,63 @@ class CartViewModel @Inject constructor(
         }
     }
 
+    /**
+     * "Compartir por WhatsApp": shares the quote PDF only (no order), retried up to [SHARE_MAX_ATTEMPTS].
+     * Success resolves to [OrderSubmission.Success]; exhausting the retries resolves to [OrderSubmission.Error].
+     */
+    private fun share() {
+        val state = beginSubmission() ?: return
+        val summary = state.summary()
+        viewModelScope.launch {
+            val delivered = shareWithRetry(state.name, state.phone, state.items)
+            _uiState.update {
+                it.copy(
+                    submission = if (delivered) OrderSubmission.Success(summary) else OrderSubmission.Error,
+                )
+            }
+        }
+    }
+
+    /**
+     * Guards valid data and no in-flight/resolved submission (blocks double-submit and cross-action
+     * overlap between the two buttons), flips the phase to [OrderSubmission.Submitting], and returns
+     * the guarded snapshot — or `null` when the submission must not start.
+     */
+    private fun beginSubmission(): CartUiState? {
+        val state = _uiState.value
+        if (!state.isOrderEnabled || state.submission != OrderSubmission.Idle) return null
+        _uiState.update { it.copy(submission = OrderSubmission.Submitting) }
+        return state
+    }
+
+    /** Snapshots the basket lines for the confirmation summary, so it survives the basket being cleared. */
+    private fun CartUiState.summary(): kotlinx.collections.immutable.ImmutableList<OrderedLine> =
+        items.map { OrderedLine(imageUrl = it.imageUrl, name = it.name, quantity = it.quantity) }
+            .toImmutableList()
+
+    /** Shares the quote PDF, retrying up to [SHARE_MAX_ATTEMPTS] times; `true` once any attempt succeeds. */
+    private suspend fun shareWithRetry(name: String, phone: String, items: List<CartItem>): Boolean {
+        repeat(SHARE_MAX_ATTEMPTS) {
+            if (shareCart(name, phone, items).isSuccess) return true
+        }
+        return false
+    }
+
     private fun finishAndReturnHome() {
         viewModelScope.launch {
             clearCart()
+            // Reset the phase and clear the consumer form so a reopened cart is fresh — never stuck on
+            // the previous success/error screen nor pre-filled with the last consumer's data.
+            _uiState.update {
+                it.copy(
+                    submission = OrderSubmission.Idle,
+                    name = "",
+                    phone = "",
+                    nameError = ConsumerNameError.Empty,
+                    phoneError = ConsumerPhoneError.Empty,
+                    isOrderEnabled = false,
+                )
+            }
             _uiEffect.emit(CartUiEffect.ReturnHome)
         }
     }
@@ -132,5 +198,10 @@ class CartViewModel @Inject constructor(
 
     private fun emit(effect: CartUiEffect) {
         viewModelScope.launch { _uiEffect.emit(effect) }
+    }
+
+    private companion object {
+        /** Max attempts for the WhatsApp quote share before giving up (used by both cart actions). */
+        const val SHARE_MAX_ATTEMPTS = 3
     }
 }

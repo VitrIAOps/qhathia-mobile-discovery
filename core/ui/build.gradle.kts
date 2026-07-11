@@ -28,6 +28,7 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.kotlinx.immutable)
 
     debugImplementation(libs.compose.ui.tooling)
 }
