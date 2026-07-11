@@ -1,0 +1,63 @@
+name: Build Profile APK
+
+# Builds the `profile` build type (non-debuggable but profileable, signed with the auto-generated
+# debug keystore) on every push to main and publishes the APK as a downloadable artifact.
+# The profile variant needs no signing secrets; secrets.properties is optional (the build falls back
+# to the defaults declared in build.gradle.kts when it is absent).
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Only keep the latest build for a given ref running — cancel superseded pushes.
+concurrency:
+  group: build-profile-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-profile-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Gradle 9.x / AGP 9.x require JDK 21 — JDK 17 fails to start the daemon.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # compileSdk is 36 (with minorApiLevel 1); make sure the platform + build-tools are present.
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      # Configures the Gradle build cache and dependency caching for faster CI runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # -PappMinor=<run_number> makes the versionName MINOR auto-increment (+1 per push to main):
+      #   versionName -> 1.<run_number>.0-SNAPSHOT, versionCode -> 1_000_000 + run_number.
+      - name: Assemble profile APK
+        run: ./gradlew assembleProfile -PappMinor=${{ github.run_number }} --stacktrace
+
+      - name: Upload profile APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: qhathia-discovery-profile-apk
+          path: app/build/outputs/apk/profile/*.apk
+          if-no-files-found: error
+          retention-days: 30

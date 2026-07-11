@@ -5,13 +5,19 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// App version derived from the version catalog (single source of truth):
-//   versionName = "<appVersion>-<appPrerelease>"  e.g. 1.0.0-SNAPSHOT
-//   versionCode = major*10000 + minor*100 + patch e.g. 1.0.0 -> 10000  (monotonic; minor/patch < 100)
+// App version — the catalog holds the base (major + prerelease); CI makes the MINOR auto-increment
+// on every push to main by passing -PappMinor=<github.run_number>. Patch stays 0 in this scheme.
+//   versionName = "<major>.<minor>.0-<appPrerelease>"
+//     · CI run 37   -> 1.37.0-SNAPSHOT
+//     · local build -> 1.0.0-SNAPSHOT   (no -PappMinor -> falls back to the catalog's minor)
+//   versionCode = major*1_000_000 + minor   (monotonic; safe even for large minors)
 val appSemVer = libs.versions.appVersion.get()
-val appVersionName = "$appSemVer-${libs.versions.appPrerelease.get()}"
-val appVersionCode = appSemVer.split(".").map { it.toInt() }
-    .let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+val appPrerelease = libs.versions.appPrerelease.get()
+val appMajor = appSemVer.substringBefore(".").toInt()
+val appMinor = (project.findProperty("appMinor") as String?)?.toIntOrNull()
+    ?: appSemVer.split(".")[1].toInt()
+val appVersionName = "$appMajor.$appMinor.0-$appPrerelease"
+val appVersionCode = appMajor * 1_000_000 + appMinor
 
 android {
     namespace = "com.qhathia.mobile.discovery"
