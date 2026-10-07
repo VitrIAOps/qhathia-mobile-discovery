@@ -35,6 +35,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default ("tools platform-tools") fails: the obsolete "tools"
+          # package no longer exists in the SDK repository.
+          packages: platform-tools
 
       # compileSdk is 36 (with minorApiLevel 1); make sure the platform + build-tools are present.
       - name: Install SDK packages
