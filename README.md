@@ -107,7 +107,7 @@ adb install -r app/build/outputs/apk/profile/qhathia-discovery-v1.0.0-SNAPSHOT.a
 adb logcat -s KtorClient            # observe API calls
 ```
 
-Then *Run › Profile 'app'* in Android Studio (no "debuggable build" warning).
+Then *Run › Profile 'app'* in Android Studio.
 
 ---
 
