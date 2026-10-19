@@ -10,12 +10,15 @@ import kotlinx.coroutines.flow.Flow
  * @property mobileDataActive whether the cellular transport is the (or an) active network.
  * @property airplaneModeActive whether airplane mode is on.
  * @property connectedSsid the connected Wi-Fi SSID (quotes stripped), or `null`.
+ * @property wifiActive whether Wi-Fi is the (or an) active network transport. Unlike [connectedSsid]
+ *   it does not need the location permission, so it is the reliable "on Wi-Fi" signal.
  */
 data class ConnectivitySnapshot(
     val wifiEnabled: Boolean,
     val mobileDataActive: Boolean,
     val airplaneModeActive: Boolean,
     val connectedSsid: String?,
+    val wifiActive: Boolean = false,
 )
 
 /**

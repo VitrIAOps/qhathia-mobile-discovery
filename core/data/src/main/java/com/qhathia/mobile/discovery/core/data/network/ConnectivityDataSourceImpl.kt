@@ -77,6 +77,7 @@ class ConnectivityDataSourceImpl @Inject constructor(
             mobileDataActive = onCellular,
             airplaneModeActive = isAirplaneModeOn(),
             connectedSsid = if (onWifi) connectedSsid() else null,
+            wifiActive = onWifi,
         )
     }
 
