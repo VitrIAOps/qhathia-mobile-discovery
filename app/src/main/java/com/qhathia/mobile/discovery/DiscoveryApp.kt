@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery
 
 import android.app.Application
+import com.qhathia.mobile.discovery.core.domain.usecase.ProcessDeviceCommandsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunDeviceHeartbeatUseCase
 import com.qhathia.mobile.discovery.di.ApplicationScope
 import dagger.hilt.android.HiltAndroidApp
@@ -10,7 +11,8 @@ import javax.inject.Inject
 
 /**
  * Application shell — Hilt's dependency graph root for the Discovery app. Starts the device
- * heartbeat, which runs for the process lifetime while the tablet is paired.
+ * heartbeat (runs while the tablet is paired) and the processor of the remote commands it delivers,
+ * both for the process lifetime.
  */
 @HiltAndroidApp
 class DiscoveryApp : Application() {
@@ -22,8 +24,12 @@ class DiscoveryApp : Application() {
     @Inject
     lateinit var runDeviceHeartbeat: RunDeviceHeartbeatUseCase
 
+    @Inject
+    lateinit var processDeviceCommands: ProcessDeviceCommandsUseCase
+
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch { runDeviceHeartbeat() }
+        applicationScope.launch { processDeviceCommands() }
     }
 }
