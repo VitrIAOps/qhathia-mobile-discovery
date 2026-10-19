@@ -7,6 +7,7 @@
     <string name="settings_password_icon_cd">Configuración protegida</string>
     <string name="settings_pin_digit_cd">Dígito %1$s</string>
     <string name="settings_pin_backspace_cd">Borrar</string>
+    <string name="settings_pin_confirm_cd">Confirmar PIN</string>
 
     <!-- Network settings screen ("Red Wifi"). -->
     <string name="network_settings_title">Ajustes de red</string>

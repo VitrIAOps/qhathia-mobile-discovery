@@ -3,11 +3,13 @@ package com.qhathia.mobile.discovery.feature.settings.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.SettingsConstants
+import com.qhathia.mobile.discovery.core.domain.usecase.IsSettingsPinRequiredUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateSettingsPasswordUseCase
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEffect
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,15 +22,16 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Drives the settings PIN gate. The PIN pad feeds digits in through [SettingsUiEvent.PasswordChanged];
- * once the input reaches the expected length it is validated automatically through
- * [ValidateSettingsPasswordUseCase]. A correct PIN emits [SettingsUiEffect.Unlocked] (the host then
- * opens the Network settings screen); a wrong one clears the entry and shows an inline error. The gate
- * re-prompts on every entry via [SettingsUiEvent.Reset].
+ * Drives the settings PIN gate. On [SettingsUiEvent.Reset] (every time the gate opens) it checks
+ * whether an exit PIN is set: if not, it emits [SettingsUiEffect.Unlocked] straight away and the
+ * dialog never shows. Otherwise the keypad accepts 4–6 digits: the confirm key validates from 4, and
+ * the 6th digit validates automatically. A correct PIN emits [SettingsUiEffect.Unlocked]; a wrong one
+ * clears the entry and shows an inline error.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val validateSettingsPassword: ValidateSettingsPasswordUseCase,
+    private val isSettingsPinRequired: IsSettingsPinRequiredUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -40,38 +43,51 @@ class SettingsViewModel @Inject constructor(
     )
     val uiEffect: SharedFlow<SettingsUiEffect> = _uiEffect.asSharedFlow()
 
+    private var accessJob: Job? = null
+
     fun onEvent(event: SettingsUiEvent) {
         when (event) {
             is SettingsUiEvent.PasswordChanged -> onPasswordChanged(event.value)
             SettingsUiEvent.SubmitPassword -> submitPassword()
             SettingsUiEvent.DismissDialog -> emit(SettingsUiEffect.NavigateBack)
-            SettingsUiEvent.Reset -> _uiState.value = SettingsUiState()
+            SettingsUiEvent.Reset -> resolveAccess()
+        }
+    }
+
+    private fun resolveAccess() {
+        _uiState.value = SettingsUiState(isResolvingAccess = true)
+        accessJob?.cancel()
+        accessJob = viewModelScope.launch {
+            if (isSettingsPinRequired()) {
+                _uiState.update { it.copy(isResolvingAccess = false) }
+            } else {
+                // No exit PIN set from the staff app: the settings open without asking.
+                emit(SettingsUiEffect.Unlocked)
+            }
         }
     }
 
     private fun onPasswordChanged(value: String) {
-        // The PIN pad only enters digits; cap at the expected length.
-        val pin = value.filter { it.isDigit() }.take(SettingsConstants.SETTINGS_PASSWORD_LENGTH)
+        if (_uiState.value.isValidating) return
+        // The PIN pad only enters digits; cap at the longest valid PIN.
+        val pin = value.filter { it.isDigit() }.take(SettingsConstants.MAX_PIN_LENGTH)
         _uiState.update { it.copy(passwordInput = pin, showError = false) }
-        // A complete PIN validates automatically (there is no separate submit button).
-        if (pin.length == SettingsConstants.SETTINGS_PASSWORD_LENGTH) submitPassword()
+        if (pin.length == SettingsConstants.MAX_PIN_LENGTH) submitPassword()
     }
 
     private fun submitPassword() {
-        val input = _uiState.value.passwordInput
+        val state = _uiState.value
+        if (state.isValidating || state.passwordInput.length < SettingsConstants.MIN_PIN_LENGTH) return
+        _uiState.update { it.copy(isValidating = true) }
         viewModelScope.launch {
-            validateSettingsPassword(input)
-                .onSuccess { accepted ->
-                    if (accepted) {
-                        emit(SettingsUiEffect.Unlocked)
-                    } else {
-                        // Clear the entry so the merchant can retype the PIN.
-                        _uiState.update { it.copy(passwordInput = "", showError = true) }
-                    }
-                }
-                .onFailure {
-                    _uiState.update { it.copy(passwordInput = "", showError = true) }
-                }
+            val accepted = validateSettingsPassword(state.passwordInput).getOrDefault(false)
+            if (accepted) {
+                _uiState.update { it.copy(isValidating = false) }
+                emit(SettingsUiEffect.Unlocked)
+            } else {
+                // Clear the entry so the merchant can retype the PIN.
+                _uiState.update { it.copy(passwordInput = "", showError = true, isValidating = false) }
+            }
         }
     }
 

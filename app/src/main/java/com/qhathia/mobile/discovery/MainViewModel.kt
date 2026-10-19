@@ -2,7 +2,9 @@ package com.qhathia.mobile.discovery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.qhathia.mobile.discovery.core.domain.model.DeviceSettings
 import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveDeviceSettingsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,7 +23,13 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val clearCartUseCase: ClearCartUseCase,
     observeStoreSession: ObserveStoreSessionUseCase,
+    observeDeviceSettings: ObserveDeviceSettingsUseCase,
 ) : ViewModel() {
+
+    /** The tablet's remote settings, applied by the app shell (voice assistant, brightness). */
+    val deviceSettings: StateFlow<DeviceSettings> =
+        observeDeviceSettings()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, DeviceSettings.DEFAULT)
 
     /**
      * The first destination to show. Starts as [StartDestination.Loading] until the persisted session

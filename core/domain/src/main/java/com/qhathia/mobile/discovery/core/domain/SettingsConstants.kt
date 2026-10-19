@@ -1,15 +1,14 @@
 package com.qhathia.mobile.discovery.core.domain
 
 /**
- * Single source of truth for the settings-access rules. The unlock password is **mocked** here until
- * a real backend password API exists; it is isolated behind [com.qhathia.mobile.discovery.core.domain.repository.SettingsAccessRepository]
- * so swapping in the real validation is a `core:data` change only and the value never leaks into UI.
+ * Settings-access rules. The PIN is the tablet's remote exit PIN, set from the staff app; the backend
+ * accepts 4 to 6 digits (api-contract.md §21).
  */
 object SettingsConstants {
 
-    /** Mocked settings-unlock password. TODO(settings-auth): replace with the real password API. */
-    const val MOCK_SETTINGS_PASSWORD: String = "1234"
+    /** Shortest valid PIN: the confirm key enables from this length. */
+    const val MIN_PIN_LENGTH: Int = 4
 
-    /** Expected password length — the submit action stays disabled until the input reaches it. */
-    const val SETTINGS_PASSWORD_LENGTH: Int = 4
+    /** Longest valid PIN: reaching it validates automatically and further digits are ignored. */
+    const val MAX_PIN_LENGTH: Int = 6
 }

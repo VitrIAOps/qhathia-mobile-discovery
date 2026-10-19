@@ -30,6 +30,7 @@ navigation = "2.9.0"
 
 # --- Network & Serialization ---
 ktor = "3.4.3"
+bcrypt = "0.10.2"
 serialization = "1.10.0"
 
 # --- Async ---
@@ -105,6 +106,9 @@ ktor-client-logging = { group = "io.ktor", name = "ktor-client-logging", version
 ktor-client-websockets = { group = "io.ktor", name = "ktor-client-websockets", version.ref = "ktor" }
 ktor-serialization-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
+
+# --- Security (offline BCrypt verification of the remote exit PIN) ---
+bcrypt = { group = "at.favre.lib", name = "bcrypt", version.ref = "bcrypt" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 
 # --- Async ---

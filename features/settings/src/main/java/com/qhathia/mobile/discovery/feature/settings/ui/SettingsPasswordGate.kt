@@ -11,6 +11,7 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
 /**
  * Stateful settings PIN gate, hosted as an overlay (mirroring the cart dialog) so the PIN is requested
  * **before** navigating into settings — nothing of the settings area is shown until the PIN is correct.
+ * When no exit PIN is set, it unlocks immediately without showing the dialog.
  * On a correct PIN it invokes [onUnlocked] (the host opens the Network settings screen); dismissing
  * invokes [onDismiss]. The gate resets on entry so it always re-prompts.
  */
@@ -34,5 +35,8 @@ fun SettingsPasswordGate(
         }
     }
 
-    SettingsPasswordDialog(uiState = uiState, onEvent = viewModel::onEvent)
+    // While checking whether a PIN is set (and when none is, as the gate unlocks at once) show nothing.
+    if (!uiState.isResolvingAccess) {
+        SettingsPasswordDialog(uiState = uiState, onEvent = viewModel::onEvent)
+    }
 }

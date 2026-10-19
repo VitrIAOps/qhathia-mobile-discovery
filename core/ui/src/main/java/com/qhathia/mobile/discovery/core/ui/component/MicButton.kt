@@ -48,6 +48,8 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
  * @param onClick invoked when the button is tapped.
  * @param compact renders the smaller variant (~104dp container) used in the chat-area bottom bar; the
  *   default is the large hero size used on the Home and listening screens.
+ *
+ * Renders nothing when [LocalVoiceAssistantEnabled] is `false` (voice assistant turned off remotely).
  */
 @Composable
 fun MicButton(
@@ -57,6 +59,9 @@ fun MicButton(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
+    // Voice assistant turned off from the staff app: no mic, so voice search cannot start.
+    if (!LocalVoiceAssistantEnabled.current) return
+
     val idleDisc = if (compact) 58.dp else 150.dp
     val listeningDisc = if (compact) 80.dp else 190.dp
     val idleGlow = if (compact) 20.dp else 64.dp
