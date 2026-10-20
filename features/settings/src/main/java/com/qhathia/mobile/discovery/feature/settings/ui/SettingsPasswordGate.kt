@@ -7,6 +7,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEffect
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 
 /**
  * Stateful settings PIN gate, hosted as an overlay (mirroring the cart dialog) so the PIN is requested
@@ -23,16 +25,20 @@ fun SettingsPasswordGate(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Always start from a blank PIN each time the gate is shown.
-    LaunchedEffect(Unit) { viewModel.onEvent(SettingsUiEvent.Reset) }
-
     LaunchedEffect(viewModel) {
-        viewModel.uiEffect.collect { effect ->
-            when (effect) {
-                SettingsUiEffect.Unlocked -> onUnlocked()
-                SettingsUiEffect.NavigateBack -> onDismiss()
+        // Subscribe before Reset: with no PIN set, Reset emits Unlocked right away, and the effect flow
+        // has no replay, so an Unlocked emitted before collecting was lost and left the gate stuck open
+        // (invisible), making the settings gear do nothing.
+        launch(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.uiEffect.collect { effect ->
+                when (effect) {
+                    SettingsUiEffect.Unlocked -> onUnlocked()
+                    SettingsUiEffect.NavigateBack -> onDismiss()
+                }
             }
         }
+        // Always start from a blank PIN each time the gate is shown.
+        viewModel.onEvent(SettingsUiEvent.Reset)
     }
 
     // While checking whether a PIN is set (and when none is, as the gate unlocks at once) show nothing.

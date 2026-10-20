@@ -48,4 +48,7 @@
     <string name="wifi_password_placeholder">Contraseña de la red</string>
     <string name="wifi_password_submit">Conectar</string>
     <string name="wifi_password_close_cd">Cerrar</string>
+    <string name="kiosk_exit_action">Salir del modo kiosko</string>
+    <string name="kiosk_exit_done">Modo kiosko desactivado hasta volver al inicio.</string>
+    <string name="kiosk_exit_wifi_hint">Para conectar una red Wi-Fi nueva, primero sal del modo kiosko.</string>
 </resources>
