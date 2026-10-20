@@ -2,6 +2,8 @@ package com.qhathia.mobile.discovery.core.network
 
 import android.util.Log
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -26,7 +28,13 @@ internal object KtorClientFactory {
     private const val UPLOAD_SOCKET_TIMEOUT_MS = 60_000L
     private const val RESPONSE_TIMEOUT_MS = 120_000L
 
-    fun create(enableLogging: Boolean): HttpClient = HttpClient(CIO) {
+    fun create(enableLogging: Boolean): HttpClient = HttpClient(CIO) { configure(enableLogging) }
+
+    /** Builds a client over [engine] with the production configuration (used by tests with a mock engine). */
+    fun create(engine: HttpClientEngine, enableLogging: Boolean = false): HttpClient =
+        HttpClient(engine) { configure(enableLogging) }
+
+    private fun HttpClientConfig<*>.configure(enableLogging: Boolean) {
         expectSuccess = true
         // Raw WebSocket support (ADR-009) for the device pairing-session status channel.
         install(WebSockets)
