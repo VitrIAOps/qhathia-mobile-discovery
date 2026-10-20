@@ -4,14 +4,18 @@ import com.qhathia.mobile.discovery.core.domain.repository.SettingsAccessReposit
 import javax.inject.Inject
 
 /**
- * [SettingsAccessRepository] delegating to [MockSettingsPasswordDataSource]. Validation is local and
- * cannot fail today, so it always wraps the boolean outcome in [Result.success]; a future backend
- * implementation can surface real errors via [Result.failure] without changing callers.
+ * [SettingsAccessRepository] over the stored exit PIN hash. Works offline: the hash is cached by the
+ * remote-settings sync. No hash means no PIN is set, so the settings open without asking.
  */
 class SettingsAccessRepositoryImpl @Inject constructor(
-    private val dataSource: MockSettingsPasswordDataSource,
+    private val localDataSource: DeviceSettingsLocalDataSource,
+    private val verifier: ExitPinVerifier,
 ) : SettingsAccessRepository {
 
-    override suspend fun validatePassword(input: String): Result<Boolean> =
-        Result.success(dataSource.validate(input))
+    override suspend fun isPinRequired(): Boolean = !localDataSource.exitPinHash().isNullOrBlank()
+
+    override suspend fun validatePassword(input: String): Result<Boolean> = runCatching {
+        val hash = localDataSource.exitPinHash()
+        !hash.isNullOrBlank() && verifier.matches(input, hash)
+    }
 }

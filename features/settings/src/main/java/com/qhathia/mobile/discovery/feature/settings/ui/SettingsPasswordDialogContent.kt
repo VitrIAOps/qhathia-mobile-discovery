@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -30,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.qhathia.mobile.discovery.core.domain.SettingsConstants
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -40,9 +38,10 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
 
 /**
  * Stateless settings-PIN dialog UI — a pure function of [SettingsUiState], following the Figma DS
- * "Configuración protegida" node: an orange secure badge, a title + subtitle, four PIN dots that fill
- * as digits are entered, and a numeric keypad (1–9, 0, backspace). The keypad feeds digits up through
- * [SettingsUiEvent.PasswordChanged]; the ViewModel validates automatically once the PIN is complete.
+ * "Configuración protegida" node: an orange secure badge, a title + subtitle, PIN dots that fill as
+ * digits are entered (at least four), and a numeric keypad (1–9, 0, confirm, backspace). The keypad
+ * feeds digits up through [SettingsUiEvent.PasswordChanged]; confirm sends
+ * [SettingsUiEvent.SubmitPassword] (enabled from 4 digits) and the 6th digit validates automatically.
  */
 @Composable
 fun SettingsPasswordDialogContent(
@@ -65,7 +64,11 @@ fun SettingsPasswordDialogContent(
             Header()
             Keypad(
                 pinLength = uiState.passwordInput.length,
+                dotCount = uiState.pinDotCount,
                 isError = uiState.showError,
+                isInputEnabled = !uiState.isValidating,
+                isSubmitEnabled = uiState.isSubmitEnabled,
+                onSubmit = { onEvent(SettingsUiEvent.SubmitPassword) },
                 onDigit = { digit ->
                     onEvent(SettingsUiEvent.PasswordChanged(uiState.passwordInput + digit))
                 },
@@ -120,36 +123,42 @@ private fun Header() {
 @Composable
 private fun Keypad(
     pinLength: Int,
+    dotCount: Int,
     isError: Boolean,
+    isInputEnabled: Boolean,
+    isSubmitEnabled: Boolean,
+    onSubmit: () -> Unit,
     onDigit: (String) -> Unit,
     onBackspace: () -> Unit,
 ) {
+    val digit: (String) -> Unit = { if (isInputEnabled) onDigit(it) }
+    val backspace: () -> Unit = { if (isInputEnabled) onBackspace() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        PinDots(pinLength = pinLength, isError = isError)
+        PinDots(pinLength = pinLength, dotCount = dotCount, isError = isError)
 
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             KeyRow {
-                DigitKey("1", onDigit)
-                DigitKey("2", onDigit)
-                DigitKey("3", onDigit)
+                DigitKey("1", digit)
+                DigitKey("2", digit)
+                DigitKey("3", digit)
             }
             KeyRow {
-                DigitKey("4", onDigit)
-                DigitKey("5", onDigit)
-                DigitKey("6", onDigit)
+                DigitKey("4", digit)
+                DigitKey("5", digit)
+                DigitKey("6", digit)
             }
             KeyRow {
-                DigitKey("7", onDigit)
-                DigitKey("8", onDigit)
-                DigitKey("9", onDigit)
+                DigitKey("7", digit)
+                DigitKey("8", digit)
+                DigitKey("9", digit)
             }
             KeyRow {
-                Spacer(modifier = Modifier.weight(1f))
-                DigitKey("0", onDigit)
-                BackspaceKey(onBackspace)
+                ConfirmKey(enabled = isSubmitEnabled, onSubmit = onSubmit)
+                DigitKey("0", digit)
+                BackspaceKey(backspace)
             }
         }
 
@@ -165,10 +174,10 @@ private fun Keypad(
 }
 
 @Composable
-private fun PinDots(pinLength: Int, isError: Boolean) {
+private fun PinDots(pinLength: Int, dotCount: Int, isError: Boolean) {
     val ringColor = if (isError) MaterialTheme.colorScheme.error else DiscoveryColors.Teal400
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-        repeat(SettingsConstants.SETTINGS_PASSWORD_LENGTH) { index ->
+        repeat(dotCount) { index ->
             val filled = index < pinLength
             Box(
                 modifier = Modifier
@@ -219,7 +228,19 @@ private fun RowScope.BackspaceKey(onBackspace: () -> Unit) {
 }
 
 @Composable
-private fun RowScope.KeyCell(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun RowScope.ConfirmKey(enabled: Boolean, onSubmit: () -> Unit) {
+    KeyCell(onClick = onSubmit, enabled = enabled) {
+        Icon(
+            painter = painterResource(R.drawable.ic_check),
+            contentDescription = stringResource(R.string.settings_pin_confirm_cd),
+            tint = if (enabled) DiscoveryColors.Teal400 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA),
+            modifier = Modifier.size(28.dp),
+        )
+    }
+}
+
+@Composable
+private fun RowScope.KeyCell(onClick: () -> Unit, enabled: Boolean = true, content: @Composable () -> Unit) {
     Surface(
         modifier = Modifier
             .weight(1f)
@@ -230,7 +251,7 @@ private fun RowScope.KeyCell(onClick: () -> Unit, content: @Composable () -> Uni
         shadowElevation = 2.dp,
     ) {
         Box(
-            modifier = Modifier.clickable(onClick = onClick),
+            modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
             content = { content() },
         )
@@ -238,6 +259,7 @@ private fun RowScope.KeyCell(onClick: () -> Unit, content: @Composable () -> Uni
 }
 
 private val KEY_HEIGHT = 56.dp
+private const val DISABLED_ALPHA = 0.38f
 
 @Preview(name = "Settings PIN — empty (light)", showBackground = true, widthDp = 360)
 @Composable
@@ -252,6 +274,28 @@ private fun SettingsPasswordEmptyPreview() {
 private fun SettingsPasswordTypingPreview() {
     DiscoveryTheme(darkTheme = true) {
         SettingsPasswordDialogContent(uiState = SettingsUiState(passwordInput = "12"), onEvent = {})
+    }
+}
+
+@Preview(name = "Settings PIN — 6 digits validating (light)", showBackground = true, widthDp = 360)
+@Composable
+private fun SettingsPasswordSixDigitsLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        SettingsPasswordDialogContent(
+            uiState = SettingsUiState(passwordInput = "246810", isResolvingAccess = false, isValidating = true),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Settings PIN — 4 digits, confirm enabled (dark)", showBackground = true, widthDp = 360)
+@Composable
+private fun SettingsPasswordConfirmDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        SettingsPasswordDialogContent(
+            uiState = SettingsUiState(passwordInput = "2468", isResolvingAccess = false),
+            onEvent = {},
+        )
     }
 }
 

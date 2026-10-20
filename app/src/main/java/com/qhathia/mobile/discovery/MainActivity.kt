@@ -3,7 +3,9 @@ package com.qhathia.mobile.discovery
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,7 +36,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.qhathia.mobile.discovery.core.domain.CartConstants
+import com.qhathia.mobile.discovery.core.domain.model.BrightnessMode
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.cart.ui.CartDialog
 import com.qhathia.mobile.discovery.feature.catalog.navigation.catalogRoute
@@ -76,6 +81,17 @@ class MainActivity : ComponentActivity() {
 private fun DiscoveryAppRoot(
     mainViewModel: MainViewModel = hiltViewModel(),
 ) {
+    val deviceSettings by mainViewModel.deviceSettings.collectAsStateWithLifecycle()
+    ApplyWindowBrightness(deviceSettings.brightnessMode)
+
+    // Remote "Asistente por voz": when off, every MicButton renders nothing.
+    CompositionLocalProvider(LocalVoiceAssistantEnabled provides deviceSettings.voiceAssistantEnabled) {
+        DiscoveryAppContent(mainViewModel)
+    }
+}
+
+@Composable
+private fun DiscoveryAppContent(mainViewModel: MainViewModel) {
     DiscoveryTheme {
         val startDestination by mainViewModel.startDestination.collectAsStateWithLifecycle()
 
@@ -87,6 +103,26 @@ private fun DiscoveryAppRoot(
             StartDestination.Home -> DiscoveryNavHost(startRoute = HOME_ROUTE, mainViewModel = mainViewModel)
         }
     }
+}
+
+/**
+ * Applies the remote "Brillo" setting to this window: AUTO leaves the system in control; LOW/MEDIUM/HIGH
+ * override the window brightness (no WRITE_SETTINGS needed, and it reverts when the app leaves).
+ */
+@Composable
+private fun ApplyWindowBrightness(mode: BrightnessMode) {
+    val activity = LocalActivity.current ?: return
+    LaunchedEffect(mode) {
+        val window = activity.window
+        window.attributes = window.attributes.apply { screenBrightness = mode.windowBrightness() }
+    }
+}
+
+private fun BrightnessMode.windowBrightness(): Float = when (this) {
+    BrightnessMode.AUTO -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+    BrightnessMode.LOW -> 0.3f
+    BrightnessMode.MEDIUM -> 0.6f
+    BrightnessMode.HIGH -> 1f
 }
 
 /** Neutral, themed placeholder shown while the persisted session is being read. */

@@ -32,6 +32,7 @@ dependencies {
 
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.coroutines)
+    implementation(libs.bcrypt)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
