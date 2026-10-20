@@ -7,9 +7,119 @@
 
 > **Nota para el frontend**: producción es `http://87.99.156.164` (IP directa, sin HTTPS, sin dominio). Local dev: `http://localhost` (todos los servicios via nginx en :80).
 
+> **Si venís del lado Android**: [`docs/handoff/android-pendientes.md`](../handoff/android-pendientes.md)
+> es el plan de trabajo — qué consumir, qué borrar y por qué, ordenado por impacto.
+> Este documento es el contrato; aquel es la lista de tareas.
+
 ---
 
-## Cambios recientes (Fase 1-14)
+## Cambios recientes (Fase 1-28)
+
+**Fase 25-28 — 2026-10-18 (triage de 31 bugs reportados desde la app):** detalle por bug en [`docs/qa/TRIAGE-BUGS.md`](../qa/TRIAGE-BUGS.md), tareas del front en [`docs/handoff/android-pendientes.md`](../handoff/android-pendientes.md).
+
+*Campos nuevos — ninguno rompe un contrato existente:*
+- **`GET /products` suma `stock`**: faltaba, y la app lo estaba **inventando** desde el hash del UUID. El comerciante veía "19 stock", abría el producto y tenía 1, y el pedido se rechazaba al confirmar.
+- **`discountedPrice` y `discountEndsAt`** en `GET /products`, `/products/{id}` y `/catalog/by-category`. El backend **nunca había calculado** el precio con descuento: devolvía `discounts[]` crudo y cada cliente debía hacer la aritmética. Ninguno la hacía. `null` = sin descuento vigente.
+- **Push `ORDER_EXPIRING`**, 10 min antes del vencimiento (configurable). El toggle "Pedido por expirar" existía desde la Fase 20 **sin emisor**. `status` se mantiene en `PENDING`: el pedido no cambió de estado.
+
+*Correcciones de comportamiento:*
+- **`GET /products`: los filtros se cruzan.** `categoryId` y `availability` se combinaban con un `if/else if` y la categoría ganaba — "Iluminación interior" + "Stock bajo" devolvía la categoría entera.
+- **`availability=LOW_STOCK` ahora significa algo**: se traduce a `0 < stock <= umbral` (default 5, el mismo de "Productos para reponer"). La sync stock↔availability nunca asigna ese valor, así que el filtro devolvía cero **siempre**.
+- **La búsqueda por voz aplica piso Y techo.** "Lámpara más de 50 soles" devolvía las de **menos** de 50: `minPrice` se extraía, viajaba en el DTO y nadie filtraba por él.
+- **"Clientes" deja de quedarse en 0.** Sin el header `X-Kiosk-Session` la sesión se infiere por ventana de inactividad del mismo `device_id` (15 min, configurable). El header, si viene, siempre gana.
+- **Comandos a la tablet: los vencidos dejan de bloquear.** Con la tablet apagada un comando se quedaba "en vuelo" hasta la purga de las 03:30 y el botón quedaba en gris casi un día.
+- **El botón de WhatsApp del PDF** concatenaba `51` siempre: `+51 987 654 321` terminaba en `wa.me/5151987654321`. Si el número no tiene forma de móvil peruano, ahora se **omite** el botón.
+- **"Productos no encontrados"** agrupaba frases crudas ("Quiero una amoladora") y las duplicaba contra la versión limpia ("Amoladora"). Ahora el término se canoniza y los grupos se fusionan uniendo sesiones, no sumándolas.
+
+*Campos retirados:*
+- **`pricesIncludeIgv` e `igvRate` salen de `GET/PUT /stores/{id}`.** Era una declaración que solo cambiaba una etiqueta del PDF; un control sin efecto observable se lee como roto. **No rompe apps instaladas**: mandar el campo en el `PUT` sigue dando 200, y su ausencia en la respuesta no rompe un DTO con default.
+- **El PDF dejó de decir "by VitrIA"** (configurable, vacío por defecto).
+
+*Infraestructura, sin cambio de contrato:*
+- **Los tres modelos de IA configurados estaban dados de baja** desde julio y agosto. El fail-open lo escondía: descripciones vacías, sugerencias vacías, todo con 200. Ver `scripts/check-llm-models.sh`.
+
+**Fase 24 — 2026-10-03 (métricas del kiosko y detalle de pedido):** correcciones sobre lo reportado desde la app.
+- **`GET /api/v1/products/{id}` ahora registra la visita** cuando quien consulta es la **tablet** (rol DEVICE). Antes `kiosk_events` solo se llenaba si la app llamaba explícitamente a `/analytics/events`, y mientras no lo hiciera la pestaña Actividad quedaba en cero con gente usando la tablet todo el día.
+- **Nunca cuenta al staff.** Un OWNER/SELLER/ADMIN abriendo la ficha desde su celular **no** suma: contarlo mediría el trabajo del propio comerciante.
+- **Header nuevo `X-Kiosk-Session`** (opcional) en ese GET: identifica a la persona para el conteo de clientes distintos. Sin él la visita igual cuenta, pero no se puede atribuir a nadie.
+- **`uniqueSessions` dejó de exigir `SESSION_START`**: cuenta sesiones distintas con **cualquier** evento. Antes, una tablet que reportaba vistas pero no la apertura de sesión mostraba *0 clientes y N productos consultados*.
+- **`GET /dashboard/activity` suma `confirmedOrders`** (+ su delta): "Clientes" es **todo el que usó la tablet**, no el que compró. Con los dos números juntos el embudo se lee de corrido.
+- **`GET /dashboard/ranking` suma `needsAttention.totalCount`**: cuántos productos no rotaron **en total**, no solo los 3 que devuelve la lista.
+- **`GET /orders/{id}` suma `items[].productImageUrl`**: la miniatura que el modal "Detalle de solicitud" no podía pintar porque el backend nunca la mandaba.
+
+**Fase 23 — 2026-09-13 (change `device-remote-commands`):** los botones "Actualizar catálogo" y "Reiniciar" de la card de Dispositivos.
+- **`POST /api/v1/devices/{deviceId}/commands`** (OWNER/ADMIN) → 202. Encola `REFRESH_CATALOG` o `RESTART_APP`. **Idempotente mientras hay uno en vuelo**: tocar el botón cinco veces encola uno.
+- **`GET /api/v1/devices/{deviceId}/commands`** → los últimos 20 con su estado, para pintar "Enviado hace 2 min" / "Listo" / "Falló".
+- **`POST /api/v1/devices/me/commands/{commandId}/ack`** (DEVICE) → la tablet confirma qué pasó.
+- **El heartbeat entrega los comandos**: `pendingCommands` en la respuesta. **No es instantáneo** — hay hasta un ciclo de latido de latencia, así que la pantalla debe decir "Enviado" y no "Listo" hasta el ack.
+- Los comandos **expiran a los 10 min y no se reintentan**. Un "Reiniciar" del viernes no puede ejecutarse el lunes, y re-entregar un `RESTART_APP` dejaría la tablet en bucle.
+- **auth V18**: tabla `device_commands`.
+
+**Fase 22 — 2026-09-13 (change `store-display-settings`):** pantalla Configuración.
+- **`GET/PUT /api/v1/stores/{storeId}`** gana `language` (`"es"` | `"en"`). **Sin endpoint nuevo** — es donde ya viven `whatsapp` y `address`.
+- `language` **se persiste pero todavía no se aplica**: que el asistente de voz conteste en inglés es su propio change.
+- Traía también `pricesIncludeIgv` e `igvRate`: **retirados en la Fase 27**, el toggle solo cambiaba una etiqueta del PDF.
+- **auth V17**: `stores.language` + `stores.prices_include_igv`.
+- **Además**: `GlobalExceptionHandler` (auth y biz) mapea `HttpMessageNotReadableException` a **400** con los valores válidos del enum. Antes un enum desconocido en el body salía como **500**.
+
+**Fase 21 — 2026-09-13 (change `remote-tablet-settings`):** ajustes remotos de la tablet.
+- **`GET/PUT /api/v1/devices/{deviceId}/settings`** (OWNER/ADMIN) — los 6 controles del mockup: vitrina en reposo, asistente por voz, brillo, modo kiosco, PIN de salida y sincronización automática. `PUT` es **parcial**.
+- **`brightnessMode` es un selector** (`AUTO | LOW | MEDIUM | HIGH`), no un porcentaje: el comerciante declara una intención y Android resuelve el nit según su sensor.
+- **El PIN es write-only**: se guarda con BCrypt y el comerciante solo ve `exitPinSet: true|false`. Para quitarlo, `removeExitPin: true` explícito.
+- **`GET /api/v1/devices/me/settings`** (DEVICE) — la tablet lee **los suyos**; es el único endpoint que devuelve `exitPinHash`, para poder salir del modo kiosco **sin red**.
+- **`POST /api/v1/devices/heartbeat` devuelve `settingsVersion`** — sube en cada escritura. La tablet re-lee sus ajustes solo cuando el número cambia: sin polling nuevo ni push a la tablet.
+- **`devices.model`** (V16) — el bloque INFORMACIÓN de la pantalla pide el modelo comercial ("Lenovo Tab M11"). La tablet lo reporta en el heartbeat; `serialNumber`, `linkedAt` y `appVersion` ya existían.
+- **auth V16**: tabla `device_settings`, 1:1 con `devices`, creada al vincular (y al vuelo para las tablets anteriores).
+
+**Fase 20 — 2026-09-13 (change `notification-preferences`):** pantalla Notificaciones del perfil.
+- **`GET /api/v1/notifications/preferences`** (OWNER/SELLER/ADMIN) — los 7 toggles del mockup ya resueltos + `activeCount`/`totalCount` para el "N de 7 alertas activas" del menú. **Nunca 404**: si el usuario nunca guardó nada devuelve los defaults (todos en `true`).
+- **`PUT /api/v1/notifications/preferences`** — update **parcial**: manda solo lo que cambió.
+- Los 7, en los grupos del mockup: **Pedidos** (`newOrder`, `orderExpiring`) · **Tablet** (`tabletDisconnected`, `productOutOfStock`, `lowBattery`) · **Tu negocio** (`weeklyReport`, `sellingSuggestions`).
+- **Solo `newOrder` tiene emisor hoy** (el push `NEW_ORDER`). Los otros seis se guardan y esperan su job — el contrato ya está fijo para cuando existan.
+- **`ORDER_TAKEN` no tiene toggle y sale siempre**: es sincronización (saca la orden de "Pendientes" en los demás celulares), no una alerta. Silenciarlo dejaría la lista mintiendo.
+- **La ausencia de preferencias nunca silencia**: sin fila, o si la consulta falla, el push sale igual.
+- **biz V17**: tabla `notification_preferences`, una fila por `(user_id, store_id)`.
+
+**Fase 19 — 2026-09-13 (change `account-security-and-sessions`):** pantallas de Seguridad del perfil.
+- **`POST /api/v1/auth/change-password`** (autenticado) — 204. Cambiar la contraseña **revoca las demás sesiones**; manda tu `currentRefreshToken` en el body para no cerrarte la sesión a ti mismo (si lo omites se cierran **todas**, incluida la tuya).
+- **`GET /api/v1/auth/sessions`** (autenticado) — lista de equipos con sesión abierta. Manda tu refresh token en el header `X-Refresh-Token` para que la tuya venga con `current: true`. **Nunca** se devuelven refresh tokens.
+- **`DELETE /api/v1/auth/sessions/{sessionId}`** → 204 · **`POST /api/v1/auth/sessions/revoke-others`** → 204.
+- **`POST /api/v1/auth/login`**: acepta `deviceLabel` opcional (máx. 100) y devuelve `sessionId`. Si no mandas `deviceLabel` se usa el `User-Agent`; si tampoco, `"Dispositivo desconocido"`.
+- Redis pasa de `rt:<token>` String a HASH + índice `user_sessions:<userId>`. **El deploy no desloguea a nadie**: los tokens viejos se siguen aceptando y se migran al primer refresh.
+- **Sin migración SQL** — todo el cambio vive en Redis. `passwordUpdatedAt` ya existía desde auth V14 (Fase 18).
+
+**Fase 18 — 2026-09-13 (change `profile-subscription-and-devices`):** soporte de las pantallas de Perfil.
+- **`GET/PUT /api/v1/users/me`**: nuevo campo `phone` (móvil peruano `^9\d{8}$`, editable) y `passwordUpdatedAt` de solo lectura. **El `email` NO es editable** — es la credencial de login; si viene en el body se ignora.
+- **`GET /api/v1/subscriptions/current`**: agrega `priceMonthlyPen`, `productLimit` y los 4 flags de features del plan → la card de "Mi suscripción" se pinta con **una sola llamada**.
+- **`GET /api/v1/devices`**: cada dispositivo agrega `name`, `batteryLevel`, `networkStatus`, `lastSyncAt` y `storeName`. La batería y la red **ya venían en el heartbeat y se descartaban**; ahora se persisten (auth V15).
+- **`PATCH /api/v1/devices/{deviceId}`** (OWNER/ADMIN) — renombrar la tablet.
+- **`GET /api/v1/catalog/count`** (cualquier autenticado) — `{ activeProducts }` para la card "Catálogo visible: N productos" sin bajar el manifest completo.
+- **auth V14/V15**: `users.phone`, `users.password_updated_at`, `devices.battery_level`, `devices.network_status`.
+- ⚠️ **Pagos NO implementados**: método de pago, historial de pagos y cancelar suscripción **no existen** (no hay pasarela contratada). El front debe mostrarlos como "próximamente".
+
+
+**Fase 17 — 2026-09-13 (change `store-home-dashboard`):**
+- **`GET /api/v1/dashboard/sales`** (OWNER/SELLER/ADMIN) — serie de ventas por `MONTHLY|WEEKLY|DAILY|HOURLY` + el **periodo en curso** con sus KPIs (ingresos, nº ventas, ticket promedio, unidades) y la variación vs el periodo anterior. Buckets cortados en **hora de Perú**.
+- **`GET /api/v1/dashboard/ranking`** — "lo que más vende" y "lo que necesita atención" (**dinero inmovilizado** = stock × precio de lo que no rotó).
+- **`GET /api/v1/dashboard/activity`** — clientes que usaron la tablet y productos consultados, con deltas. Primera lectura de `kiosk_events`.
+- **`GET /api/v1/dashboard/restock`** — productos con stock bajo el umbral.
+- **`GET /api/v1/insights/unmet-searches`** (**vo-api**) — búsquedas del kiosko sin resultado, agrupadas por término canónico y ordenadas por **personas distintas**. vo ahora persiste `sessionId` y `subtype` en `search_events`.
+- **biz V16**: índices de soporte (sin columnas nuevas). Detalle en la sección 17.
+
+
+**Fase 16 — 2026-07-26 (change `orders-expiry-and-requests-screen`):**
+- **Expiración de pedidos**: un `PENDING` vence a los `ORDERS_TTL_MINUTES` (default **60 min**). Nuevo estado **`EXPIRED`** + campo `expiresAt` en los shapes de orden (el countdown "Expira en X" lo pinta la app). Un job cada minuto hace la transición y emite push `ORDER_TAKEN` con `status=EXPIRED`.
+- **`POST /api/v1/orders/{id}/recover`** (OWNER/SELLER/ADMIN) — revive un pedido `EXPIRED` a `PENDING` con TTL nuevo. Un rechazo manual NO se recupera.
+- **Código corto**: `orderCode` (6 dígitos, único por tienda) en summary + detalle. Null en pedidos previos a V15 — la app debe tolerarlo.
+- **`GET /orders`**: `status` acepta **lista separada por comas** (`REJECTED,EXPIRED` para la tab Rechazados) y nuevo param **`q`** (busca por nombre del cliente parcial o prefijo del código). El summary gana `rejectionReason`.
+- **Detalle**: cada item trae `productStock` + `productAvailability` (para el warning "Quedan pocos disponibles"; el umbral lo decide la app).
+- **biz V15**: `orders.expires_at`, `orders.order_code`, CHECK de status con `EXPIRED`, índices de búsqueda/expiración.
+
+
+**Fase 15 — 2026-07-25 (change `order-push-notifications-fcm`):**
+- **`POST /api/v1/notifications/tokens`** + **`DELETE /api/v1/notifications/tokens`** (OWNER/SELLER/ADMIN) — los celulares del staff registran su token FCM para recibir push cuando la tablet crea un pedido (`NEW_ORDER`) y cuando otro vendedor lo confirma/rechaza (`ORDER_TAKEN`). Upsert por token; DEVICE → 403. Detalle en sección 9.6.
+- Push **data-only sin PII** (`{event, orderId, storeId, status}`) — la app hace fetch autenticado y arma la notificación local. Fan-out a todos los celulares activos de la tienda, despacho **después del commit** (fail-open total: ningún fallo de push afecta el pedido).
+- **biz V14**: tabla `notification_tokens` (provider-agnóstica) + purga diaria de tokens muertos. Config vía `NOTIFICATIONS_PROVIDER=fcm` + `FCM_CREDENTIALS_JSON_B64`. Default `logging` (comportamiento anterior, sin Firebase).
 
 **Fase 14 — 2026-07-05 (change `kiosk-cart-share-whatsapp`):**
 - **`POST /api/v1/carts/share-pdf`** (DEVICE) — el botón "Compartir por WhatsApp" del carrito. Genera un **PDF cotización** de los productos (foto + descripción + cantidad + **precio unitario, subtotal y TOTAL REFERENCIAL**), lo sube a R2, y lo envía al WhatsApp del cliente vía **Qhatia/Qhathia** (bot de Vitria, Meta Cloud API). NO crea orden. Fail-soft: si el envío falla, `status=FAILED` + `pdfUrl` (el PDF siempre se genera). Detalle en sección 9.5.
@@ -109,6 +219,18 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 14. [Admin API — Onboarding cerrado por Vitria](#14-admin-api--onboarding-cerrado-por-vitria)
 15. [BizAPI — Tags (sugerencias y auto-tag)](#15-bizapi--tags-sugerencias-y-auto-tag)
 16. [Quick Start — Flujo Completo End-to-End](#16-quick-start--flujo-completo-end-to-end)
+17. [Dashboard de inicio (Fase 17)](#17-dashboard-de-inicio-fase-17)
+18. [Pantallas de Perfil (Fase 18)](#18-pantallas-de-perfil-fase-18)
+19. [Seguridad de la cuenta y sesiones (Fase 19)](#19-seguridad-de-la-cuenta-y-sesiones-fase-19)
+20. [Preferencias de notificaciones (Fase 20)](#20-preferencias-de-notificaciones-fase-20)
+21. [Ajustes remotos de la tablet (Fase 21)](#21-ajustes-remotos-de-la-tablet-fase-21)
+22. [Configuración de la tienda: idioma (Fase 22)](#22-configuración-de-la-tienda-idioma-fase-22-revisado-en-la-27)
+23. [Comandos remotos a la tablet (Fase 23)](#23-comandos-remotos-a-la-tablet-fase-23)
+24. [Métricas del kiosko: qué mide cada número (Fase 24)](#24-métricas-del-kiosko-qué-mide-cada-número-fase-24)
+25. [Precio con descuento y aviso de expiración (Fase 25)](#25-precio-con-descuento-y-aviso-de-expiración-fase-25)
+26. [Correcciones del triage del 2026-10-18 (Fase 26)](#26-correcciones-del-triage-del-2026-10-18-fase-26)
+27. [Se retira el toggle de IGV (Fase 27)](#27-se-retira-el-toggle-de-igv-fase-27)
+28. [Filtros de Inventario y rango de precio por voz (Fase 28)](#28-filtros-de-inventario-y-rango-de-precio-por-voz-fase-28)
 
 ---
 
@@ -2073,11 +2195,14 @@ curl -X POST http://87.99.156.164/api/v1/orders \
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Params:**
-- `status` — `PENDING` | `CONFIRMED` | `REJECTED` | `CANCELLED` (opcional)
-- `customerPhone` — celular del cliente (opcional, formato `9XXXXXXXX`)
+- `status` — uno o **varios separados por coma**: `PENDING` | `CONFIRMED` | `REJECTED` | `CANCELLED` | `EXPIRED` (opcional; ausente = todos). Ej. la tab "Rechazados" usa `status=REJECTED,EXPIRED`.
+- `q` — **búsqueda** por nombre del cliente (parcial, case-insensitive) o por prefijo del `orderCode` (opcional). Si viene junto con `customerPhone`, **`q` gana**.
+- `customerPhone` — celular del cliente (opcional, formato `9XXXXXXXX`, match exacto)
 - `page` — número de página (default: 0)
 - `size` — tamaño de página (default: 20)
 - `sort` — campo,dirección (default: `createdAt,DESC`)
+
+> **Badge de pendientes**: usar `?status=PENDING&size=1` y leer `totalElements` (no hay endpoint de count dedicado).
 
 **Response 200 (shape compacto — sin items[] para mantener payload chico):**
 ```json
@@ -2093,6 +2218,9 @@ curl -X POST http://87.99.156.164/api/v1/orders \
       "itemCount": 2,
       "total": 250.00,
       "sessionId": "sess-123",
+      "orderCode": "859653",
+      "expiresAt": "2026-06-29T21:00:00Z",
+      "rejectionReason": null,
       "createdAt": "2026-06-29T20:00:00Z",
       "lastStatusChangedAt": "2026-06-29T20:00:00Z"
     }
@@ -2115,13 +2243,21 @@ curl "http://87.99.156.164/api/v1/orders?status=PENDING&size=10" \
 # Buscar por cliente (caso: cliente llama de vuelta)
 curl "http://87.99.156.164/api/v1/orders?customerPhone=987654321" \
   -H "Authorization: Bearer eyJ..."
+
+# Tab "Rechazados" (rechazados manualmente + expirados por TTL)
+curl "http://87.99.156.164/api/v1/orders?status=REJECTED,EXPIRED" \
+  -H "Authorization: Bearer eyJ..."
+
+# Búsqueda "por nombre o código" de la pantalla Solicitudes
+curl "http://87.99.156.164/api/v1/orders?q=mari" \
+  -H "Authorization: Bearer eyJ..."
 ```
 
 ---
 
 ### GET /api/v1/orders/{id}
 
-**Descripción:** Retorna el detalle completo de una orden, con `items[]`, customer fields y totales.
+**Descripción:** Retorna el detalle completo de una orden, con `items[]`, customer fields y totales. Desde la Fase 16 incluye además `orderCode`, `expiresAt`, y por cada item `productStock` + `productAvailability` (stock vivo del producto, para el warning "quedan pocos").
 **Autenticación:** JWT requerido (roles: `OWNER`, `SELLER`, `ADMIN`)
 
 **Response 200:** mismo shape que el response 201 de `POST /orders` (objeto `OrderResponse` completo con `items[]`).
@@ -2246,6 +2382,64 @@ curl http://87.99.156.164/api/v1/orders/550e8400-e29b-41d4-a716-446655440000/his
 
 ---
 
+## 9.4. BizAPI — Expiración de pedidos y pantalla "Solicitudes" (Fase 16)
+
+Soporte backend de la pantalla **Solicitudes de compra** de la app Android del staff
+(change `orders-expiry-and-requests-screen`).
+
+### Expiración automática
+
+Un pedido creado por la tablet nace `PENDING` con `expiresAt = createdAt + TTL`
+(`ORDERS_TTL_MINUTES`, default **60 min**). Un job del backend corre **cada minuto** y
+transiciona a **`EXPIRED`** los `PENDING` vencidos:
+
+- Registra la transición en `GET /orders/{id}/history` (`changedBy: "system:expiry"`).
+- Emite push **`ORDER_TAKEN` con `status=EXPIRED`** → la app saca el pedido de "Pendientes"
+  y lo muestra en "Rechazados" (por expirado) sin refresh manual.
+- **El staff siempre gana la carrera**: si un vendedor confirma/rechaza en la misma ventana,
+  el job no toca nada (UPDATE condicional).
+- `EXPIRED` es **terminal**: `confirm`/`reject` sobre un expirado devuelven `422 INVALID_STATE_TRANSITION`.
+
+El **countdown** ("Expira en 20 minutos") lo renderiza la app con `expiresAt`; el servidor
+es la autoridad final del vencimiento.
+
+### POST /api/v1/orders/{id}/recover
+
+**Descripción:** revive un pedido **`EXPIRED`** devolviéndolo a `PENDING` con un `expiresAt`
+nuevo (TTL completo). Emite push `NEW_ORDER`: reaparece en "Pendientes" de todos los celulares.
+No toca stock (el stock solo se decrementa al confirmar).
+**Autenticación:** JWT (roles: `OWNER`, `SELLER`, `ADMIN`) — DEVICE → 403.
+
+**Response 200:** `OrderResponse` con `status: "PENDING"` y `expiresAt` renovado.
+
+**Errores:**
+- `422 INVALID_STATE_TRANSITION` — el pedido no está `EXPIRED` (un **rechazo manual no se deshace**).
+- `404 RESOURCE_NOT_FOUND` — la orden no es de la tienda del token.
+- `403` — rol DEVICE.
+
+```bash
+curl -X POST "http://87.99.156.164/api/v1/orders/<uuid>/recover" \
+  -H "Authorization: Bearer eyJ..."
+```
+
+### Campos nuevos para la pantalla
+
+| Campo | Dónde | Para qué |
+|---|---|---|
+| `orderCode` | summary + detalle | "Código: 859653" en la card. 6 dígitos únicos por tienda. **Null en pedidos previos a V15** → la app necesita fallback |
+| `expiresAt` | summary + detalle | Countdown "Expira en X minutos" |
+| `rejectionReason` | summary (ya estaba en detalle) | Motivo en las cards de la tab Rechazados |
+| `productStock` / `productAvailability` | items del detalle | Warning "Quedan pocos disponibles" (umbral client-side; `productStock: null` = modo consultar) |
+
+### Notas para el front
+
+- **Estados de las tabs**: Pendientes → `status=PENDING`; Aceptados → `status=CONFIRMED`; Rechazados → `status=REJECTED,EXPIRED`.
+- **Doble confirmación**: si dos vendedores tocan "Confirmar" a la vez, el segundo recibe `422 INVALID_STATE_TRANSITION` — mostrar "otro vendedor ya atendió este pedido" y refrescar.
+- **Stock insuficiente al confirmar**: puede aparecer entre el warning y el tap → manejar el ProblemDetail `STOCK_INSUFFICIENT`.
+- El push es el *acelerador*: la fuente de verdad sigue siendo `GET /orders` al abrir/refrescar la pantalla.
+
+---
+
 ## 9.5. BizAPI — Compartir carrito por WhatsApp (Qhatia, Fase 14)
 
 ### POST /api/v1/carts/share-pdf
@@ -2327,6 +2521,50 @@ curl -X POST http://87.99.156.164/api/v1/carts/share-pdf \
 ```
 
 **Store contact (auth-api):** el `PUT /api/v1/stores/{storeId}` (OWNER/ADMIN) acepta `whatsapp` (formato `^9\d{8}$`), `address` (dirección de calle) y `location` (**stand/ubicación dentro del C.C.**, ej. "AZ-104" — campo pre-existente reusado). Todos opcionales, expuestos en `GET /stores/{storeId}`. El comerciante los carga en su panel para que aparezcan en el PDF (UBICACIÓN = `location`).
+
+---
+
+## 9.6. BizAPI — Push notifications al staff (FCM, Fase 15)
+
+Aviso en tiempo real a los **celulares del staff** (app Android `com.qhathia.mobile.staff`) cuando la **tablet** del kiosko crea un pedido. Dos roles de dispositivo: la tablet (DEVICE) crea pedidos; los celulares (OWNER/SELLER) los confirman/rechazan y son los que reciben el push.
+
+### POST /api/v1/notifications/tokens
+
+**Descripción:** registra/refresca el token FCM del celular. **Upsert por token**: re-registrar re-apunta la tienda/usuario al JWT vigente (cubre `switch-store`). La app lo llama en cada arranque, en `onNewToken()` y tras cambiar de tienda.
+
+**Autenticación:** JWT (rol `OWNER`/`SELLER`/`ADMIN`). **DEVICE → 403** (la tablet no recibe pushes).
+**URL producción:** `http://87.99.156.164/api/v1/notifications/tokens`
+
+**Request Body:**
+```json
+{ "token": "<fcm-token>", "platform": "ANDROID", "deviceLabel": "Pixel 7" }
+```
+Validaciones: `token` `@NotBlank` max 512; `platform` opcional (default ANDROID); `deviceLabel` opcional max 120. El `storeId`/`userId` salen SIEMPRE del JWT — nunca del body.
+
+**Response:** `204 No Content`.
+
+### DELETE /api/v1/notifications/tokens
+
+**Descripción:** da de baja el token (logout / opt-out). Idempotente.
+**Request Body:** `{ "token": "<fcm-token>" }` → **Response:** `204`.
+
+### Comportamiento del push
+
+| Evento | Cuándo | Payload (data-only) |
+|---|---|---|
+| `NEW_ORDER` | La tablet crea un pedido (`POST /orders` → PENDING) | `{event, orderId, storeId, status:"PENDING"}` |
+| `ORDER_TAKEN` | Un vendedor confirma/rechaza | `{event, orderId, storeId, status:"CONFIRMED"\|"REJECTED"}` |
+
+- **Fan-out por tienda**: el push va a TODOS los tokens activos del `storeId` del pedido.
+- **Sin PII por diseño**: solo IDs — Google nunca ve nombres, productos ni montos. La app hace `GET /orders/{id}` autenticado y arma la notificación local.
+- **Post-commit + fail-open**: el push se despacha después del commit de la transacción (rollback → no hay push) y ningún fallo de push afecta la creación/confirmación del pedido.
+- **Carrera de dos vendedores**: el segundo que confirma/rechaza un pedido ya terminal recibe el ProblemDetail de `INVALID_STATE_TRANSITION` — nunca doble transición.
+- **Higiene de tokens**: token `UNREGISTERED` en FCM → `active=false` inmediato; purga diaria (inactivos >30 días borrados, sin re-registro >90 días desactivados).
+- El push es el *acelerador*, no la fuente de verdad: la app debe seguir sincronizando con `GET /orders?status=PENDING` al abrir/refrescar.
+
+**Config (biz-api):** `NOTIFICATIONS_PROVIDER` (`logging` default | `fcm`), `FCM_CREDENTIALS_JSON_B64` (service account base64, SOLO en `.env` del VPS), `FCM_TIMEOUT_SECONDS`. Con `logging` el comportamiento es el anterior (solo log, sin Firebase).
+
+**Errores:** `401` sin JWT · `403` rol DEVICE · `422 VALIDATION_ERROR` token blank.
 
 ---
 
@@ -3156,3 +3394,1095 @@ curl -X POST http://87.99.156.164/api/v1/orders/$ORDER_ID/confirm \
 
 ---
 
+---
+
+## 17. Dashboard de inicio (Fase 17)
+
+Backend de la pantalla **Inicio** de la app del staff y de su detalle **Resumen de ventas**
+(tabs Resumen / Ranking / Actividad). Change `store-home-dashboard`.
+
+**Auth de todos los endpoints:** JWT de usuario con rol `OWNER`, `SELLER` o `ADMIN`.
+El token `DEVICE` (tablet) recibe **403**: genera los eventos, no consume la analítica.
+
+### Modelo temporal (aplica a sales, ranking y activity)
+
+| Param | Valores | Default |
+|---|---|---|
+| `granularity` | `MONTHLY` \| `WEEKLY` \| `DAILY` \| `HOURLY` | `WEEKLY` |
+| `buckets` (solo sales) | 1..48 | 6 / 4 / 7 / 12 según granularidad |
+| `categoryId` (sales, ranking) | UUID de categoría | todas |
+
+- El **último bucket es el periodo en curso**: de ahí sale el número grande y los KPIs.
+  El gráfico (`buckets[]`) es contexto histórico, del más antiguo al más reciente.
+- Los cortes se hacen en **hora local** (`America/Lima`), no en UTC — si no, el "día"
+  del comerciante empezaría a las 19:00.
+- Cuentan solo las órdenes **`CONFIRMED`**, fechadas por `lastStatusChangedAt`. Los importes
+  usan el **precio snapshot** de cada línea, así el histórico no cambia si se reajustan precios.
+
+### GET /api/v1/dashboard/sales
+
+```json
+{
+  "granularity": "WEEKLY",
+  "timezone": "America/Lima",
+  "current":  { "label": "Sem 13", "periodStart": "...", "periodEnd": "...",
+                "revenue": 1690.00, "salesCount": 24, "averageTicket": 70.42, "unitsSold": 55 },
+  "previous": { "label": "Sem 12", "revenue": 1360.00, "...": "..." },
+  "deltaPercent": 24.3,
+  "buckets": [ { "label": "Sem 10", "revenue": 1240.00, "...": "..." }, "..." ]
+}
+```
+`deltaPercent` es **null** cuando el periodo anterior fue 0 (no hay base de comparación —
+la app no debe pintar "+100%"). El texto del highlight ("La Semana 4 generó S/1,690, 24% más
+que la semana anterior") lo arma el front con estos datos.
+
+### GET /api/v1/dashboard/ranking
+
+```json
+{
+  "periodStart": "...", "periodEnd": "...",
+  "topSellers": { "totalRevenue": 4090.00,
+    "items": [ { "productId": "...", "name": "Taladro percutor Bosch GSB",
+                 "imageUrl": "...", "revenue": 1870.00, "unitsSold": 34 } ] },
+  "needsAttention": { "totalImmobilized": 3400.00,
+    "items": [ { "productId": "...", "name": "...", "imageUrl": "...",
+                 "stock": 34, "price": 100.00, "immobilizedAmount": 3400.00 } ] }
+}
+```
+`needsAttention` = productos **activos con stock que no vendieron nada en el periodo**;
+`immobilizedAmount = stock × price` es la plata parada. Los productos en modo consultar
+(`stock = null`) se excluyen: no hay inventario que medir.
+
+### GET /api/v1/dashboard/activity
+
+```json
+{ "periodStart": "...", "periodEnd": "...",
+  "uniqueSessions": 63, "uniqueSessionsDeltaPercent": 12.5,
+  "productViews": 148,  "productViewsDeltaPercent": 8.8 }
+```
+`uniqueSessions` = sesiones distintas con evento `SESSION_START` (clientes que usaron la
+tablet); `productViews` = eventos `PRODUCT_VIEW`. **Si la tablet no emite eventos (o los emite
+sin `sessionId`), devuelve ceros** — no es un error, pero conviene validarlo con el equipo del kiosko.
+
+### GET /api/v1/dashboard/restock
+
+```json
+{ "threshold": 5,
+  "items": [ { "productId": "...", "name": "...", "imageUrl": "...",
+               "stock": 1, "price": 200.00, "availability": "LOW_STOCK" } ] }
+```
+Estado **actual** del inventario (no depende del periodo). Umbral configurable con
+`DASHBOARD_RESTOCK_THRESHOLD` (default 5). Param `limit` 1..50 (default 10).
+
+### GET /api/v1/insights/unmet-searches (vo-api)
+
+Búsquedas del kiosko que **no encontraron producto** — la sección "Productos no encontrados".
+Params: `days` (1..90, default 7), `limit` (1..50, default 10).
+
+```json
+{ "periodStart": "...", "periodEnd": "...", "totalPeople": 12,
+  "groups": [
+    { "term": "taladro", "personCount": 9, "searchCount": 14,
+      "examples": [ { "rawText": "taladro percutor bosch", "count": 5 },
+                    { "rawText": "taladro para concreto",  "count": 4 } ] } ] }
+```
+
+**Consolidación en 2 niveles** — el mismo producto se pide de muchas formas, así que se agrupa
+por el **término canónico** que ya extrae el LLM (`subtype` → `categoryKeyword` → `rawText`
+normalizado; el LLM viene sesgado por el vocabulario cerrado de tags de la tienda). Cada grupo
+trae los textos crudos más frecuentes como evidencia de qué comprar exactamente.
+
+- **`personCount` (personas distintas) es la métrica principal**, no `searchCount`: alguien que
+  insiste 9 veces porque no encuentra es 1 persona de demanda, no 9. Los grupos vienen ordenados
+  por `personCount`.
+- Los `search_events` **anteriores a este change no tienen `sessionId`**, así que su `personCount`
+  queda subestimado (cuentan como una sesión desconocida).
+- Fail-open: si la agregación falla, devuelve `groups: []` en vez de romper la pantalla.
+
+### Notas para el front
+
+- **Home** = `sales` (WEEKLY) + `restock` + `insights/unmet-searches` (3 llamadas, dos servicios).
+  **Resumen** = `sales` / `ranking` / `activity` según la tab.
+- "Última actualización a las 11:50 pm" es client-side (timestamp del último fetch OK).
+- El umbral visual de "quedan pocos" lo decide la app con `stock`; el backend solo da el número.
+- `revenue` con `categoryId` suma solo las líneas de esa categoría; sin filtro suma todas las
+  líneas de la orden.
+
+**Errores:** `401` sin JWT · `403` rol DEVICE · `400` `buckets`/`limit`/`granularity` fuera de rango.
+
+---
+
+## 18. Pantallas de Perfil (Fase 18)
+
+Backend de **Mi perfil**, **Datos personales**, **Dispositivos** y **Mi suscripción** de la app
+del staff. Change `profile-subscription-and-devices`.
+
+### Perfil del usuario
+
+`GET /api/v1/users/me` · `PUT /api/v1/users/me` (cualquier usuario autenticado)
+
+```json
+{
+  "id": "...", "email": "carla.mendoza@gmail.com", "fullName": "Carla Mendoza",
+  "phone": "999888777",
+  "passwordUpdatedAt": null,
+  "role": "OWNER", "active": true, "emailVerified": false,
+  "lastLoginAt": "...", "createdAt": "...",
+  "stores": [ { "storeId": "...", "storeName": "...", "role": "OWNER" } ]
+}
+```
+
+- `PUT` acepta `fullName` y `phone`; es **update parcial** (los campos ausentes no se tocan).
+- `phone`: móvil peruano de 9 dígitos, sin el `+51` (eso lo pinta la app). Inválido → 422.
+- **`email` no editable**: es la credencial de login y cambiarlo sin verificación permitiría
+  secuestrar o inutilizar la cuenta. Si llega en el body se ignora; la pantalla debe mostrarlo
+  deshabilitado.
+- `passwordUpdatedAt` es **null** para usuarios que nunca cambiaron su contraseña → la app
+  muestra "nunca actualizada", no una fecha inventada.
+- `stores[]` da el "Dueña · 3 tiendas" del encabezado. El avatar son iniciales client-side
+  (no hay subida de foto).
+
+### Suscripción
+
+`GET /api/v1/subscriptions/current` (OWNER/ADMIN)
+
+```json
+{
+  "planName": "Plan Pro", "planType": "PRO", "status": "ACTIVE",
+  "priceMonthlyPen": 89.00, "productLimit": 200,
+  "hasAdvancedAnalytics": true, "hasVideoProducts": true,
+  "hasBulkPriceUpdate": false, "hasPrioritySupport": true,
+  "startedAt": "2025-08-15T...", "endsAt": "2026-09-15T..."
+}
+```
+`startedAt` + `endsAt` alimentan la barra de progreso y el "Se renueva el …".
+
+> **No existe** método de pago, historial de pagos ni cancelación: no hay pasarela integrada.
+> Esas secciones de la pantalla van como "próximamente".
+
+### Dispositivos
+
+`GET /api/v1/devices` (OWNER/ADMIN) — cada entrada:
+
+```json
+{
+  "id": "...", "name": "Tablet vitrina 1", "status": "ACTIVE",
+  "storeName": "El Martillo",
+  "batteryLevel": 82, "networkStatus": "WIFI",
+  "lastPingAt": "...", "lastSyncAt": "...",
+  "serialNumber": "HA1P1C2K", "appVersion": "1.4.2", "androidVersion": "13",
+  "linkedAt": "..."
+}
+```
+
+- `batteryLevel` y `networkStatus` reflejan el **último heartbeat**, no el instante actual:
+  léelos junto a `lastPingAt` y degrada la UI si el ping está viejo.
+- `batteryLevel` es `null` si la tablet nunca lo reportó.
+
+`PATCH /api/v1/devices/{deviceId}` (OWNER/ADMIN) → `{ "name": "Tablet mostrador" }` → 200 con el
+dispositivo actualizado. `404` si el dispositivo no es de la tienda del JWT, `422` si el nombre
+viene en blanco.
+
+`GET /api/v1/catalog/count` (cualquier autenticado) → `{ "activeProducts": 12 }`.
+
+**Heartbeat**: `POST /api/v1/devices/heartbeat` (DEVICE) ya aceptaba `batteryLevel` y
+`networkStatus`; ahora se persisten. La telemetría **nunca rompe el heartbeat**: un valor fuera
+de 0-100 se descarta y el ping igual responde 200 — el latido es lo que mantiene viva la tablet.
+
+### Qué NO cubre esta fase
+
+Toggles de notificaciones, ajustes remotos de la tablet (modo kiosco, PIN, brillo…) y todo lo de
+pagos. Cambiar contraseña y sesiones activas están en la **Fase 19**.
+
+---
+
+## 19. Seguridad de la cuenta y sesiones (Fase 19)
+
+Backend de **Seguridad** y **Cambiar contraseña** del perfil. Change
+`account-security-and-sessions`. **No hay migración SQL**: las sesiones viven en Redis.
+
+### Qué es una "sesión"
+
+Una sesión es **un equipo**, no una credencial. El refresh token rota en cada `/auth/refresh`
+pero el `sessionId` se conserva, así que la pantalla no muestra 40 entradas para una tablet que
+lleva un mes prendida — muestra una, con su `lastUsedAt` al día.
+
+El **refresh token nunca sale del backend** hacia la lista: si lo devolviéramos para poder cerrar
+una sesión, cualquiera que listara las suyas tendría la credencial de sus otros equipos. Lo que
+viaja es el `sessionId`, un UUID opaco.
+
+### Login con etiqueta de equipo
+
+`POST /api/v1/auth/login` acepta un campo nuevo, opcional:
+
+```json
+{ "email": "carla@tienda.pe", "password": "...", "deviceLabel": "Redmi Note 12" }
+```
+
+y la respuesta trae un campo nuevo:
+
+```json
+{ "accessToken": "...", "refreshToken": "...", "sessionId": "3f0c…", "tokenType": "Bearer", "...": "..." }
+```
+
+- `deviceLabel`: máx. 100 caracteres. **Recomendado**: manda el modelo real del equipo, es lo que
+  el comerciante va a leer para decidir qué cerrar.
+- Si no lo mandas se usa el `User-Agent` (truncado a 100); si tampoco hay, queda
+  `"Dispositivo desconocido"`.
+- `sessionId`: guárdalo, es "este equipo".
+
+`POST /api/v1/auth/register` también emite tokens y por tanto **crea una sesión**.
+
+### GET /api/v1/auth/sessions
+
+**Auth:** cualquier usuario autenticado. **Header opcional:** `X-Refresh-Token: <tu refresh token>`.
+
+```json
+[
+  {
+    "sessionId": "3f0c9e2a-...",
+    "deviceLabel": "Redmi Note 12",
+    "createdAt": "2026-09-10T14:22:03Z",
+    "lastUsedAt": "2026-09-13T09:41:55Z",
+    "current": true
+  },
+  {
+    "sessionId": "8b21d4f7-...",
+    "deviceLabel": "Tablet vitrina",
+    "createdAt": "2026-08-02T11:05:00Z",
+    "lastUsedAt": "2026-09-13T08:10:12Z",
+    "current": false
+  }
+]
+```
+
+- Orden: **la sesión actual primero**, luego por `lastUsedAt` descendente.
+- `current` sale `false` en todas si no mandaste el header — la app debe mandarlo o resolver
+  "este equipo" comparando con el `sessionId` que guardó al hacer login.
+- Las sesiones cuyo token ya expiró **no aparecen** (se podan al leer).
+
+### DELETE /api/v1/auth/sessions/{sessionId}
+
+**Auth:** cualquier usuario autenticado → `204`.
+
+El equipo afectado deja de poder hacer `/auth/refresh` de inmediato; su **access token sigue
+siendo válido hasta que expire** (es un JWT, no se consulta Redis para validarlo). En la práctica
+son minutos. Cerrar tu propia sesión es válido.
+
+- `404 RESOURCE_NOT_FOUND` — el `sessionId` no existe o **no es tuyo**. No se distingue entre
+  ambos casos a propósito: revelar que un id ajeno existe es filtrar información.
+
+### POST /api/v1/auth/sessions/revoke-others
+
+**Auth:** cualquier usuario autenticado. **Header opcional:** `X-Refresh-Token` → `204`.
+
+Cierra todas las sesiones **menos** la del token que mandas. Sin el header **cierra todas,
+incluida la tuya** — es el default seguro para el caso "creo que me robaron la cuenta".
+
+### POST /api/v1/auth/change-password
+
+**Auth:** cualquier usuario autenticado → `204`.
+
+```json
+{
+  "currentPassword": "MiClaveVieja1",
+  "newPassword": "MiClaveNueva2",
+  "currentRefreshToken": "b7e1…"
+}
+```
+
+- `newPassword`: 8-100 caracteres (las mismas reglas del registro).
+- `currentRefreshToken` **opcional pero recomendado**: sin él se cierran **todas** las sesiones y
+  el usuario tiene que volver a entrar en el propio equipo desde el que cambió la clave.
+- Efecto: se guarda el hash nuevo, se actualiza `passwordUpdatedAt` (visible en
+  `GET /api/v1/users/me`) y se revocan las demás sesiones.
+
+**Errores**
+
+| Código | errorCode | Cuándo |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | `currentPassword` incorrecta |
+| `400` | `BAD_REQUEST` | `newPassword` igual a la actual |
+| `422` | `VALIDATION_ERROR` | `newPassword` fuera de 8-100 o campos en blanco |
+
+### Notas para el front
+
+- Tras `change-password` **no cierres la app**: el access token vigente sigue sirviendo y el
+  refresh token que mandaste como `currentRefreshToken` sigue vivo.
+- Tras `revoke-others` sin header, el siguiente `/auth/refresh` dará `401` → mandar a login.
+- Los tokens emitidos **antes** de esta fase siguen funcionando pero **no aparecen en la lista**
+  hasta que roten (primer `/auth/refresh`). Es esperado y transitorio.
+
+---
+
+## 20. Preferencias de notificaciones (Fase 20)
+
+Backend de la pantalla **Notificaciones** del perfil. Change `notification-preferences`.
+Vive en **biz** (no en auth) porque es biz quien emite los pushes: poner las preferencias en auth
+obligaría a un Feign call sincrónico dentro del fan-out.
+
+### Los 7 toggles
+
+Los grupos son presentación y los arma el front; el backend devuelve los siete planos.
+
+| Grupo | Campo | Label del mockup | Default | ¿Emisor hoy? |
+|---|---|---|---|---|
+| Pedidos | `newOrder` | "Nuevo pedido" | `true` | **Sí** — push `NEW_ORDER` |
+| Pedidos | `orderExpiring` | "Pedido por expirar" (aviso ~2 min antes) | `true` | No |
+| Tablet | `tabletDisconnected` | "Tablet desconectada" | `true` | No |
+| Tablet | `productOutOfStock` | "Producto agotado en vitrina" | `true` | No |
+| Tablet | `lowBattery` | "Batería baja" | `true` | No |
+| Tu negocio | `weeklyReport` | "Reporte semanal" (lunes, por WhatsApp) | `true` | No |
+| Tu negocio | `sellingSuggestions` | "Sugerencias para vender más" | `true` | No |
+
+> **Solo `newOrder` está cableado.** Los otros seis se guardan y se devuelven, pero **nada los
+> emite todavía**: cada uno necesita su job (umbral, ventana y dedup para no spamear). El contrato
+> ya está fijo, así que cuando existan no hay que migrar la tabla ni tocar la app.
+>
+> Si prefieres no prometer lo que aún no llega, píntalos con un "pronto".
+
+**`orderExpiring` no es el push de `EXPIRED`.** El backend ya manda un `ORDER_TAKEN` con
+`status=EXPIRED` cuando un pedido vence — eso es **sincronización**: le dice a los demás celulares
+que lo saquen de "Pendientes". Este toggle es para un aviso **previo** ("te quedan 2 min"), que es
+otra cosa y todavía no existe.
+
+### GET /api/v1/notifications/preferences
+
+**Auth:** OWNER/SELLER/ADMIN (DEVICE → 403; la tablet no recibe pushes).
+
+```json
+{
+  "newOrder": true,
+  "orderExpiring": true,
+  "tabletDisconnected": true,
+  "productOutOfStock": true,
+  "lowBattery": false,
+  "weeklyReport": true,
+  "sellingSuggestions": true,
+  "activeCount": 6,
+  "totalCount": 7
+}
+```
+
+- **Nunca devuelve 404 ni nulls.** Sin fila guardada responde con los defaults, así la pantalla se
+  pinta igual la primera vez que se abre.
+- `activeCount`/`totalCount` alimentan el subtítulo del menú sin que el front hardcodee el 7.
+- Leer **no crea** la fila: aparece con el primer `PUT`.
+- Las preferencias son **por tienda activa**: tras un `switch-store` la respuesta puede cambiar.
+
+### PUT /api/v1/notifications/preferences
+
+**Auth:** OWNER/SELLER/ADMIN. Update **parcial** → 200 con el set completo ya aplicado.
+
+```json
+{ "lowBattery": false }
+```
+
+- Los campos ausentes (o `null`) **no se tocan**. Manda solo el toggle que el usuario acaba de
+  mover; así dos celulares del mismo usuario editando a la vez no se pisan.
+- Es upsert: el primer `PUT` crea la fila partiendo de los defaults.
+- Body vacío `{}` es válido y no cambia nada.
+
+### Qué pasa con los pushes
+
+| Evento del push | Bandera |
+|---|---|
+| `NEW_ORDER` | `newOrder` |
+| `ORDER_TAKEN` (`CONFIRMED`/`REJECTED`/`EXPIRED`) | **ninguna — siempre se entrega** |
+
+**La ausencia de preferencias nunca silencia.** El filtro consulta a quienes *apagaron* la
+bandera, no a quienes la encendieron; sin fila, con la fila ilegible o con la consulta caída, el
+push sale igual. Silenciar por accidente un pedido nuevo le cuesta una venta al comerciante.
+
+### Qué NO cubre esta fase
+
+Horario de silencio ("no molestar"), preferencias por canal, y **los seis jobs que faltan** para
+que todo lo que no sea `newOrder` llegue a emitir algo.
+
+---
+
+## 21. Ajustes remotos de la tablet (Fase 21)
+
+Backend de la pantalla **Ajustes de la tablet** del perfil. Change `remote-tablet-settings`.
+Vive en **auth**, que es quien posee `devices`.
+
+### Los ajustes
+
+| Grupo del mockup | Campo | Label | Default |
+|---|---|---|---|
+| Pantalla del cliente | `idleShowcaseEnabled` | "Modo Vitrina en reposo" | `true` |
+| Pantalla del cliente | `voiceAssistantEnabled` | "Asistente por voz" | `true` |
+| Pantalla del cliente | `brightnessMode` | "Brillo" | `AUTO` |
+| Seguridad | `kioskMode` | "Modo kiosco" | `true` |
+| Seguridad | `exitPin` | "PIN de salida" (**write-only**) | sin PIN |
+| Catálogo | `autoSyncEnabled` | "Sincronizar automáticamente" | `true` |
+
+`brightnessMode` es un **selector**: `AUTO | LOW | MEDIUM | HIGH`. No es un porcentaje porque un
+valor fijo se ve distinto en cada modelo y queda ilegible bajo el sol de un pasillo; el
+comerciante declara una intención y Android resuelve el nit con su sensor.
+
+**No hay intervalo de sync ni timeout de reposo configurables** — el mockup no los expone y el
+backend no tiene por qué opinar sobre cada cuánto late una tablet.
+
+### El bloque INFORMACIÓN
+
+Sale de `GET /api/v1/devices` / `GET /api/v1/devices/{id}`, no de este endpoint:
+
+| Fila del mockup | Campo |
+|---|---|
+| Modelo ("Lenovo Tab M11") | `model` — **nuevo en V16** |
+| N.º de serie | `serialNumber` |
+| Vinculada desde | `linkedAt` |
+| Versión de la app | `appVersion` |
+| Tienda asignada | `storeName` |
+| Nombre | `name` (editable con `PATCH /devices/{id}`) |
+
+`model` lo reporta la tablet en el heartbeat (`{"model": "Lenovo Tab M11"}`, opcional, máx. 100).
+Es telemetría como la batería: si viene se guarda, y **nunca rompe el latido**. Las tablets
+vinculadas antes de V16 lo llenan en su siguiente heartbeat.
+
+### GET /api/v1/devices/{deviceId}/settings
+
+**Auth:** OWNER/ADMIN, solo dispositivos de la tienda activa.
+
+```json
+{
+  "deviceId": "…",
+  "idleShowcaseEnabled": true,
+  "voiceAssistantEnabled": true,
+  "brightnessMode": "AUTO",
+  "kioskMode": true,
+  "exitPinSet": true,
+  "autoSyncEnabled": true,
+  "settingsVersion": 4
+}
+```
+
+- **El PIN nunca vuelve** — ni en claro ni hasheado. Solo `exitPinSet`. Si el dueño lo olvidó, lo
+  reemplaza; no hay razón para poder leerlo.
+- `404` si el dispositivo no es de la tienda activa (no se distingue de "no existe": revelar que
+  un id ajeno existe es filtrar información).
+- Un dispositivo vinculado antes de esta fase no tiene fila; la lectura la crea con los defaults.
+
+### PUT /api/v1/devices/{deviceId}/settings
+
+**Auth:** OWNER/ADMIN. Update **parcial** → 200 con el set completo ya aplicado.
+
+```json
+{ "kioskMode": false, "brightnessMode": "HIGH" }
+```
+
+- Los campos ausentes **no se tocan**.
+- `exitPin`: 4-6 dígitos, se guarda con BCrypt. **Para borrarlo hay que mandar
+  `"removeExitPin": true`** — un `exitPin` ausente significa "no lo toques", y un borrado
+  accidental dejaría la tablet abierta en el stand sin que nadie se entere.
+- Cada escritura **sube `settingsVersion`**.
+- `422` si el PIN no cumple el formato o `brightnessMode` no es uno de los cuatro valores.
+
+### GET /api/v1/devices/me/settings
+
+**Auth:** DEVICE. Resuelve el dispositivo del JWT — no hay path param.
+
+Devuelve lo mismo que el endpoint del comerciante pero cambiando `exitPinSet` por
+**`exitPinHash`** (BCrypt, o `null` si no hay PIN).
+
+> Se manda el hash para que el kiosko valide la salida **sin red**. Una tablet offline que no
+> puede salir del modo kiosco es una tablet inservible clavada en el stand — y el PIN frena a un
+> cliente curioso, no a alguien que ya tiene el dispositivo en la mano y puede reiniciarlo.
+
+Cachearlo en almacenamiento cifrado del dispositivo. Se invalida solo: al cambiar el PIN sube
+`settingsVersion` y la tablet re-lee.
+
+### Cómo se entera la tablet: `settingsVersion`
+
+`POST /api/v1/devices/heartbeat` gana un campo:
+
+```json
+{ "received": true, "serverTime": "…", "catalogVersion": 172…, "settingsVersion": 4 }
+```
+
+```
+heartbeat (ya corre cada pocos minutos)
+   └─ ¿settingsVersion ≠ el que tengo guardado?
+        └─ sí → GET /devices/me/settings  y aplicar
+```
+
+Nada de polling nuevo y nada de push a la tablet (los tokens FCM son de los celulares del staff,
+la tablet no tiene). Es la misma semántica que `catalogVersion` ya tenía.
+
+### Qué NO cubre esta fase
+
+Horarios ("kiosco activo de 9 a 21"), ajustes por tienda que se propaguen a varias tablets, los
+botones remotos "Actualizar catálogo" y "Reiniciar" de la pantalla Dispositivos, y **aplicar** los
+ajustes: el backend los guarda y los sirve; bajar el brillo o arrancar la vitrina es trabajo de la
+app del kiosko. Mientras la app no lea `settingsVersion`, los ajustes se guardan sin efecto
+visible — es aditivo, nada se rompe.
+
+---
+
+## 22. Configuración de la tienda: idioma (Fase 22, revisado en la 27)
+
+Backend de la pantalla **Configuración**. Change `store-display-settings`.
+**No hay endpoint nuevo**: el campo entra por `GET/PUT /api/v1/stores/{storeId}`, que ya es
+donde viven `whatsapp` y `address`.
+
+> **El toggle de IGV se retiró** en la Fase 27 (triage 2026-10-18, BUG-012).
+> `pricesIncludeIgv` e `igvRate` ya no viajan. Lo que sigue describe solo `language`.
+
+```json
+{
+  "id": "…", "name": "El Martillo", "slug": "el-martillo",
+  "language": "es",
+  "…": "…"
+}
+```
+
+| Campo | Valores | Default |
+|---|---|---|
+| `language` | `"es"` \| `"en"` | `"es"` |
+
+`PUT` es parcial (los campos ausentes no se tocan) y requiere OWNER/ADMIN. Un `language` fuera de
+los dos valores da **400** con el detalle listando los válidos.
+
+### `language` se guarda, todavía no se aplica
+
+Es el idioma del **kiosko** — lo que lee y habla el cliente frente a la tablet — no el de la app
+del comerciante, que es una preferencia local de Android.
+
+Hoy se persiste y se sirve, nada más. Que `vo-api` conteste en inglés exige traducir el prompt del
+sistema y validar que las respuestas no salgan en spanglish con un catálogo cuyos productos tienen
+nombre en español. Eso se prueba con el LLM delante; es su propio change.
+
+### Qué hace el PDF
+
+Bajo el TOTAL REFERENCIAL imprime siempre la misma línea: **"Precios con IGV incluido."**
+
+**No suma el IGV al total.** Ya es un documento referencial que dice que el precio final se
+confirma en la tienda; calcularle un tributo le daría una precisión que no tiene.
+
+Antes la línea tenía dos variantes según la tienda. Ver la Fase 27 para por qué ahora hay una sola.
+
+---
+
+## 23. Comandos remotos a la tablet (Fase 23)
+
+Backend de los botones **"Actualizar catálogo"** y **"Reiniciar"** de la card de Dispositivos.
+Change `device-remote-commands`.
+
+### No es instantáneo, y la pantalla tiene que decirlo
+
+No hay push hacia la tablet: los tokens FCM son de los celulares del staff, y el WebSocket del
+repo es exclusivo del pairing. El comando viaja en el **heartbeat**, que la tablet ya emite.
+
+```
+comerciante pulsa  →  POST /devices/{id}/commands   →  202 PENDING
+                              ⋮  (hasta un ciclo de heartbeat)
+tablet late        →  pendingCommands: [{id, command}]  →  DELIVERED
+tablet ejecuta     →  POST /devices/me/commands/{id}/ack →  ACKED | FAILED
+```
+
+**La card debe mostrar "Enviado" y recién "Listo" con el ack.** Prometer inmediatez que no existe
+es peor que la espera.
+
+### POST /api/v1/devices/{deviceId}/commands
+
+**Auth:** OWNER/ADMIN, solo dispositivos de la tienda activa → **202**.
+
+```json
+{ "command": "REFRESH_CATALOG" }
+```
+
+| Comando | Qué hace la tablet |
+|---|---|
+| `REFRESH_CATALOG` | Fuerza un `GET /device-sync/manifest` fuera de ciclo |
+| `RESTART_APP` | Reinicia **la app del kiosko**, no el sistema operativo |
+
+Respuesta:
+
+```json
+{
+  "id": "…", "deviceId": "…",
+  "command": "REFRESH_CATALOG",
+  "status": "PENDING",
+  "requestedAt": "…", "expiresAt": "…",
+  "deliveredAt": null, "ackedAt": null, "resultDetail": null
+}
+```
+
+- **Idempotente mientras hay uno en vuelo**: si ya existe uno del mismo tipo en `PENDING` o
+  `DELIVERED`, devuelve **ese mismo id**. Un comerciante impaciente genera un comando, no cinco.
+- Contra comandos ya terminados **no** deduplica: volver a pulsar media hora después es legítimo.
+- `404` si el dispositivo no es de la tienda activa · `400` si el comando no existe.
+
+### GET /api/v1/devices/{deviceId}/commands
+
+**Auth:** OWNER/ADMIN. Los últimos 20, más nuevo primero, con `status`, `requestedAt`, `ackedAt` y
+`resultDetail`.
+
+### El heartbeat entrega
+
+`POST /api/v1/devices/heartbeat` gana:
+
+```json
+{ "received": true, "…": "…", "settingsVersion": 4,
+  "pendingCommands": [ { "id": "…", "command": "REFRESH_CATALOG" } ] }
+```
+
+Lista vacía cuando no hay nada. **Entregarlos los marca `DELIVERED` y no se repiten.**
+
+### POST /api/v1/devices/me/commands/{commandId}/ack
+
+**Auth:** DEVICE. El dispositivo sale del JWT → **204**.
+
+```json
+{ "success": false, "detail": "sin conexión al catálogo" }
+```
+
+`success: true` → `ACKED`. `false` → `FAILED`, y el `detail` (máx. 300, truncado) aparece en la
+card para que el comerciante vea algo más útil que "Falló". Un comando de **otra** tablet → `404`.
+
+### Expiración: 10 minutos, sin reintentos
+
+Un comando que nadie recoge dentro de su TTL pasa a `EXPIRED`, y el heartbeat nunca lo entrega. Un
+"Reiniciar" pulsado el viernes por la tarde no puede ejecutarse el lunes cuando alguien prende la
+tablet.
+
+**Un comando entregado tampoco se re-entrega.** Si la tablet muere entre recibirlo y confirmarlo,
+expira. Para `REFRESH_CATALOG` reintentar sería inofensivo, pero para `RESTART_APP` no: una tablet
+que reinicia, no alcanza a confirmar y vuelve a recibir la orden queda en bucle — inutilizada por
+el mismo mecanismo que debía arreglarla. El reintento es un botón, no un job.
+
+### Estados
+
+| Estado | Qué mostrar |
+|---|---|
+| `PENDING` | "Enviado" |
+| `DELIVERED` | "Enviado" (la tablet lo recibió, aún no confirma) |
+| `ACKED` | "Listo" |
+| `FAILED` | "Falló: {resultDetail}" |
+| `EXPIRED` | "No se pudo entregar" — ofrecer reintentar |
+
+### Qué NO cubre esta fase
+
+Comandos a varias tablets a la vez, comandos programados, reintentos automáticos, y **ejecutarlos**:
+el backend encola, entrega y guarda el desenlace; ejecutar es la app del kiosko. Mientras no lea
+`pendingCommands`, los comandos se encolan y expiran solos — aditivo, nada se rompe.
+
+---
+
+## 24. Métricas del kiosko: qué mide cada número (Fase 24)
+
+### Cómo se registra una visita
+
+Hasta la Fase 23, `kiosk_events` **solo** se llenaba desde
+`POST /api/v1/analytics/events`, que la tablet tiene que llamar a propósito.
+Mientras la app no lo hiciera, la pestaña Actividad quedaba en cero aunque
+hubiera clientes usando la tablet todo el día.
+
+Ahora el backend aprovecha una llamada que la tablet **ya hace**:
+
+```
+GET /api/v1/products/{id}
+X-Kiosk-Session: <id de la sesión del kiosko>     ← opcional
+```
+
+Si quien consulta tiene rol **DEVICE**, se registra un `PRODUCT_VIEW`. El
+endpoint sigue respondiendo exactamente lo mismo; el registro es un efecto
+lateral.
+
+| Quién llama | ¿Suma a las métricas? |
+|---|---|
+| Tablet (rol `DEVICE`) | **Sí** |
+| App del staff (OWNER / SELLER / ADMIN) | **No** |
+
+El comerciante revisando un precio desde su celular no es un cliente parado
+frente a la vitrina. Contarlo inflaría la métrica con el trabajo del propio
+dueño y la volvería inútil para decidir nada.
+
+**`X-Kiosk-Session`** es el mismo identificador que el kiosko ya manda en
+`POST /orders` y en la búsqueda por voz. Sin el header la visita se cuenta
+igual, pero esa persona no entra en "clientes distintos" — mandalo siempre que
+puedas.
+
+**Nunca rompe la ficha**: si el registro falla, se loguea un warning y el
+producto se devuelve igual. Que falle la analítica no puede impedirle a un
+cliente ver un producto.
+
+`POST /api/v1/analytics/events` **sigue existiendo y sigue siendo necesario**
+para lo que el backend no puede observar: `SESSION_START`, `SESSION_END` y
+`SEARCH_MADE`.
+
+### Qué mide cada número de la pestaña Actividad
+
+`GET /api/v1/dashboard/activity`
+
+```json
+{
+  "granularity": "WEEKLY",
+  "periodStart": "…", "periodEnd": "…",
+  "uniqueSessions": 72,          "uniqueSessionsDeltaPercent": -12.5,
+  "productViews": 264,           "productViewsDeltaPercent": 8.1,
+  "confirmedOrders": 9,          "confirmedOrdersDeltaPercent": 12.5
+}
+```
+
+| Campo | Qué es exactamente |
+|---|---|
+| `uniqueSessions` | **Personas que usaron la tablet**, hayan comprado o no. Sesiones distintas con cualquier evento en el periodo. |
+| `productViews` | Fichas de producto abiertas en la tablet. Una persona puede generar varias. |
+| `confirmedOrders` | **Pedidos confirmados** en el periodo. Este sí es "cliente que concretó". |
+
+> **`uniqueSessions` NO es "clientes confirmados".** Es tráfico. Si la pantalla
+> rotula ese número como "Clientes" a secas, se lee como clientes que
+> compraron, que es otra cosa y mucho menor. Por eso `confirmedOrders` viene en
+> la misma respuesta: los tres juntos son el embudo
+> (*gente → fichas miradas → pedidos*) y por separado se malinterpretan.
+
+`uniqueSessions` cuenta sesiones con **cualquier** evento. Antes exigía un
+`SESSION_START`, lo que ataba la métrica a que la app emitiera ese evento
+concreto: una tablet que reportaba vistas pero no la apertura de sesión
+mostraba *0 clientes y 264 productos consultados*, que es una combinación
+imposible de leer.
+
+### "Lo que necesita atención": qué es y qué no
+
+`GET /api/v1/dashboard/ranking` → `needsAttention`
+
+```json
+"needsAttention": {
+  "totalImmobilized": 2990.00,
+  "totalCount": 17,
+  "items": [ { "name": "…", "stock": 34, "price": 85.00, "immobilizedAmount": 2890.00 } ]
+}
+```
+
+La definición exacta es: **productos activos, con stock mayor a cero, que no
+registraron ninguna venta confirmada dentro del periodo consultado**, ordenados
+de mayor a menor `stock × precio`.
+
+Tres cosas que conviene tener claras:
+
+1. **No es ingreso, es lo contrario.** `immobilizedAmount` es la plata que está
+   quieta en el estante. Rotularlo "generado por" en la pantalla lo vuelve
+   indistinguible de las ventas que están justo al lado.
+2. **`totalImmobilized` es la suma de los `items` devueltos**, no del universo
+   completo. Para eso está `totalCount` — permite decir "3 de 17 sin rotación"
+   en vez de dar a entender que son tres y nada más.
+3. **Depende del periodo elegido.** En una vista semanal, un producto que rota
+   una vez al mes va a aparecer casi siempre. Cuanto más corto el periodo, más
+   ruido: para esta tarjeta, mensual dice más que diario.
+
+### Miniatura en el detalle del pedido
+
+`GET /api/v1/orders/{id}` → cada entrada de `items` suma:
+
+```json
+{ "productId": "…", "productName": "Taladro percutor", "quantity": 1,
+  "unitPriceSnapshot": 50.00, "productImageUrl": "https://pub-….r2.dev/…jpg" }
+```
+
+Es la imagen **principal vigente** del producto, no un snapshot: si el
+comerciante cambia la foto, el pedido viejo muestra la nueva. Mismo criterio
+que `productName`, y el correcto acá — el vendedor mira el pedido para
+reconocer el producto que tiene en el estante hoy.
+
+`null` si el producto no tiene imágenes; la app pinta el placeholder.
+
+Se resuelve con **una consulta por pedido**, no una por línea: `Product.media`
+es `LAZY` y tocarla por ítem sería un N+1 contra `product_media`.
+
+---
+
+## 25. Precio con descuento y aviso de expiración (Fase 25)
+
+Dos correcciones nacidas del triage de bugs del 2026-10-18
+(`docs/qa/TRIAGE-BUGS.md`, BUG-008 y BUG-013).
+
+### El backend ahora calcula el precio con descuento
+
+Hasta esta fase el backend **guardaba** los descuentos y los devolvía crudos en
+`discounts[]`, dejando la aritmética a cada cliente. Ninguno la hacía: el mismo
+producto se veía a precio lleno en la grilla del Discovery, en la lista de
+Inventario y en el PDF.
+
+Ahora el precio efectivo lo calcula el servidor y viaja en **dos campos nuevos**:
+
+| Campo | Tipo | Significado |
+|---|---|---|
+| `discountedPrice` | `number \| null` | Precio ya con el descuento aplicado |
+| `discountEndsAt` | ISO-8601 `\| null` | Fin del descuento aplicado |
+
+`null` significa **sin descuento vigente**: el cliente pinta solo `price`.
+
+Están en:
+
+- `GET /api/v1/products` — cada fila (`ProductSummaryResponse`)
+- `GET /api/v1/products/{id}` — además de `discounts[]`, que se mantiene
+- `GET /api/v1/catalog/by-category` — cada producto de cada grupo
+
+```json
+{
+  "id": "…",
+  "name": "Foco LED Philips Globo E27 13W Luz Cálida",
+  "price": 35.90,
+  "discountedPrice": 30.90,
+  "discountEndsAt": "2026-10-25T05:00:00Z"
+}
+```
+
+#### Las reglas, que ahora son una sola
+
+| Regla | Decisión |
+|---|---|
+| Varios descuentos vigentes | **Gana el más barato**, no se encadenan |
+| Ventana | `startsAt <= ahora < endsAt` (fin exclusivo) |
+| Redondeo | `HALF_UP` a 2 decimales |
+| Monto mayor que el precio | Tope en 0, nunca negativo |
+| Descuento que no baja nada | `discountedPrice: null` |
+
+**No se encadenan a propósito.** Dos promociones solapadas podrían regalar el
+producto sin que nadie lo haya decidido.
+
+**Fail-open**: si la consulta de descuentos falla, el listado responde 200 con
+los precios de lista y registra un warning. Un catálogo sin etiqueta de oferta se
+sigue vendiendo; uno que no carga, no.
+
+`discounts[]` sigue en el detalle para quien quiera mostrar el detalle de la
+promo, pero **el número autoritativo es `discountedPrice`** — repetir la
+aritmética en el cliente es volver al bug.
+
+### Aviso "este pedido está por vencer"
+
+El toggle `orderExpiring` de la Fase 20 existía sin emisor. Ahora lo tiene.
+
+| Pieza | Valor |
+|---|---|
+| Evento del push | `ORDER_EXPIRING` |
+| `status` del payload | `PENDING` — el pedido **no** cambió de estado |
+| Antelación | `ORDERS_EXPIRING_WARNING_MINUTES`, default **10** |
+| Apagarlo | Poner la variable en `0` |
+| Respeta preferencia | Sí, el toggle `orderExpiring` (opt-out) |
+
+```json
+{ "event": "ORDER_EXPIRING", "orderId": "…", "storeId": "…", "status": "PENDING" }
+```
+
+**Se manda una sola vez por pedido**, garantizado por la columna
+`orders.expiring_notified_at` (biz V18) y un `UPDATE` condicional: varias
+instancias del backend barriendo a la vez mandan un solo aviso.
+
+**El `status` se mantiene en `PENDING` a propósito.** Mandar otra cosa haría que
+la app sacara el pedido de "Pendientes", que es lo contrario de lo que pide el
+aviso.
+
+#### Lo que falta del lado de la app
+
+`OrderNotificationPresenter.contentFor` no conoce el evento todavía, así que cae
+en el texto genérico *"Pedido actualizado"*. Necesita su rama con los strings
+propios. El push llega y suena igual.
+
+---
+
+## 26. Correcciones del triage del 2026-10-18 (Fase 26)
+
+Cinco arreglos de backend del segundo lote de bugs
+(`docs/qa/TRIAGE-BUGS.md`, BUG-015 a BUG-020). Ninguno rompe un contrato
+existente: todo es campo nuevo o comportamiento que antes estaba mal.
+
+### `stock` en el listado de productos
+
+`GET /api/v1/products` ahora devuelve `stock` por fila, el mismo
+`products.stock` del detalle.
+
+```json
+{ "id": "…", "name": "Caja de herramientas metálica 20\"", "price": 95.00, "stock": 1 }
+```
+
+`null` en productos legacy y en modo "consultar".
+
+**Por qué importa.** Faltaba, y la app de staff lo estaba **inventando**:
+derivaba un número del hash del UUID (`(abs(id.hashCode()) % 90) + 10`). El
+comerciante veía "19 stock", editaba y encontraba 1. El front tiene que borrar
+ese helper y leer el campo.
+
+### "Clientes" ya no se queda en cero
+
+`GET /api/v1/dashboard/activity` → `uniqueSessions` contaba
+`COUNT(DISTINCT session_id)`, y como la tablet no manda `X-Kiosk-Session` todas
+las filas entraban con `NULL`. Resultado: *0 clientes · 27 productos
+consultados*.
+
+Ahora, cuando el header **no** viene, el backend infiere la sesión por ventana de
+inactividad del mismo `device_id`:
+
+| Caso | Sesión asignada |
+|---|---|
+| Vino `X-Kiosk-Session` | Esa |
+| Actividad de la tablet hace < N min | La misma |
+| Sin actividad reciente | Nueva, con prefijo `srv-` |
+
+`N` = `DASHBOARD_KIOSK_SESSION_GAP_MINUTES`, default **15**. `0` apaga la
+inferencia.
+
+**Precisión.** Dos personas separadas por menos de N minutos cuentan como una. Es
+el error de cualquier analítica por inactividad, y es menor que contar cero. Para
+exactitud, la app debe mandar el header — **siempre gana sobre lo inferido**.
+
+### El botón de WhatsApp del PDF
+
+`buildMerchantWaLink` concatenaba `"51"` **siempre**, sin mirar si el número ya lo
+traía: `+51 987 654 321` terminaba en `wa.me/5151987654321` y WhatsApp respondía
+que el número no existe.
+
+Ahora se normaliza a MSISDN peruano:
+
+| Entrada | Salida |
+|---|---|
+| `987654321` | `51987654321` |
+| `+51 987 654 321` | `51987654321` |
+| `0051987654321` | `51987654321` |
+| otra cosa | **se omite el botón** |
+
+Omitir es deliberado: un botón que lleva a un número inexistente es peor que
+ninguno.
+
+### La bajada del PDF
+
+`vitria.qhatia.pdf-sub-brand` (`QHATIA_PDF_SUB_BRAND`), **vacío por defecto**.
+Estaba fijo en `"by VitrIA"`, el nombre técnico del repositorio; la marca del
+cliente final es Qhathia. Vacío = no se dibuja ni bajo el logo ni en el pie.
+
+### Comandos a la tablet: los vencidos dejan de bloquear
+
+`POST /api/v1/devices/{deviceId}/commands` rechazaba encolar si ya había uno en
+vuelo, pero "en vuelo" miraba solo el estado y nunca `expires_at`. Con la tablet
+apagada el comando se quedaba en `DELIVERED` hasta la purga de las **03:30**, y
+el comerciante no podía reenviar el catálogo hasta la madrugada.
+
+Dos cambios:
+
+1. La deduplicación exige `expires_at > now`. Un comando vencido ya no bloquea.
+2. `GET /api/v1/devices/{deviceId}/commands` cierra los vencidos antes de
+   responder, así la card muestra `EXPIRED` en vez de `DELIVERED` para siempre.
+
+**La política de no reintentar no cambió**: re-entregar un `RESTART_APP` dejaría
+la tablet en bucle.
+
+### "Productos no encontrados": términos canónicos y sin duplicar
+
+`GET /api/v1/insights/unmet-searches` (vo) devolvía frases enteras como productos
+—*"Quiero una amoladora"*— y además duplicadas contra la versión limpia
+—*"Amoladora"*— porque Mongo agrupa por el valor literal y la normalización
+corría después.
+
+Ahora el término se canoniza antes de comparar:
+
+| Paso | Ejemplo |
+|---|---|
+| Puntuación final | `"lámparas."` → `"lamparas"` |
+| Arranque conversacional, en cadena | `"quiero ver una amoladora"` → `"amoladora"` |
+| Plural regular | `"lamparas"` → `"lampara"` |
+
+Y los grupos que colapsan al mismo término se fusionan **después** de la
+agregación, **uniendo las sesiones en vez de sumarlas**: quien buscó de las dos
+formas es una persona, no dos.
+
+`examples[]` sigue trayendo los textos crudos — el término se limpia para
+agrupar, pero la evidencia de qué modelo comprar está en lo que la gente dijo.
+
+---
+
+## 27. Se retira el toggle de IGV (Fase 27)
+
+**Cambio de contrato.** `pricesIncludeIgv` e `igvRate` salen de
+`GET /api/v1/stores/{storeId}` y de `PUT /api/v1/stores/{storeId}`.
+
+### Por qué
+
+El flag era una **declaración, no un cálculo**: su único efecto era elegir entre dos líneas de
+texto del PDF. Apagarlo no movía ningún precio, y así se reportó como bug (triage 2026-10-18,
+BUG-012) — con razón, porque un control que no produce efecto observable se lee como roto.
+
+Se retiró en vez de hacerlo calcular. En Perú el precio al consumidor lleva IGV incluido por ley
+y así es como las tiendas ya cargaban `products.price`: **todas estaban en `true`**. Hacerlo
+calcular habría sido trabajo en doce superficies con precio para un caso de uso que no está
+confirmado que exista.
+
+### Qué significa ahora
+
+`products.price` **es el precio final que paga el consumidor**, siempre. No hay configuración por
+tienda y el backend no hace aritmética de impuestos en ningún lado.
+
+### Compatibilidad: no rompe nada instalado
+
+| Dirección | Qué pasa |
+|---|---|
+| App vieja **manda** `pricesIncludeIgv` en el `PUT` | **200**. Spring Boot ignora propiedades desconocidas; hay un test que lo fija |
+| App vieja **espera** el campo en la respuesta | El DTO de Kotlin tiene default, así que su ausencia no rompe la deserialización |
+
+### La columna sigue en la base
+
+`stores.prices_include_igv` se conserva (**auth V19** solo reescribe su `COMMENT`). Queda sin
+mapear en la entidad y fuera de la API.
+
+Borrarla es destructivo a cambio de un byte por tienda. Y si algún día aparece un comerciante que
+carga precios netos, el diseño correcto **no** es reescribir el catálogo: es derivar el precio al
+público en **lectura** (`price × 1.18`) dejando `products.price` intacto — reversible, sin
+migración— y esta columna es donde vive esa declaración.
+
+### Queda del front
+
+Borrar el toggle y sus 14 archivos de alcance (`AppSettingsScreen`,
+`SetPricesIncludeIgvUseCase`, el campo de `StoreSettings`, el parámetro de `StoreApiService`,
+mappers, fakes y los strings `settings_igv*`). Mientras tanto el toggle manda un campo que se
+ignora y lee uno que no llega: se queda fijo en "encendido" sin hacer nada.
+
+---
+
+## 28. Filtros de Inventario y rango de precio por voz (Fase 28)
+
+Triage 2026-10-18, BUG-022 y BUG-024.
+
+### `GET /api/v1/products`: los filtros se cruzan
+
+`categoryId` y `availability` **se combinan**. Antes el backend elegía uno con un
+`if/else if` y la categoría ganaba: pedir "Iluminación interior" + "Stock bajo"
+devolvía la categoría entera, con productos de 78 de stock.
+
+### `availability=LOW_STOCK` ahora significa algo
+
+La sync `stock ↔ availability` produce solo `CONSULT` (stock null),
+`OUT_OF_STOCK` (0) y `AVAILABLE` (>0). **`LOW_STOCK` no lo asigna nadie**, así que
+filtrar por ese valor devolvía cero siempre.
+
+Ahora el backend lo traduce a un rango: `0 < stock <= DASHBOARD_RESTOCK_THRESHOLD`
+(default **5**) — **el mismo umbral** que "Productos para reponer" en Inicio. El
+valor del parámetro no cambia, así que la app no necesita tocar nada.
+
+```
+GET /api/v1/products?categoryId=<uuid>&availability=LOW_STOCK
+→ los productos de esa categoría con 1..5 de stock
+```
+
+### El rango de precio de la búsqueda por voz
+
+`POST /api/v1/conversations/search` (vo) aplica ahora **piso y techo**.
+
+`minPrice` ya se extraía —el prompt del LLM lo pedía y el DTO lo llevaba— pero
+**nadie filtraba por él**: solo se aplicaba el máximo. *"Lámpara de más de 50
+soles"* devolvía las de menos de 50.
+
+El extractor por reglas también invertía la frase: tenía el prefijo opcional, así
+que el `50` suelto de "más de 50" entraba como techo. Ahora hay un patrón por
+sentido, con prefijo obligatorio:
+
+| Frase | Resultado |
+|---|---|
+| "menos de 50", "hasta 50", "por debajo de 50" | techo 50 |
+| "más de 50", "desde 50", "a partir de 50" | piso 50 |
+| "no más de 80" | techo 80 (no piso) |
+| "desde 20 hasta 60" | rango 20–60 |
+| "lámpara 200 soles" | techo 200 — un número suelto sigue siendo presupuesto |
+
+`search_events` guarda también `minPrice`, para que la analítica vea la consulta
+completa.
