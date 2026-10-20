@@ -18,4 +18,19 @@ object DeviceConstants {
 
     /** Valid range for the reported battery level, in percent. */
     val BATTERY_LEVEL_RANGE: IntRange = 0..100
+
+    /** Total attempts to acknowledge one remote command before giving up (the server then expires it). */
+    const val ACK_MAX_ATTEMPTS: Int = 3
+
+    /** Wait between failed acknowledgement attempts. */
+    val ACK_RETRY_DELAY: Duration = 2.seconds
+
+    /** Maximum `detail` length the ack endpoint accepts. */
+    const val ACK_DETAIL_MAX_LENGTH: Int = 300
+
+    /** Ack detail for a command type this app version does not support; `%s` is the raw command. */
+    const val ACK_DETAIL_UNSUPPORTED: String = "Comando no soportado: %s"
+
+    /** Ack detail when `RESTART_APP` cannot be carried out. */
+    const val ACK_DETAIL_RESTART_UNAVAILABLE: String = "No se pudo reiniciar la app"
 }

@@ -9,10 +9,13 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductCatalogUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCatalogRefreshUseCase
 import com.qhathia.mobile.discovery.core.testing.CatalogFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
+import com.qhathia.mobile.discovery.core.testing.FakeCatalogRefreshSignal
 import com.qhathia.mobile.discovery.core.testing.FakeProductCatalogRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
+import com.qhathia.mobile.discovery.core.testing.ProductFixtures
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogTab
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiEffect
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiEvent
@@ -38,11 +41,13 @@ class CatalogViewModelTest {
         source: SearchSource = SearchSource.Text,
         repository: FakeProductCatalogRepository = FakeProductCatalogRepository(),
         cartRepository: FakeCartRepository = FakeCartRepository(),
+        refreshSignal: FakeCatalogRefreshSignal = FakeCatalogRefreshSignal(),
     ) = CatalogViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_SOURCE to source.name)),
         getProductCatalog = GetProductCatalogUseCase(repository),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
+        observeCatalogRefresh = ObserveCatalogRefreshUseCase(refreshSignal),
     )
 
     @Test
@@ -222,5 +227,70 @@ class CatalogViewModelTest {
         val vm = viewModel(source = SearchSource.Text)
 
         assertFalse(vm.uiState.value.showMicAnimation)
+    }
+
+    // --- Remote "Actualizar catálogo" (device-remote-commands) ---
+
+    @Test
+    fun given_remote_refresh_then_reloads_keeping_selected_tab() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.success(CatalogFixtures.catalog()))
+        val signal = FakeCatalogRefreshSignal()
+        val vm = viewModel(repository = repository, refreshSignal = signal)
+        vm.onEvent(CatalogUiEvent.TabSelected(CatalogTab.categoryId("c2")))
+        val fresh = listOf(
+            CatalogFixtures.category(id = "c2", name = "Eléctrico", products = listOf(ProductFixtures.product(id = "e9"))),
+        )
+        repository.result = Result.success(fresh)
+
+        signal.request()
+
+        val state = vm.uiState.value
+        assertEquals(2, repository.callCount)
+        assertEquals(CatalogTab.categoryId("c2"), state.selectedTabId)
+        assertEquals(listOf("e9"), state.visibleProducts.map { it.id })
+        assertFalse(state.isLoading)
+    }
+
+    @Test
+    fun given_remote_refresh_without_selected_tab_then_falls_back_to_todo() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.success(CatalogFixtures.catalog()))
+        val signal = FakeCatalogRefreshSignal()
+        val vm = viewModel(repository = repository, refreshSignal = signal)
+        vm.onEvent(CatalogUiEvent.TabSelected(CatalogTab.categoryId("c2")))
+        repository.result = Result.success(listOf(CatalogFixtures.category(id = "c1")))
+
+        signal.request()
+
+        assertEquals(CatalogTab.ALL_ID, vm.uiState.value.selectedTabId)
+    }
+
+    @Test
+    fun given_remote_refresh_fails_then_keeps_products_and_no_error() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.success(CatalogFixtures.catalog()))
+        val signal = FakeCatalogRefreshSignal()
+        val vm = viewModel(repository = repository, refreshSignal = signal)
+        val before = vm.uiState.value.visibleProducts
+        repository.result = Result.failure(CatalogException(CatalogErrorCategory.Network))
+
+        signal.request()
+
+        val state = vm.uiState.value
+        assertFalse(state.isNetworkError)
+        assertEquals(before, state.visibleProducts)
+    }
+
+    @Test
+    fun given_error_screen_then_remote_refresh_retries_load() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.failure(CatalogException(CatalogErrorCategory.Network)))
+        val signal = FakeCatalogRefreshSignal()
+        val vm = viewModel(repository = repository, refreshSignal = signal)
+        assertTrue(vm.uiState.value.isNetworkError)
+        repository.result = Result.success(CatalogFixtures.catalog())
+
+        signal.request()
+
+        val state = vm.uiState.value
+        assertFalse(state.isNetworkError)
+        assertTrue(state.showContent)
     }
 }

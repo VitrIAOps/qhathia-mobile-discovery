@@ -11,6 +11,7 @@ import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductCatalogUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCatalogRefreshUseCase
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogTab
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiEffect
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiEvent
@@ -40,6 +41,9 @@ import javax.inject.Inject
  * hands off to the product-search flow (text submit and mic). A load failure shows the connection-lost
  * screen, which returns Home idle after 30s of inactivity.
  *
+ * A remote "Actualizar catálogo" (see [ObserveCatalogRefreshUseCase]) re-fetches the catalog in the
+ * background and swaps in the fresh products without a spinner, keeping the selected tab.
+ *
  * The catalog has no multi-step internal history, so Volver either opens the close-confirmation dialog
  * (when the cart has items) or returns Home idle (empty cart).
  */
@@ -49,6 +53,7 @@ class CatalogViewModel @Inject constructor(
     private val getProductCatalog: GetProductCatalogUseCase,
     observeCart: ObserveCartUseCase,
     private val addToCart: AddToCartUseCase,
+    observeCatalogRefresh: ObserveCatalogRefreshUseCase,
 ) : ViewModel() {
 
     private val source: SearchSource = runCatching {
@@ -68,6 +73,7 @@ class CatalogViewModel @Inject constructor(
     private var categories: List<CatalogCategory> = emptyList()
 
     private var loadJob: Job? = null
+    private var refreshJob: Job? = null
     private var idleJob: Job? = null
 
     init {
@@ -76,6 +82,9 @@ class CatalogViewModel @Inject constructor(
             observeCart().collect { cart ->
                 _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
             }
+        }
+        viewModelScope.launch {
+            observeCatalogRefresh().collect { refreshInPlace() }
         }
     }
 
@@ -99,12 +108,40 @@ class CatalogViewModel @Inject constructor(
     private fun load() {
         cancelIdleTimer()
         loadJob?.cancel()
+        refreshJob?.cancel()
         _uiState.update { it.copy(isLoading = true, isNetworkError = false) }
         loadJob = viewModelScope.launch {
             getProductCatalog().fold(
                 onSuccess = { settleCatalog(it) },
                 onFailure = { settleError() },
             )
+        }
+    }
+
+    /**
+     * Remote refresh: a full load already in flight is fresh enough; on the error screen it is a retry;
+     * otherwise fetch silently and keep the current products if that fails.
+     */
+    private fun refreshInPlace() {
+        val state = _uiState.value
+        when {
+            state.isLoading -> Unit
+            state.isNetworkError -> load()
+            else -> {
+                refreshJob?.cancel()
+                refreshJob = viewModelScope.launch {
+                    getProductCatalog().onSuccess { settleRefreshed(it) }
+                }
+            }
+        }
+    }
+
+    private fun settleRefreshed(loaded: List<CatalogCategory>) {
+        categories = loaded
+        val tabs = buildTabs(loaded)
+        val selected = _uiState.value.selectedTabId.takeIf { id -> tabs.any { it.id == id } } ?: CatalogTab.ALL_ID
+        _uiState.update {
+            it.copy(tabs = tabs, selectedTabId = selected, visibleProducts = productsFor(selected))
         }
     }
 
