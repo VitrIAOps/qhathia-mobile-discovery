@@ -1,18 +1,24 @@
 package com.qhathia.mobile.discovery
 
 import android.Manifest
+import android.app.Activity
+import android.app.ActivityManager
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -30,13 +36,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.BrightnessMode
+import com.qhathia.mobile.discovery.core.domain.model.KioskLockState
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
@@ -82,7 +93,9 @@ private fun DiscoveryAppRoot(
     mainViewModel: MainViewModel = hiltViewModel(),
 ) {
     val deviceSettings by mainViewModel.deviceSettings.collectAsStateWithLifecycle()
+    val kioskLock by mainViewModel.kioskLock.collectAsStateWithLifecycle()
     ApplyWindowBrightness(deviceSettings.brightnessMode)
+    ApplyKioskLock(kioskLock)
 
     // Remote "Asistente por voz": when off, every MicButton renders nothing.
     CompositionLocalProvider(LocalVoiceAssistantEnabled provides deviceSettings.voiceAssistantEnabled) {
@@ -125,6 +138,38 @@ private fun BrightnessMode.windowBrightness(): Float = when (this) {
     BrightnessMode.HIGH -> 1f
 }
 
+/**
+ * Applies the kiosk lock to this activity on every resume and whenever it changes (design D5): screen
+ * pinning without Device Owner, hidden system bars (a swipe shows them transiently) and screen kept on.
+ * Re-applying on resume also pins again after the merchant or a customer unpinned with the system
+ * gesture.
+ */
+@Composable
+private fun ApplyKioskLock(lock: KioskLockState) {
+    val activity = LocalActivity.current ?: return
+    LifecycleResumeEffect(lock.active) {
+        activity.applyKioskLock(lock.active)
+        onPauseOrDispose { }
+    }
+}
+
+private fun Activity.applyKioskLock(active: Boolean) {
+    val pinned = getSystemService(ActivityManager::class.java).lockTaskModeState !=
+        ActivityManager.LOCK_TASK_MODE_NONE
+    val insets = WindowCompat.getInsetsController(window, window.decorView)
+    if (active) {
+        // Only ask when not pinned yet, so an already pinned task is not asked again.
+        if (!pinned) runCatching { startLockTask() }
+        insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        insets.hide(WindowInsetsCompat.Type.systemBars())
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    } else {
+        if (pinned) runCatching { stopLockTask() }
+        insets.show(WindowInsetsCompat.Type.systemBars())
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+}
+
 /** Neutral, themed placeholder shown while the persisted session is being read. */
 @Composable
 private fun StartupSplash() {
@@ -138,6 +183,7 @@ private fun StartupSplash() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DiscoveryNavHost(
     startRoute: String,
@@ -161,6 +207,17 @@ private fun DiscoveryNavHost(
     var interactionTick by remember { mutableIntStateOf(0) }
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
+    val kioskLock by mainViewModel.kioskLock.collectAsStateWithLifecycle()
+
+    // Kiosk: a temporary exit from Configuración ends when the merchant is back on Home (any way back:
+    // the side-menu "Volver" or system Back), so the lock applies again.
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == HOME_ROUTE) mainViewModel.resumeKioskMode()
+    }
+
+    // Kiosk: Back on Home would finish the root activity, which ends screen pinning; swallow it.
+    BackHandler(enabled = kioskLock.active && currentRoute == HOME_ROUTE) { }
+
     // Business rule: clear the cart after 1 minute of inactivity on any screen that isn't Home.
     LaunchedEffect(currentRoute, interactionTick) {
         if (currentRoute != null && currentRoute != HOME_ROUTE) {
@@ -169,7 +226,13 @@ private fun DiscoveryNavHost(
         }
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+    // Kiosk: keep content out of the system-bar areas even while the bars are hidden. Hidden bars report
+    // zero insets, which moved the bottom controls (the settings gear) into the navigation-bar strip,
+    // where a pinned task does not receive touches.
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.systemBarsIgnoringVisibility,
+    ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()

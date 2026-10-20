@@ -11,8 +11,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qhathia.mobile.discovery.feature.pairing.ui.PairingScreen
 import com.qhathia.mobile.discovery.feature.settings.R
+import com.qhathia.mobile.discovery.feature.settings.model.KioskExitUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsSection
 
 /**
@@ -23,12 +26,16 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsSection
  * The pairing section is the shared `:features:pairing` slice, hosted here with the "TIENDA" title, the
  * side menu present and no back affordance; a successful pairing keeps the merchant in place (the slice
  * shows the paired-device details), so [PairingScreen]'s `onPaired` is a no-op.
+ *
+ * The side menu also carries "Salir del modo kiosko" ([KioskExitViewModel]) while the kiosk lock is on.
  */
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    kioskExitViewModel: KioskExitViewModel = hiltViewModel(),
 ) {
+    val kioskExit by kioskExitViewModel.uiState.collectAsStateWithLifecycle()
     var section by rememberSaveable { mutableStateOf(SettingsSection.Wifi) }
 
     Row(modifier = modifier.fillMaxSize()) {
@@ -36,6 +43,8 @@ fun SettingsScreen(
             selectedSection = section,
             onSelectSection = { section = it },
             onBack = onNavigateBack,
+            kioskExit = kioskExit,
+            onExitKioskMode = { kioskExitViewModel.onEvent(KioskExitUiEvent.ExitKioskMode) },
         )
         Crossfade(
             targetState = section,

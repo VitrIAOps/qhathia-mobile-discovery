@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,10 +26,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
+import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import com.qhathia.mobile.discovery.feature.settings.R
+import com.qhathia.mobile.discovery.feature.settings.model.KioskExitUiState
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsSection
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
@@ -36,6 +40,10 @@ import com.qhathia.mobile.discovery.core.ui.R as UiR
  * Shared fixed dark side menu for the settings area (Figma "Red Wifi" / "Comercio vinculado"): a back
  * affordance, the store title, and the Wi-Fi / Vincular section items. Hosted once by [SettingsScreen]
  * so the selection shadow animates smoothly as the merchant switches sections.
+ *
+ * While the kiosk lock is active it also offers "Salir del modo kiosko" at the bottom, with a hint that
+ * a new Wi-Fi network can only be approved outside kiosk mode; after exiting it shows that the lock
+ * returns on going back to Home.
  */
 @Composable
 fun SettingsSideMenu(
@@ -43,6 +51,8 @@ fun SettingsSideMenu(
     onSelectSection: (SettingsSection) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    kioskExit: KioskExitUiState = KioskExitUiState(),
+    onExitKioskMode: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -93,6 +103,35 @@ fun SettingsSideMenu(
                 onClick = { onSelectSection(SettingsSection.Pairing) },
             )
         }
+        Spacer(modifier = Modifier.weight(1f))
+        KioskExitBlock(state = kioskExit, onExitKioskMode = onExitKioskMode)
+    }
+}
+
+@Composable
+private fun KioskExitBlock(
+    state: KioskExitUiState,
+    onExitKioskMode: () -> Unit,
+) {
+    when {
+        state.isLockActive -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text(
+                text = stringResource(R.string.kiosk_exit_wifi_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = DiscoveryColors.Blue50,
+            )
+            SideMenuItem(
+                iconRes = R.drawable.ic_lock,
+                label = stringResource(R.string.kiosk_exit_action),
+                selected = false,
+                onClick = onExitKioskMode,
+            )
+        }
+        state.hasExited -> Text(
+            text = stringResource(R.string.kiosk_exit_done),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White,
+        )
     }
 }
 
@@ -136,3 +175,37 @@ private fun SideMenuItem(
 }
 
 private val SIDE_MENU_WIDTH = 320.dp
+
+@Preview(name = "Side menu — kiosk locked (light)", widthDp = 320, heightDp = 640)
+@Composable
+private fun SettingsSideMenuLockedPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        SettingsSideMenu(
+            selectedSection = SettingsSection.Wifi,
+            onSelectSection = {},
+            onBack = {},
+            kioskExit = KioskExitUiState(isLockActive = true),
+        )
+    }
+}
+
+@Preview(name = "Side menu — kiosk exited (dark)", widthDp = 320, heightDp = 640)
+@Composable
+private fun SettingsSideMenuExitedPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        SettingsSideMenu(
+            selectedSection = SettingsSection.Wifi,
+            onSelectSection = {},
+            onBack = {},
+            kioskExit = KioskExitUiState(isLockActive = false, hasExited = true),
+        )
+    }
+}
+
+@Preview(name = "Side menu — kiosk off (dark)", widthDp = 320, heightDp = 640)
+@Composable
+private fun SettingsSideMenuKioskOffPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        SettingsSideMenu(selectedSection = SettingsSection.Pairing, onSelectSection = {}, onBack = {})
+    }
+}

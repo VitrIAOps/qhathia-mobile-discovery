@@ -56,7 +56,7 @@ nunca se ejecutan:
 | Batería y conexión en gris | La telemetría viaja **dentro** del heartbeat |
 | "Actualizar catálogo" y "Reiniciar" | Los comandos **se entregan en** la respuesta del heartbeat |
 | Ajustes remotos de la tablet | La tablet se entera por `settingsVersion`, que viene ahí |
-| PIN de salida del modo kiosko | Se entrega con esos ajustes |
+| PIN de salida del modo kiosko | Se entrega con esos ajustes — bloqueo implementado en el change `kiosk-lock-mode` (guía: `docs/android/tablet-kiosk-setup.md`) |
 
 Las Fases 21 y 23 están completas del lado del servidor **y sin cliente**.
 
@@ -484,3 +484,22 @@ Lo que se puede comprobar sin backend nuevo, porque ya está en producción:
 | 6 | El resto | |
 
 Lo de §5 y §6 puede ir en paralelo: son pantallas independientes.
+
+---
+
+## Pendiente de validar con el equipo — modo kiosko
+
+Change `kiosk-lock-mode` (Discovery). Las tablets **no se pueden provisionar como Device Owner**
+y la app **no es launcher**, así que el bloqueo usa la fijación de pantalla de Android. Se
+implementa con estos límites aceptados; falta confirmarlos con producto/operaciones:
+
+- [ ] **El gesto del sistema (Atrás + Recientes) siempre quita la fijación.** Mitigación por
+  tablet: bloqueo de pantalla + "Solicitar PIN para dejar de fijar". ¿Es aceptable operativamente?
+- [ ] **Wi-Fi:** la aprobación de una red nueva llega como notificación, bloqueada mientras está
+  fijada. Hay que salir del kiosko antes de conectar. ¿Aceptable?
+- [ ] **Sin arranque automático tras reiniciar la tablet:** alguien debe abrir Discovery a mano.
+- [ ] **La salida es temporal:** dura hasta volver a Home o reiniciar la app, y no se guarda.
+- [ ] **Diálogo "¿Fijar app?"** (si el modelo lo muestra): un cliente podría descartarlo; la app
+  lo vuelve a pedir al volver al frente.
+
+Detalle en `openspec/changes/kiosk-lock-mode/design.md` → "Pending team validation".
