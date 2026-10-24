@@ -14,6 +14,11 @@ While voice search is recording, the app SHALL stream the captured microphone au
 - **WHEN** the provider recognizes words while the consumer is still speaking
 - **THEN** the app exposes the current transcript (confirmed segments followed by the current interim segment) to the screen that started the voice search
 
+#### Scenario: Interim transcript keeps updating after the recording ends
+
+- **WHEN** the provider returns interim results after the recording has ended and before the final transcript
+- **THEN** the app keeps exposing the updated transcript to the screen instead of discarding it
+
 #### Scenario: Audio captured before the connection opens is not lost
 
 - **WHEN** the consumer starts speaking before the live connection has finished opening

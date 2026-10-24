@@ -25,4 +25,7 @@ sealed interface HomeUiEvent {
 
     /** Open settings. */
     data object OpenSettings : HomeUiEvent
+
+    /** Home is no longer visible (lifecycle `ON_STOP`), e.g. after navigating to the search results. */
+    data object ScreenStopped : HomeUiEvent
 }

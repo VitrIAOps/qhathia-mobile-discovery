@@ -13,11 +13,17 @@ import kotlinx.collections.immutable.persistentListOf
  */
 sealed interface ProductSearchPhase {
 
-    /** Recording the consumer's voice for a new in-place search ("Escuchando…"). */
-    data object VoiceListening : ProductSearchPhase
+    /**
+     * Recording the consumer's voice for a new in-place search: "Escuchando…" until words are
+     * recognized, then [liveTranscript] (the text recognized so far) in its place.
+     */
+    data class VoiceListening(val liveTranscript: String = "") : ProductSearchPhase
 
-    /** Uploading/transcribing the captured audio ("Organizando ideas…"). */
-    data object VoiceTranscribing : ProductSearchPhase
+    /**
+     * Recording ended; awaiting the final transcript. [liveTranscript] is the text heard so far (it keeps
+     * updating as late results arrive) and replaces "Organizando ideas…", which is shown only while blank.
+     */
+    data class VoiceTranscribing(val liveTranscript: String = "") : ProductSearchPhase
 
     /** The transcription response is taking unusually long ("Está tardando…"). */
     data object VoiceSlowResponse : ProductSearchPhase

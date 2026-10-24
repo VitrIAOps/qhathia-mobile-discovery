@@ -89,7 +89,7 @@ dependencies {
     // Domain types referenced by the NavHost wiring (e.g. SearchSource on the Home → ProductSearch handoff).
     implementation(project(":core:domain"))
     // Data + network layers — included by the app shell so their Hilt bindings (StoreSessionRepository,
-    // SpeechToTextRepository, AudioRecorder, HttpClient) are aggregated into the dependency graph.
+    // LiveTranscriptionRepository, AudioRecorder, HttpClient) are aggregated into the dependency graph.
     implementation(project(":core:data"))
     implementation(project(":core:network"))
 

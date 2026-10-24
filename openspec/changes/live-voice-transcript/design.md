@@ -130,6 +130,21 @@ Home's `ProcessingHero` (listening branch) and product-search's `ProcessingBody`
 - End-to-end: **150 s** outer `withTimeout` in the use case (unchanged).
 - The 60 s upload budget no longer applies and is removed from `VoiceSearchConstants`.
 
+### D7 — Keep the heard text while the final transcript is awaited
+
+First emulator run (2026-10-24, one-word query "Amoladora"): the token + socket setup took 0.65–0.9 s, the recording 3–5 s, and the wait for the final transcript 0.7–1.3 s. Results lag behind the audio, so for short queries most interim text arrives *after* the 1 s trailing silence ended the recording. The first version dropped those late partials and swapped the transcript for "Organizando ideas…", so the text flashed briefly or not at all.
+
+Change:
+- `VoiceSessionEvent.Finalizing` carries the transcript, and the session keeps emitting it as late partials arrive.
+- `MicState.Transcribing` and `ProductSearchPhase.VoiceTranscribing` carry `liveTranscript`. `ListeningMessage` shows it, with "Organizando ideas…" as the fallback only while it is blank.
+- Home renders every processing phase from one call site, so the text does not reset when listening turns into finalizing.
+- The slow-response message (30 s) still replaces the text, since it signals a problem.
+- Debug logs record the session timing (connection open, each partial with its offset and whether it came after the stop, and a summary) to compare runs.
+
+**Alternatives considered:**
+- A secondary "Organizando ideas…" line under the text. Rejected as more complex for the same result.
+- Holding the final text on screen before navigating, and prefetching the Deepgram token. Deferred until the new timing logs show whether they are needed.
+
 ## Risks / Trade-offs
 
 - **Ephemeral token TTL (60 s) vs. session length.** → The token is requested right when listening starts and only used for the handshake. Deepgram does not drop an authenticated socket when its key expires mid-stream; *confirm with backend/Deepgram during apply*. If it does, session length is still ≤ 45 s + finalization.

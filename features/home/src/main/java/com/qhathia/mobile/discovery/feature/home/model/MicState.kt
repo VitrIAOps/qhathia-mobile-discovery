@@ -14,12 +14,16 @@ sealed interface MicState {
 
     /**
      * Actively recording the consumer's audio. [remainingSeconds] counts down internally from the
-     * recording cap; the UI shows the animated "Escuchando…" label rather than the number.
+     * recording cap (not shown). [liveTranscript] is the text recognized so far: while blank the UI
+     * shows the animated "Escuchando…" label, then the live text replaces it.
      */
-    data class Listening(val remainingSeconds: Int) : MicState
+    data class Listening(val remainingSeconds: Int, val liveTranscript: String = "") : MicState
 
-    /** Audio captured; uploading and awaiting the transcript ("Organizando ideas…"). */
-    data object Transcribing : MicState
+    /**
+     * Recording ended; awaiting the final transcript. [liveTranscript] is the text heard so far (it keeps
+     * updating as late results arrive) and replaces "Organizando ideas…", which is shown only while blank.
+     */
+    data class Transcribing(val liveTranscript: String = "") : MicState
 
     /** The transcript response is taking unusually long ("Está tardando más de lo que esperaba…"). */
     data object SlowResponse : MicState
