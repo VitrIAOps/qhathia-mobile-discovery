@@ -41,7 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
-import com.qhathia.mobile.discovery.core.ui.component.ProcessingMessage
+import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -177,41 +177,67 @@ private fun HeroSection(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (val micState = uiState.micState) {
-            is MicState.Listening -> ProcessingHero(
-                baseText = stringResource(UiR.string.discovery_voice_listening),
-                micContentDescription = stringResource(R.string.home_mic_listening_cd),
-                onMicClick = { onEvent(HomeUiEvent.StopRecording) },
-            )
-            MicState.Transcribing -> ProcessingHero(
-                baseText = stringResource(UiR.string.discovery_voice_organizing),
-                micContentDescription = stringResource(R.string.home_mic_processing_cd),
-                onMicClick = { onEvent(HomeUiEvent.CancelMic) },
-            )
-            MicState.SlowResponse -> ProcessingHero(
-                baseText = stringResource(UiR.string.discovery_voice_slow_response),
-                micContentDescription = stringResource(R.string.home_mic_processing_cd),
-                onMicClick = { onEvent(HomeUiEvent.CancelMic) },
-            )
-            // Idle, NoAudioRetry, Success, and Error all use the same hero layout (headline + mic +
-            // search bar). Error and retry both reactivate voice search via the mic.
+            // One call site for every processing phase, so the heard text stays in place (no reset or
+            // jump) from listening, through waiting for the final transcript, to the hand-off (Success)
+            // while the navigation transition to the search results plays.
+            is MicState.Listening,
+            is MicState.Transcribing,
+            MicState.SlowResponse,
+            is MicState.Success,
+            -> {
+                val isListening = micState is MicState.Listening
+                ProcessingHero(
+                    baseText = stringResource(
+                        when (micState) {
+                            is MicState.Listening -> UiR.string.discovery_voice_listening
+                            MicState.SlowResponse -> UiR.string.discovery_voice_slow_response
+                            else -> UiR.string.discovery_voice_organizing
+                        },
+                    ),
+                    micContentDescription = stringResource(
+                        if (isListening) R.string.home_mic_listening_cd else R.string.home_mic_processing_cd,
+                    ),
+                    onMicClick = {
+                        when (micState) {
+                            is MicState.Listening -> onEvent(HomeUiEvent.StopRecording)
+                            is MicState.Success -> Unit // already navigating to the results
+                            else -> onEvent(HomeUiEvent.CancelMic)
+                        }
+                    },
+                    liveTranscript = when (micState) {
+                        is MicState.Listening -> micState.liveTranscript
+                        is MicState.Transcribing -> micState.liveTranscript
+                        is MicState.Success -> micState.transcript
+                        else -> ""
+                    },
+                )
+            }
+            // Idle, NoAudioRetry, and Error use the same hero layout (headline + mic + search bar).
+            // Error and retry both reactivate voice search via the mic.
             else -> IdleHero(micState = micState, query = uiState.query, onEvent = onEvent)
         }
     }
 }
 
+/**
+ * Mic + processing message. A non-blank [liveTranscript] (the words heard so far) replaces [baseText]
+ * ("Escuchando…" while listening, "Organizando ideas…" while awaiting the final transcript).
+ */
 @Composable
 private fun ProcessingHero(
     baseText: String,
     micContentDescription: String,
     onMicClick: () -> Unit,
+    liveTranscript: String = "",
 ) {
     MicButton(
         isListening = true,
         contentDescription = micContentDescription,
         onClick = onMicClick,
     )
-    ProcessingMessage(
-        baseText = baseText,
+    ListeningMessage(
+        transcript = liveTranscript,
+        listeningText = baseText,
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onBackground,
     )
@@ -313,12 +339,40 @@ private fun HomeContentListeningPreview() {
     }
 }
 
+@Preview(name = "Home live transcript — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentLiveTranscriptLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        HomeContent(
+            uiState = HomeUiState(
+                storeName = "Joyería María",
+                micState = MicState.Listening(40, liveTranscript = "Busco un anillo de oro"),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Home live transcript — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentLiveTranscriptDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        HomeContent(
+            uiState = HomeUiState(
+                storeName = "Joyería María",
+                micState = MicState.Listening(40, liveTranscript = "Busco un anillo de oro"),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
 @Preview(name = "Home transcribing — light", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable
 private fun HomeContentTranscribingPreview() {
     DiscoveryTheme(darkTheme = false) {
         HomeContent(
-            uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Transcribing),
+            uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Transcribing()),
             onEvent = {},
         )
     }

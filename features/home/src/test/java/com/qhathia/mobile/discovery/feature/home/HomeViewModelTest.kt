@@ -7,12 +7,11 @@ import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
-import com.qhathia.mobile.discovery.core.testing.FakeSpeechToTextRepository
+import com.qhathia.mobile.discovery.core.testing.FakeLiveTranscriptionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeStoreSessionRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
-import com.qhathia.mobile.discovery.core.testing.VoiceSearchFixtures
 import com.qhathia.mobile.discovery.feature.home.model.HomeUiEffect
 import com.qhathia.mobile.discovery.feature.home.model.HomeUiEvent
 import com.qhathia.mobile.discovery.feature.home.model.MicState
@@ -39,11 +38,10 @@ class HomeViewModelTest {
     private fun viewModel(
         repository: FakeStoreSessionRepository = FakeStoreSessionRepository(),
         recorder: FakeAudioRecorder = FakeAudioRecorder(),
-        stt: FakeSpeechToTextRepository = FakeSpeechToTextRepository(),
+        stt: FakeLiveTranscriptionRepository = FakeLiveTranscriptionRepository(),
     ) = HomeViewModel(
         observeStoreSession = ObserveStoreSessionUseCase(repository),
-        audioRecorder = recorder,
-        transcribeVoiceSearch = TranscribeVoiceSearchUseCase(stt),
+        runVoiceSearchSession = RunVoiceSearchSessionUseCase(recorder, stt),
     )
 
     @Test
@@ -66,9 +64,45 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun given_listening_when_words_recognized_then_live_transcript_in_listening_state() =
+        runTest(mainDispatcher.dispatcher) {
+            val stt = FakeLiveTranscriptionRepository(partials = listOf("busco", "busco un anillo"))
+            val vm = viewModel(stt = stt)
+
+            vm.onEvent(HomeUiEvent.ActivateMic)
+
+            val micState = vm.uiState.value.micState as MicState.Listening
+            assertEquals("busco un anillo", micState.liveTranscript)
+            vm.onEvent(HomeUiEvent.CancelMic)
+        }
+
+    @Test
+    fun given_listening_when_nothing_recognized_then_live_transcript_is_blank() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(stt = FakeLiveTranscriptionRepository(partials = emptyList()))
+
+            vm.onEvent(HomeUiEvent.ActivateMic)
+
+            assertEquals("", (vm.uiState.value.micState as MicState.Listening).liveTranscript)
+            vm.onEvent(HomeUiEvent.CancelMic)
+        }
+
+    @Test
+    fun given_live_stream_drops_while_listening_then_error_state() =
+        runTest(mainDispatcher.dispatcher) {
+            val stt = FakeLiveTranscriptionRepository(failure = SttException(SttErrorCategory.Network))
+            val vm = viewModel(stt = stt)
+
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            runCurrent()
+
+            assertEquals(MicState.Error(SttErrorCategory.Network), vm.uiState.value.micState)
+        }
+
+    @Test
     fun given_recording_when_stopped_then_transcribes_to_success_and_emits_transcript() =
         runTest(mainDispatcher.dispatcher) {
-            val stt = FakeSpeechToTextRepository(Result.success(VoiceSearchFixtures.result("taladro bosch")))
+            val stt = FakeLiveTranscriptionRepository(finalText = "taladro bosch")
             val vm = viewModel(stt = stt)
 
             vm.uiEffect.test {
@@ -89,7 +123,7 @@ class HomeViewModelTest {
     fun given_silence_after_speech_then_auto_stops_and_transcribes() =
         runTest(mainDispatcher.dispatcher) {
             val recorder = FakeAudioRecorder(level = AudioLevel.Speech)
-            val stt = FakeSpeechToTextRepository(Result.success(VoiceSearchFixtures.result("taladro")))
+            val stt = FakeLiveTranscriptionRepository(finalText = "taladro")
             val vm = viewModel(recorder = recorder, stt = stt)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
@@ -104,7 +138,7 @@ class HomeViewModelTest {
     @Test
     fun given_no_detected_audio_when_input_wait_elapses_then_no_audio_retry() =
         runTest(mainDispatcher.dispatcher) {
-            val recorder = FakeAudioRecorder(recorded = null, level = AudioLevel.Silence)
+            val recorder = FakeAudioRecorder(level = AudioLevel.Silence)
             val vm = viewModel(recorder = recorder)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
@@ -116,7 +150,7 @@ class HomeViewModelTest {
     @Test
     fun given_consecutive_no_audio_then_retry_prompt_varies() =
         runTest(mainDispatcher.dispatcher) {
-            val recorder = FakeAudioRecorder(recorded = null, level = AudioLevel.Silence)
+            val recorder = FakeAudioRecorder(level = AudioLevel.Silence)
             val vm = viewModel(recorder = recorder)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
@@ -133,7 +167,7 @@ class HomeViewModelTest {
     @Test
     fun given_transcription_fails_when_stopped_then_error_state_with_category() =
         runTest(mainDispatcher.dispatcher) {
-            val stt = FakeSpeechToTextRepository(Result.failure(SttException(SttErrorCategory.Network)))
+            val stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Network))
             val vm = viewModel(stt = stt)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
@@ -146,7 +180,7 @@ class HomeViewModelTest {
     @Test
     fun given_error_when_idle_timeout_elapses_then_returns_to_idle() =
         runTest(mainDispatcher.dispatcher) {
-            val stt = FakeSpeechToTextRepository(Result.failure(SttException(SttErrorCategory.Generic)))
+            val stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Generic))
             val vm = viewModel(stt = stt)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
@@ -159,11 +193,8 @@ class HomeViewModelTest {
     @Test
     fun given_slow_transcription_then_shows_slow_response_then_success() =
         runTest(mainDispatcher.dispatcher) {
-            // Transcription takes longer than the 30s slow-response threshold (but within total budget).
-            val stt = FakeSpeechToTextRepository(
-                result = Result.success(VoiceSearchFixtures.result("lámpara")),
-                delayMillis = 40_000,
-            )
+            // The final transcript takes longer than the 30s slow-response threshold (but within budget).
+            val stt = FakeLiveTranscriptionRepository(finalText = "lámpara", finalDelayMillis = 40_000)
             val vm = viewModel(stt = stt)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
@@ -174,6 +205,79 @@ class HomeViewModelTest {
 
             advanceUntilIdle()
             assertEquals(MicState.Success("lámpara"), vm.uiState.value.micState)
+        }
+
+    @Test
+    fun given_recording_ended_then_transcribing_keeps_the_heard_text() =
+        runTest(mainDispatcher.dispatcher) {
+            val stt = FakeLiveTranscriptionRepository(partials = listOf("busco un"), finalDelayMillis = 1_000)
+            val vm = viewModel(stt = stt)
+
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            vm.onEvent(HomeUiEvent.StopRecording)
+
+            assertEquals(MicState.Transcribing("busco un"), vm.uiState.value.micState)
+            vm.onEvent(HomeUiEvent.CancelMic)
+        }
+
+    @Test
+    fun given_results_arrive_after_recording_ends_then_transcribing_shows_them() =
+        runTest(mainDispatcher.dispatcher) {
+            val stt = FakeLiveTranscriptionRepository(
+                partials = emptyList(),
+                latePartials = listOf("amola", "amoladora"),
+                finalText = "amoladora",
+                finalDelayMillis = 1_000,
+            )
+            val vm = viewModel(stt = stt)
+
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            assertEquals("", (vm.uiState.value.micState as MicState.Listening).liveTranscript)
+            vm.onEvent(HomeUiEvent.StopRecording)
+
+            assertEquals(MicState.Transcribing("amoladora"), vm.uiState.value.micState)
+            advanceUntilIdle()
+            assertEquals(MicState.Success("amoladora"), vm.uiState.value.micState)
+        }
+
+    @Test
+    fun given_voice_search_succeeded_then_controls_stay_hidden_during_navigation() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(stt = FakeLiveTranscriptionRepository(finalText = "amoladora"))
+
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            vm.onEvent(HomeUiEvent.StopRecording)
+            advanceUntilIdle()
+
+            assertEquals(MicState.Success("amoladora"), vm.uiState.value.micState)
+            assertFalse(vm.uiState.value.areControlsVisible)
+        }
+
+    @Test
+    fun given_voice_search_succeeded_when_screen_stopped_then_home_is_idle() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(stt = FakeLiveTranscriptionRepository(finalText = "amoladora"))
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            vm.onEvent(HomeUiEvent.StopRecording)
+            advanceUntilIdle()
+
+            vm.onEvent(HomeUiEvent.ScreenStopped)
+
+            assertEquals(MicState.Idle, vm.uiState.value.micState)
+            assertTrue(vm.uiState.value.areControlsVisible)
+        }
+
+    @Test
+    fun given_error_screen_when_screen_stopped_then_error_is_kept() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Network)))
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            vm.onEvent(HomeUiEvent.StopRecording)
+            runCurrent()
+
+            vm.onEvent(HomeUiEvent.ScreenStopped)
+
+            assertEquals(MicState.Error(SttErrorCategory.Network), vm.uiState.value.micState)
         }
 
     @Test

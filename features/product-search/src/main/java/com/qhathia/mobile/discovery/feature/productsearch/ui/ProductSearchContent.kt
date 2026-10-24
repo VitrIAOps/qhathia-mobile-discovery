@@ -52,7 +52,7 @@ import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
-import com.qhathia.mobile.discovery.core.ui.component.ProcessingMessage
+import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
 import com.qhathia.mobile.discovery.core.ui.component.ProductCard
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
@@ -110,8 +110,8 @@ fun ProductSearchContent(
 
                 Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     when (phase) {
-                        ProductSearchPhase.VoiceListening,
-                        ProductSearchPhase.VoiceTranscribing,
+                        is ProductSearchPhase.VoiceListening,
+                        is ProductSearchPhase.VoiceTranscribing,
                         ProductSearchPhase.VoiceSlowResponse,
                         ProductSearchPhase.Searching,
                         ProductSearchPhase.SlowSearch,
@@ -245,8 +245,8 @@ private fun ProcessingBody(
 ) {
     // While listening the mic stops recording on tap; while transcribing it cancels the capture.
     val micOnClick: () -> Unit = when (uiState.phase) {
-        ProductSearchPhase.VoiceListening -> { { onEvent(ProductSearchUiEvent.StopRecording) } }
-        ProductSearchPhase.VoiceTranscribing,
+        is ProductSearchPhase.VoiceListening -> { { onEvent(ProductSearchUiEvent.StopRecording) } }
+        is ProductSearchPhase.VoiceTranscribing,
         ProductSearchPhase.VoiceSlowResponse,
         -> { { onEvent(ProductSearchUiEvent.CancelVoice) } }
         else -> { {} }
@@ -263,7 +263,13 @@ private fun ProcessingBody(
         }
         Spacer(modifier = Modifier.height(Spacing.lg))
         uiState.phase.processingTextRes()?.let { res ->
-            ProcessingMessage(baseText = stringResource(res))
+            // The heard text replaces "Escuchando…" / "Organizando ideas…" as soon as words are recognized.
+            val liveTranscript = when (val phase = uiState.phase) {
+                is ProductSearchPhase.VoiceListening -> phase.liveTranscript
+                is ProductSearchPhase.VoiceTranscribing -> phase.liveTranscript
+                else -> ""
+            }
+            ListeningMessage(transcript = liveTranscript, listeningText = stringResource(res))
         }
     }
 }

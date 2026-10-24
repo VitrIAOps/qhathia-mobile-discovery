@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.feature.home.R
@@ -44,6 +46,11 @@ fun HomeScreen(
         } else {
             Toast.makeText(context, micPermissionDeniedMessage, Toast.LENGTH_LONG).show()
         }
+    }
+
+    // ON_STOP fires once the navigation transition has finished and Home is fully hidden.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        viewModel.onEvent(HomeUiEvent.ScreenStopped)
     }
 
     LaunchedEffect(viewModel) {

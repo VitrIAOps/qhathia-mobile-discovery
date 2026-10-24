@@ -5,20 +5,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
 import com.qhathia.mobile.discovery.core.domain.VoiceSearchConstants
-import com.qhathia.mobile.discovery.core.domain.audio.AudioLevel
-import com.qhathia.mobile.discovery.core.domain.audio.AudioRecorder
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.VoiceSearchSession
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEffect
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEvent
@@ -59,8 +59,7 @@ class ProductSearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val searchProducts: SearchProductsUseCase,
     private val composeSearchQuery: ComposeSearchQueryUseCase,
-    private val audioRecorder: AudioRecorder,
-    private val transcribeVoiceSearch: TranscribeVoiceSearchUseCase,
+    private val runVoiceSearchSession: RunVoiceSearchSessionUseCase,
     observeCart: ObserveCartUseCase,
     private val addToCart: AddToCartUseCase,
 ) : ViewModel() {
@@ -95,11 +94,9 @@ class ProductSearchViewModel @Inject constructor(
     private var slowSearchJob: Job? = null
     private var idleJob: Job? = null
 
+    private var voiceSession: VoiceSearchSession? = null
     private var voiceJob: Job? = null
-    private var transcribeJob: Job? = null
-
-    /** Guards against the listening loop and a user stop both starting transcription. */
-    private var voiceFinishing = false
+    private var voiceSlowResponseJob: Job? = null
 
     /** The phase/source to restore if an in-place voice capture is cancelled or yields no usable input. */
     private var phaseBeforeVoice: ProductSearchPhase? = null
@@ -123,7 +120,7 @@ class ProductSearchViewModel @Inject constructor(
             is ProductSearchUiEvent.QueryChanged -> onQueryChanged(event.query)
             ProductSearchUiEvent.SubmitSearch -> onSubmitSearch()
             ProductSearchUiEvent.ActivateMic -> startVoiceCapture()
-            ProductSearchUiEvent.StopRecording -> beginTranscription()
+            ProductSearchUiEvent.StopRecording -> stopRecording()
             ProductSearchUiEvent.CancelVoice -> cancelVoiceCapture()
             is ProductSearchUiEvent.CartTapped -> onCartTapped(event.productId)
             ProductSearchUiEvent.OpenCart -> openCart()
@@ -181,93 +178,85 @@ class ProductSearchViewModel @Inject constructor(
     // --- In-place voice capture (mirrors the Home STT flow, reusing the shared domain ports) ---
 
     private fun startVoiceCapture() {
+        val previous = voiceJob
         cancelVoiceJobs()
-        voiceFinishing = false
         phaseBeforeVoice = _uiState.value.phase
         sourceBeforeVoice = _uiState.value.source
         cancelTimers()
+        val session = runVoiceSearchSession()
+        voiceSession = session
         voiceJob = viewModelScope.launch {
-            audioRecorder.start()
-            _uiState.update { it.copy(source = SearchSource.Voice, phase = ProductSearchPhase.VoiceListening) }
-
-            val pollMs = VoiceSearchConstants.LEVEL_POLL_INTERVAL_MS
-            val inputWaitMs = VoiceSearchConstants.INPUT_WAIT_SECONDS * ONE_SECOND_MS
-            val maxRecordingMs = VoiceSearchConstants.MAX_RECORDING_SECONDS * ONE_SECOND_MS
-
-            var elapsedMs = 0L
-            var hasSpoken = false
-            var trailingSilenceMs = 0L
-
-            while (true) {
-                delay(pollMs)
-                elapsedMs += pollMs
-                when (audioRecorder.pollLevel()) {
-                    AudioLevel.Speech -> { hasSpoken = true; trailingSilenceMs = 0 }
-                    AudioLevel.Silence -> if (hasSpoken) trailingSilenceMs += pollMs
-                }
-                if (hasSpoken && trailingSilenceMs >= VoiceSearchConstants.SILENCE_AUTO_STOP_MS) {
-                    beginTranscription(); return@launch
-                }
-                if (!hasSpoken && elapsedMs >= inputWaitMs) {
-                    abandonVoiceCapture(); return@launch
-                }
-                if (elapsedMs >= maxRecordingMs) {
-                    beginTranscription(); return@launch
-                }
-            }
+            // The recorder is shared: let a cancelled session release it before this one starts.
+            previous?.join()
+            session.events.collect(::onVoiceEvent)
         }
     }
 
-    private fun beginTranscription() {
-        if (voiceFinishing) return
-        if (_uiState.value.phase != ProductSearchPhase.VoiceListening) return
-        voiceFinishing = true
-        voiceJob?.cancel()
-        voiceJob = null
-        transcribeJob = viewModelScope.launch {
-            val audio = audioRecorder.stop()
-            if (audio == null) {
-                voiceFinishing = false
+    private fun onVoiceEvent(event: VoiceSessionEvent) {
+        when (event) {
+            is VoiceSessionEvent.Listening -> _uiState.update {
+                it.copy(source = SearchSource.Voice, phase = ProductSearchPhase.VoiceListening(event.transcript))
+            }
+            is VoiceSessionEvent.Finalizing -> onVoiceFinalizing(event.transcript)
+            // A successful transcript drives a brand-new in-place search.
+            is VoiceSessionEvent.Transcribed -> {
+                cancelVoiceSlowResponseTimer()
+                performSearch(event.transcript, SearchSource.Voice)
+            }
+            // No speech or an STT error does NOT trigger an alternative search — restore the previous screen.
+            VoiceSessionEvent.NoAudio,
+            is VoiceSessionEvent.Failed,
+            -> {
+                cancelVoiceSlowResponseTimer()
                 restorePreVoicePhase()
-                return@launch
             }
-            _uiState.update { it.copy(phase = ProductSearchPhase.VoiceTranscribing) }
-            val slowJob = launch {
-                delay(VoiceSearchConstants.SLOW_RESPONSE_SECONDS * ONE_SECOND_MS)
-                _uiState.update {
-                    if (it.phase is ProductSearchPhase.VoiceTranscribing) {
-                        it.copy(phase = ProductSearchPhase.VoiceSlowResponse)
-                    } else {
-                        it
-                    }
-                }
-            }
-            val result = transcribeVoiceSearch(audio)
-            slowJob.cancel()
-            voiceFinishing = false
-            result.fold(
-                // A successful transcript drives a brand-new in-place search.
-                onSuccess = { performSearch(it.transcript, SearchSource.Voice) },
-                // STT errors do NOT trigger an alternative search — restore the previous screen.
-                onFailure = { restorePreVoicePhase() },
-            )
         }
     }
 
-    private fun abandonVoiceCapture() {
-        if (voiceFinishing) return
-        voiceFinishing = true
-        transcribeJob = viewModelScope.launch {
-            audioRecorder.stop()
-            voiceFinishing = false
-            restorePreVoicePhase()
+    /**
+     * Recording ended. The first event switches to [ProductSearchPhase.VoiceTranscribing] and starts
+     * the slow-response timer; later ones only refresh the heard text (results keep arriving after the
+     * recording ends). Once the slow-response message is up it stays.
+     */
+    private fun onVoiceFinalizing(transcript: String) {
+        when (_uiState.value.phase) {
+            is ProductSearchPhase.VoiceListening -> {
+                _uiState.update { it.copy(phase = ProductSearchPhase.VoiceTranscribing(transcript)) }
+                startVoiceSlowResponseTimer()
+            }
+            is ProductSearchPhase.VoiceTranscribing ->
+                _uiState.update { it.copy(phase = ProductSearchPhase.VoiceTranscribing(transcript)) }
+            else -> Unit
         }
+    }
+
+    /** The consumer tapped the mic while recording: end the recording now and await the final transcript. */
+    private fun stopRecording() {
+        if (_uiState.value.phase is ProductSearchPhase.VoiceListening) voiceSession?.stop()
+    }
+
+    private fun startVoiceSlowResponseTimer() {
+        cancelVoiceSlowResponseTimer()
+        voiceSlowResponseJob = viewModelScope.launch {
+            delay(VoiceSearchConstants.SLOW_RESPONSE_SECONDS * ONE_SECOND_MS)
+            _uiState.update {
+                if (it.phase is ProductSearchPhase.VoiceTranscribing) {
+                    it.copy(phase = ProductSearchPhase.VoiceSlowResponse)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
+    private fun cancelVoiceSlowResponseTimer() {
+        voiceSlowResponseJob?.cancel()
+        voiceSlowResponseJob = null
     }
 
     private fun cancelVoiceCapture() {
+        // Cancelling the session's collection releases the microphone and closes the live stream.
         cancelVoiceJobs()
-        voiceFinishing = false
-        audioRecorder.cancel()
         restorePreVoicePhase()
     }
 
@@ -280,8 +269,8 @@ class ProductSearchViewModel @Inject constructor(
     private fun cancelVoiceJobs() {
         voiceJob?.cancel()
         voiceJob = null
-        transcribeJob?.cancel()
-        transcribeJob = null
+        voiceSession = null
+        cancelVoiceSlowResponseTimer()
     }
 
     private fun performSearch(query: String, source: SearchSource, isRefinement: Boolean = false) {

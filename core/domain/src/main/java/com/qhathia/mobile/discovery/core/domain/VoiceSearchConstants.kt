@@ -26,13 +26,10 @@ object VoiceSearchConstants {
     /** An idle error screen returns to Home idle after this many seconds. */
     const val ERROR_IDLE_TIMEOUT_SECONDS: Int = 30
 
-    /** Connection establishment budget (technical rule). */
+    /** Connection budget: token request plus the live-connection handshake (technical rule). */
     const val CONNECT_TIMEOUT_MS: Long = 10_000
 
-    /** Audio upload budget (technical rule). */
-    const val UPLOAD_TIMEOUT_MS: Long = 60_000
-
-    /** Transcription response budget (technical rule). */
+    /** Budget for the final transcript after the end of the audio stream (technical rule). */
     const val RESPONSE_TIMEOUT_MS: Long = 120_000
 
     /** End-to-end operation budget enforced as an outer `withTimeout` (technical rule). */

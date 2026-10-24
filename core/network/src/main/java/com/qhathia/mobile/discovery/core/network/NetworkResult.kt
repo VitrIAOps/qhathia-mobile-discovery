@@ -40,7 +40,7 @@ fun <T> Result<T>.toNetworkResult(): NetworkResult<T> = fold(
     },
 )
 
-private fun Throwable.toNetworkErrorKind(): NetworkErrorKind = when (this) {
+internal fun Throwable.toNetworkErrorKind(): NetworkErrorKind = when (this) {
     is HttpRequestTimeoutException,
     is ConnectTimeoutException,
     is SocketTimeoutException,

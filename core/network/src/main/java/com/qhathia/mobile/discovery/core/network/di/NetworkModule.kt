@@ -10,7 +10,7 @@ import io.ktor.client.HttpClient
 import javax.inject.Singleton
 
 /**
- * Provides the singleton Ktor [HttpClient]. The API services ([SttTokenApiService], [DeepgramClient],
+ * Provides the singleton Ktor [HttpClient]. The API services ([SttTokenApiService], [DeepgramLiveClient],
  * [DevicePairingApiService]) are constructor-injected, so they need no explicit `@Provides`.
  */
 @Module

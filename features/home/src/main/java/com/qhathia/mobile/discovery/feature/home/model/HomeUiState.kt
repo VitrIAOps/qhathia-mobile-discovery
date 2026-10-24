@@ -13,21 +13,22 @@ data class HomeUiState(
     val micState: MicState = MicState.Idle,
 ) {
     /**
-     * The search bar and the catalog/settings controls are hidden only while a voice-search attempt
-     * is actively capturing or processing ([MicState.Listening], [MicState.Transcribing],
-     * [MicState.SlowResponse]). They are visible in the resting states — including the error screen,
-     * which mirrors the no-audio-retry layout (headline + mic + search bar).
+     * The search bar and the catalog/settings controls are hidden while a voice-search attempt is
+     * capturing or processing ([MicState.Listening], [MicState.Transcribing], [MicState.SlowResponse])
+     * and while its result is handed off to the search ([MicState.Success]), so the screen does not
+     * flash the idle layout during the navigation transition. They are visible in the resting states —
+     * including the error screen, which mirrors the no-audio-retry layout (headline + mic + search bar).
      */
     val areControlsVisible: Boolean
         get() = when (micState) {
             is MicState.Listening,
-            MicState.Transcribing,
+            is MicState.Transcribing,
             MicState.SlowResponse,
+            is MicState.Success, // the final transcript stays on screen while navigating to the results
             -> false
 
             MicState.Idle,
             is MicState.NoAudioRetry,
-            is MicState.Success,
             is MicState.Error,
             -> true
         }

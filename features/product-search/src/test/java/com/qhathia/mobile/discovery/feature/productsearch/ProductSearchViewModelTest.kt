@@ -7,18 +7,19 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.TranscribeVoiceSearchUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
-import com.qhathia.mobile.discovery.core.testing.FakeSpeechToTextRepository
+import com.qhathia.mobile.discovery.core.testing.FakeLiveTranscriptionRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.core.testing.ProductFixtures
-import com.qhathia.mobile.discovery.core.testing.VoiceSearchFixtures
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEffect
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEvent
@@ -47,14 +48,13 @@ class ProductSearchViewModelTest {
         source: SearchSource = SearchSource.Text,
         repository: FakeProductSearchRepository = FakeProductSearchRepository(),
         recorder: FakeAudioRecorder = FakeAudioRecorder(),
-        stt: FakeSpeechToTextRepository = FakeSpeechToTextRepository(),
+        stt: FakeLiveTranscriptionRepository = FakeLiveTranscriptionRepository(),
         cartRepository: FakeCartRepository = FakeCartRepository(),
     ) = ProductSearchViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_QUERY to query, ARG_SOURCE to source.name)),
         searchProducts = SearchProductsUseCase(repository),
         composeSearchQuery = ComposeSearchQueryUseCase(),
-        audioRecorder = recorder,
-        transcribeVoiceSearch = TranscribeVoiceSearchUseCase(stt),
+        runVoiceSearchSession = RunVoiceSearchSessionUseCase(recorder, stt),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
     )
@@ -207,19 +207,77 @@ class ProductSearchViewModelTest {
     @Test
     fun given_activate_mic_then_listens_in_place_without_navigating() = runTest(mainDispatcher.dispatcher) {
         val recorder = FakeAudioRecorder()
-        val vm = viewModel(recorder = recorder)
+        val vm = viewModel(recorder = recorder, stt = FakeLiveTranscriptionRepository(partials = emptyList()))
 
         vm.onEvent(ProductSearchUiEvent.ActivateMic)
 
-        assertEquals(ProductSearchPhase.VoiceListening, vm.uiState.value.phase)
+        assertEquals(ProductSearchPhase.VoiceListening(liveTranscript = ""), vm.uiState.value.phase)
         assertTrue(recorder.isRecording)
         assertTrue(vm.uiState.value.showProcessingMicAnimation)
+        vm.onEvent(ProductSearchUiEvent.CancelVoice)
     }
+
+    @Test
+    fun given_listening_when_words_recognized_then_live_transcript_in_phase() = runTest(mainDispatcher.dispatcher) {
+        val stt = FakeLiveTranscriptionRepository(partials = listOf("mar", "martillo de"))
+        val vm = viewModel(stt = stt)
+
+        vm.onEvent(ProductSearchUiEvent.ActivateMic)
+
+        assertEquals(ProductSearchPhase.VoiceListening(liveTranscript = "martillo de"), vm.uiState.value.phase)
+        vm.onEvent(ProductSearchUiEvent.CancelVoice)
+    }
+
+    @Test
+    fun given_stt_failure_when_stopped_then_restores_previous_screen_without_search() =
+        runTest(mainDispatcher.dispatcher) {
+            val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(4))))
+            val stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Network))
+            val vm = viewModel(repository = repository, stt = stt) // init settles on Results
+
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+
+            assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+            assertEquals(1, repository.callCount)
+        }
+
+    @Test
+    fun given_slow_final_transcript_then_voice_slow_response_phase() = runTest(mainDispatcher.dispatcher) {
+        val stt = FakeLiveTranscriptionRepository(finalText = "martillo", finalDelayMillis = 40_000)
+        val vm = viewModel(stt = stt)
+
+        vm.onEvent(ProductSearchUiEvent.ActivateMic)
+        vm.onEvent(ProductSearchUiEvent.StopRecording)
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.VoiceTranscribing)
+
+        advanceTimeBy(31_000)
+        assertEquals(ProductSearchPhase.VoiceSlowResponse, vm.uiState.value.phase)
+        vm.onEvent(ProductSearchUiEvent.CancelVoice)
+    }
+
+    @Test
+    fun given_results_arrive_after_recording_ends_then_transcribing_shows_them() =
+        runTest(mainDispatcher.dispatcher) {
+            val stt = FakeLiveTranscriptionRepository(
+                partials = emptyList(),
+                latePartials = listOf("marti", "martillo"),
+                finalText = "martillo",
+                finalDelayMillis = 1_000,
+            )
+            val vm = viewModel(stt = stt)
+
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+
+            assertEquals(ProductSearchPhase.VoiceTranscribing(liveTranscript = "martillo"), vm.uiState.value.phase)
+            vm.onEvent(ProductSearchUiEvent.CancelVoice)
+        }
 
     @Test
     fun given_voice_transcript_when_stop_then_runs_search_in_place() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(4))))
-        val stt = FakeSpeechToTextRepository(Result.success(VoiceSearchFixtures.result("martillo")))
+        val stt = FakeLiveTranscriptionRepository(finalText = "martillo")
         val vm = viewModel(repository = repository, stt = stt)
 
         vm.onEvent(ProductSearchUiEvent.ActivateMic)
@@ -237,7 +295,7 @@ class ProductSearchViewModelTest {
         val vm = viewModel(recorder = recorder) // init settles on Results
 
         vm.onEvent(ProductSearchUiEvent.ActivateMic)
-        assertEquals(ProductSearchPhase.VoiceListening, vm.uiState.value.phase)
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.VoiceListening)
 
         vm.onEvent(ProductSearchUiEvent.CancelVoice)
 
