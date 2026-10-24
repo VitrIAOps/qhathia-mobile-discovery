@@ -18,10 +18,9 @@ object CatalogConstants {
     const val MAX_CATEGORY_ROWS: Int = 2
 
     /**
-     * Predicate for the synthetic "Descuentos" section. The catalog endpoint exposes no discount data,
-     * only [Product.allowDiscountInquiry] ("the consumer may ask about discounts"); the Descuentos
-     * section aggregates products where this is true. This is an approximation of "has an active
-     * discount" — see the change design doc's open question.
+     * Predicate for the synthetic "Descuentos" section: the product has an active discount, i.e. the
+     * server sent a [Product.discountedPrice]. Not [Product.allowDiscountInquiry], which only means
+     * the consumer may ask about one (BUG-013).
      */
-    fun isDiscountCandidate(product: Product): Boolean = product.allowDiscountInquiry
+    fun isDiscountCandidate(product: Product): Boolean = product.discountedPrice != null
 }

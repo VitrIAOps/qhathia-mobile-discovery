@@ -17,7 +17,9 @@ data class CatalogCategoryDto(
 
 /**
  * A product summary inside a catalog category (`ProductSummaryResponse`). `availability` is always
- * `"AVAILABLE"` for this endpoint; `primaryImageUrl` and `brand` are nullable.
+ * `"AVAILABLE"` for this endpoint; `primaryImageUrl` and `brand` are nullable. `discountedPrice` is
+ * the server-computed price with the active discount applied (`null` = no active discount) and
+ * `discountEndsAt` is that discount's ISO-8601 end (Fase 25).
  */
 @Serializable
 data class CatalogProductDto(
@@ -28,6 +30,8 @@ data class CatalogProductDto(
     val price: Double = 0.0,
     val availability: String = "",
     val allowDiscountInquiry: Boolean = false,
+    val discountedPrice: Double? = null,
+    val discountEndsAt: String? = null,
     @SerialName("primaryImageUrl") val primaryImageUrl: String? = null,
     val brand: String? = null,
 )

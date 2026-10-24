@@ -6,7 +6,9 @@ import kotlinx.serialization.Serializable
 /**
  * Response of `GET /api/v1/products/{id}` (the full `ProductResponse`). Only the fields the client
  * renders are modeled; `ignoreUnknownKeys` drops the rest (e.g. `storeId`, `categoryId`, `tags`,
- * `position`, `active`, timestamps).
+ * `position`, `active`, timestamps). `discounts[]` is kept for reference only; the price to show is
+ * `discountedPrice`, the server-computed price with the active discount applied (`null` = no active
+ * discount) and `discountEndsAt` its ISO-8601 end (Fase 25).
  */
 @Serializable
 data class ProductDetailResponseDto(
@@ -18,6 +20,8 @@ data class ProductDetailResponseDto(
     val categoryName: String? = null,
     val media: List<MediaDto> = emptyList(),
     val discounts: List<DiscountDto> = emptyList(),
+    val discountedPrice: Double? = null,
+    val discountEndsAt: String? = null,
 )
 
 @Serializable

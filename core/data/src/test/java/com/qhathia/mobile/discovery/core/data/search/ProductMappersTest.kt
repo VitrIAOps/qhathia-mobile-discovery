@@ -11,6 +11,26 @@ import org.junit.jupiter.api.Test
 class ProductMappersTest {
 
     @Test
+    fun `given result with discount then maps discounted price`() {
+        val product = SearchProductDto(
+            id = "p1",
+            price = 380.0,
+            discountedPrice = 320.0,
+            discountEndsAt = "2026-10-25T05:00:00Z",
+        ).toDomain()
+
+        assertEquals(320.0, product.discountedPrice)
+        assertEquals("2026-10-25T05:00:00Z", product.discountEndsAt)
+    }
+
+    @Test
+    fun `given result without discount then discounted price is null`() {
+        val product = SearchProductDto(id = "p1", price = 380.0).toDomain()
+
+        assertNull(product.discountedPrice)
+    }
+
+    @Test
     fun `given filters and suggestions then maps them to domain`() {
         val dto = ConversationSearchResponseDto(
             understood = true,

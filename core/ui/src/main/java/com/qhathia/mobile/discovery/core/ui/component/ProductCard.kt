@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,12 +41,15 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  * formatted primitives so the card stays reusable.
  *
  * @param name product display name.
- * @param priceText already-formatted price (e.g. "S/ 380.00").
+ * @param priceText already-formatted price the customer pays (e.g. "S/ 380.00"); the discounted price
+ *   when [originalPriceText] is set.
  * @param imageUrl primary image URL (a neutral placeholder shows while empty/loading).
  * @param cartContentDescription localized description for the cart button (required, non-null).
  * @param onCartClick invoked when the cart button is tapped.
  * @param onCardClick invoked when the card surface (outside the cart button) is tapped; when null the
  *   card is not clickable. Kept separate from [onCartClick] so the cart button retains its own tap.
+ * @param originalPriceText already-formatted list price before the discount; when non-null it is shown
+ *   struck through above [priceText], which is highlighted.
  */
 @Composable
 fun ProductCard(
@@ -56,6 +60,7 @@ fun ProductCard(
     onCartClick: () -> Unit,
     modifier: Modifier = Modifier,
     onCardClick: (() -> Unit)? = null,
+    originalPriceText: String? = null,
 ) {
     Surface(
         modifier = modifier
@@ -92,11 +97,25 @@ fun ProductCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = priceText,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                Column {
+                    if (originalPriceText != null) {
+                        Text(
+                            text = originalPriceText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DiscoveryColors.Neutral500,
+                            textDecoration = TextDecoration.LineThrough,
+                        )
+                    }
+                    Text(
+                        text = priceText,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (originalPriceText != null) {
+                            DiscoveryColors.AccentOrange
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                }
                 CartButton(contentDescription = cartContentDescription, onClick = onCartClick)
             }
         }
@@ -149,6 +168,36 @@ private fun ProductCardDarkPreview() {
         ProductCard(
             name = "Lámpara de Pared Vintage",
             priceText = "S/ 89.90",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+        )
+    }
+}
+
+@Preview(name = "ProductCard discounted — light", showBackground = true, backgroundColor = 0xFFF8F8F8)
+@Composable
+private fun ProductCardDiscountedLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductCard(
+            name = "Foco LED Philips Globo E27 13W Luz Cálida",
+            priceText = "S/ 30.90",
+            originalPriceText = "S/ 35.90",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+        )
+    }
+}
+
+@Preview(name = "ProductCard discounted — dark", showBackground = true, backgroundColor = 0xFF0D1F38)
+@Composable
+private fun ProductCardDiscountedDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductCard(
+            name = "Foco LED Philips Globo E27 13W Luz Cálida",
+            priceText = "S/ 30.90",
+            originalPriceText = "S/ 35.90",
             imageUrl = "",
             cartContentDescription = "Agregar al carrito",
             onCartClick = {},

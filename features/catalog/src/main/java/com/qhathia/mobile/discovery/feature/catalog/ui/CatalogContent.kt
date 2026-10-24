@@ -105,7 +105,13 @@ fun CatalogContent(
                     ) { product ->
                         ProductCard(
                             name = product.name,
-                            priceText = stringResource(UiR.string.discovery_price_format, product.price),
+                            priceText = stringResource(
+                                UiR.string.discovery_price_format,
+                                product.discountedPrice ?: product.price,
+                            ),
+                            originalPriceText = product.discountedPrice?.let {
+                                stringResource(UiR.string.discovery_price_format, product.price)
+                            },
                             imageUrl = product.imageUrl,
                             cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                             onCartClick = { onEvent(CatalogUiEvent.CartTapped(product.id)) },
@@ -408,7 +414,7 @@ private fun sampleProduct(id: String, name: String, discount: Boolean = false): 
     availability = "AVAILABLE",
     categoryName = "Iluminación",
     imageUrl = "",
-    allowDiscountInquiry = discount,
+    discountedPrice = if (discount) 320.0 else null,
 )
 
 private fun sampleTabs(): ImmutableList<CatalogTab> = persistentListOf(

@@ -30,6 +30,8 @@ internal fun ProductDetailResponseDto.toDomain(): ProductDetail = ProductDetail(
         .filter { it.mediaType.equals("IMAGE", ignoreCase = true) }
         .sortedWith(compareByDescending(MediaDto::primary).thenBy(MediaDto::position))
         .map { it.toDomain() },
+    discountedPrice = discountedPrice,
+    discountEndsAt = discountEndsAt,
 )
 
 /**
@@ -45,4 +47,6 @@ internal fun SuggestedProductDto.toDomain(): Product = Product(
     categoryName = categoryName,
     imageUrl = primaryImageUrl.orEmpty(),
     allowDiscountInquiry = allowDiscountInquiry,
+    discountedPrice = discountedPrice,
+    discountEndsAt = discountEndsAt,
 )

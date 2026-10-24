@@ -20,6 +20,8 @@ data class ProductSuggestionsResponseDto(
  * A suggested product (`ProductSummaryResponse` — the same shape as `/products` and
  * `/catalog/by-category`). Only the fields the related-products strip renders are modeled;
  * `primaryImageUrl` and `brand` are nullable.
+ * `discountedPrice` is the server-computed price with the active discount applied (`null` = no active
+ * discount) and `discountEndsAt` its ISO-8601 end (Fase 25).
  */
 @Serializable
 data class SuggestedProductDto(
@@ -30,6 +32,8 @@ data class SuggestedProductDto(
     val price: Double = 0.0,
     val availability: String = "",
     val allowDiscountInquiry: Boolean = false,
+    val discountedPrice: Double? = null,
+    val discountEndsAt: String? = null,
     @SerialName("primaryImageUrl") val primaryImageUrl: String? = null,
     val brand: String? = null,
 )

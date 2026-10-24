@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -260,11 +261,7 @@ private fun ProductInfo(
             color = DiscoveryColors.CatalogText,
         )
         StockRow(availability = detail.availability)
-        Text(
-            text = stringResource(UiR.string.discovery_price_format, detail.price),
-            style = MaterialTheme.typography.headlineMedium,
-            color = DiscoveryColors.CatalogText,
-        )
+        DetailPrice(price = detail.price, discountedPrice = detail.discountedPrice)
         DiscoveryDivider()
         Text(
             text = detail.description,
@@ -370,7 +367,13 @@ private fun RelatedProductsSection(
                             ProductRowCard(
                                 name = product.name,
                                 categoryName = product.categoryName,
-                                priceText = stringResource(UiR.string.discovery_price_format, product.price),
+                                priceText = stringResource(
+                                    UiR.string.discovery_price_format,
+                                    product.discountedPrice ?: product.price,
+                                ),
+                                originalPriceText = product.discountedPrice?.let {
+                                    stringResource(UiR.string.discovery_price_format, product.price)
+                                },
                                 imageUrl = product.imageUrl,
                                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                                 onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
@@ -526,9 +529,40 @@ private fun availabilityDisplay(availability: String): Pair<Color, String>? = wh
     else -> null
 }
 
+/**
+ * The detail price. With an active discount the server-computed [discountedPrice] is shown highlighted
+ * and the list [price] struck through next to it; otherwise only [price].
+ */
+@Composable
+private fun DetailPrice(
+    price: Double,
+    discountedPrice: Double?,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            text = stringResource(UiR.string.discovery_price_format, discountedPrice ?: price),
+            style = MaterialTheme.typography.headlineMedium,
+            color = if (discountedPrice != null) DiscoveryColors.AccentOrange else DiscoveryColors.CatalogText,
+        )
+        if (discountedPrice != null) {
+            Text(
+                text = stringResource(UiR.string.discovery_price_format, price),
+                style = MaterialTheme.typography.bodyLarge,
+                color = DiscoveryColors.Neutral500,
+                textDecoration = TextDecoration.LineThrough,
+            )
+        }
+    }
+}
+
 // --- Previews (landscape kiosk) ---
 
-private fun sampleDetail(imageCount: Int): ProductDetail = ProductDetail(
+private fun sampleDetail(imageCount: Int, discountedPrice: Double? = null): ProductDetail = ProductDetail(
     id = "p1",
     name = "Taladro Percutor Bosch GSB 13 RE Professional 12V",
     description = "El Bosch GSB 13 RE Professional es el taladro percutor con cable más compacto y " +
@@ -539,10 +573,11 @@ private fun sampleDetail(imageCount: Int): ProductDetail = ProductDetail(
     availability = "AVAILABLE",
     categoryName = "Taladros",
     images = (0 until imageCount).map { ProductImage("img$it.jpg", it, it == 0) },
+    discountedPrice = discountedPrice,
 )
 
 private fun sampleRelated(): ImmutableList<Product> = listOf(
-    Product("rel1", "Taladro stilson 14\"", "", 380.0, "AVAILABLE", "Taladros", ""),
+    Product("rel1", "Taladro stilson 14\"", "", 380.0, "AVAILABLE", "Taladros", "", discountedPrice = 340.0),
     Product("rel2", "Set de brocas (5 piezas)", "", 49.90, "AVAILABLE", "Accesorios", ""),
     Product("rel3", "Lentes de seguridad", "", 19.90, "AVAILABLE", "Seguridad", ""),
 ).toImmutableList()
@@ -551,8 +586,9 @@ private fun loadedState(
     imageCount: Int,
     related: ProductDetailUiState.RelatedProducts = ProductDetailUiState.RelatedProducts.Loaded(sampleRelated()),
     showCloseConfirmDialog: Boolean = false,
+    discountedPrice: Double? = null,
 ): ProductDetailUiState = ProductDetailUiState(
-    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount)),
+    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice)),
     relatedProducts = related,
     showCloseConfirmDialog = showCloseConfirmDialog,
 )
@@ -570,6 +606,22 @@ private fun DetailLoadedLightPreview() {
 private fun DetailLoadedDarkPreview() {
     DiscoveryTheme(darkTheme = true) {
         ProductDetailContent(uiState = loadedState(imageCount = 4), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail discounted — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailDiscountedLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, discountedPrice = 320.0), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail discounted — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailDiscountedDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, discountedPrice = 320.0), onEvent = {})
     }
 }
 
