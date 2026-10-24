@@ -299,7 +299,13 @@ private fun ResultsBody(
         ) { product ->
             ProductCard(
                 name = product.name,
-                priceText = stringResource(UiR.string.discovery_price_format, product.price),
+                priceText = stringResource(
+                    UiR.string.discovery_price_format,
+                    product.discountedPrice ?: product.price,
+                ),
+                originalPriceText = product.discountedPrice?.let {
+                    stringResource(UiR.string.discovery_price_format, product.price)
+                },
                 imageUrl = product.imageUrl,
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
@@ -552,7 +558,13 @@ private fun UnhappyBody(
                 phase.alternatives.forEach { product ->
                     ProductCard(
                         name = product.name,
-                        priceText = stringResource(UiR.string.discovery_price_format, product.price),
+                        priceText = stringResource(
+                            UiR.string.discovery_price_format,
+                            product.discountedPrice ?: product.price,
+                        ),
+                        originalPriceText = product.discountedPrice?.let {
+                            stringResource(UiR.string.discovery_price_format, product.price)
+                        },
                         imageUrl = product.imageUrl,
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
@@ -670,6 +682,7 @@ private fun sampleProducts(count: Int): List<Product> = (1..count).map {
         availability = "AVAILABLE",
         categoryName = "Taladros",
         imageUrl = "",
+        discountedPrice = if (it <= 2) 320.0 else null,
     )
 }
 

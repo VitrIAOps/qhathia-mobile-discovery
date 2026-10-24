@@ -47,6 +47,12 @@ data class SearchFilterDto(
     val options: List<String> = emptyList(),
 )
 
+/**
+ * A search result product.
+ * `discountedPrice` is the server-computed price with the active discount applied (`null` = no active
+ * discount) and `discountEndsAt` its ISO-8601 end (Fase 25). Not yet documented for
+ * this endpoint, so both default to `null` (full price) until the backend sends them.
+ */
 @Serializable
 data class SearchProductDto(
     val id: String = "",
@@ -57,4 +63,6 @@ data class SearchProductDto(
     val categoryName: String = "",
     @SerialName("primaryImageUrl") val primaryImageUrl: String? = null,
     val relevanceScore: Int = 0,
+    val discountedPrice: Double? = null,
+    val discountEndsAt: String? = null,
 )

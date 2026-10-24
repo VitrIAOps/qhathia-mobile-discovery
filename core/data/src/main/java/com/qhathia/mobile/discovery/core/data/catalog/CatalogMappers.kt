@@ -5,7 +5,7 @@ import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.network.dto.CatalogCategoryDto
 import com.qhathia.mobile.discovery.core.network.dto.CatalogProductDto
 
-/** Maps a catalog product DTO to the domain [Product], carrying `allowDiscountInquiry`. */
+/** Maps a catalog product DTO to the domain [Product], carrying the server-computed discount fields. */
 internal fun CatalogProductDto.toDomain(): Product = Product(
     id = id,
     name = name,
@@ -15,6 +15,8 @@ internal fun CatalogProductDto.toDomain(): Product = Product(
     categoryName = categoryName,
     imageUrl = primaryImageUrl.orEmpty(),
     allowDiscountInquiry = allowDiscountInquiry,
+    discountedPrice = discountedPrice,
+    discountEndsAt = discountEndsAt,
 )
 
 /** Maps a catalog category DTO to the domain [CatalogCategory]. */

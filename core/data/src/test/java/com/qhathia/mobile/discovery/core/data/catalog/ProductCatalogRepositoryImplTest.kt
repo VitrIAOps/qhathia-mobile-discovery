@@ -28,7 +28,15 @@ class ProductCatalogRepositoryImplTest {
             categoryId = "c1",
             categoryName = "Iluminación",
             products = listOf(
-                CatalogProductDto(id = "p1", name = "Lámpara", price = 89.0, availability = "AVAILABLE", allowDiscountInquiry = true),
+                CatalogProductDto(
+                    id = "p1",
+                    name = "Lámpara",
+                    price = 89.0,
+                    availability = "AVAILABLE",
+                    allowDiscountInquiry = true,
+                    discountedPrice = 79.9,
+                    discountEndsAt = "2026-10-25T05:00:00Z",
+                ),
             ),
         ),
     )
@@ -46,6 +54,8 @@ class ProductCatalogRepositoryImplTest {
         val product = categories.first().products.first()
         assertEquals("Lámpara", product.name)
         assertTrue(product.allowDiscountInquiry)
+        assertEquals(79.9, product.discountedPrice!!, 0.0)
+        assertEquals("2026-10-25T05:00:00Z", product.discountEndsAt)
     }
 
     @Test

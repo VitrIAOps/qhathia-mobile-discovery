@@ -16,6 +16,8 @@ internal fun SearchProductDto.toDomain(): Product = Product(
     availability = availability,
     categoryName = categoryName,
     imageUrl = primaryImageUrl.orEmpty(),
+    discountedPrice = discountedPrice,
+    discountEndsAt = discountEndsAt,
 )
 
 /** Maps a search-filter DTO to the domain [SearchFilter]. */

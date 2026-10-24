@@ -13,15 +13,25 @@ object CatalogFixtures {
     ): CatalogCategory = CatalogCategory(id = id, name = name, products = products)
 
     /**
-     * Two categories; [discounted] controls how many products across the catalog have
-     * `allowDiscountInquiry == true` (used to exercise the Descuentos section).
+     * Two categories; [discounted] controls how many products across the catalog have an active
+     * discount (`discountedPrice != null`), used to exercise the Descuentos section. The electric
+     * products allow a discount inquiry but have no discount, so they must stay out of Descuentos.
      */
     fun catalog(discounted: Int = 2): List<CatalogCategory> {
         val lighting = (1..3).map {
-            ProductFixtures.product(id = "l$it", name = "Lámpara $it", allowDiscountInquiry = it <= discounted)
+            ProductFixtures.product(
+                id = "l$it",
+                name = "Lámpara $it",
+                discountedPrice = if (it <= discounted) 300.0 else null,
+            )
         }
         val electric = (1..2).map {
-            ProductFixtures.product(id = "e$it", name = "Interruptor $it", categoryName = "Eléctrico")
+            ProductFixtures.product(
+                id = "e$it",
+                name = "Interruptor $it",
+                categoryName = "Eléctrico",
+                allowDiscountInquiry = true,
+            )
         }
         return listOf(
             category(id = "c1", name = "Iluminación", products = lighting),

@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,51 +61,61 @@ fun DiscoverySearchBar(
     // the user taps the field.
     val focusEater = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusEater.requestFocus() }
-    Row(
-        modifier = modifier
-            .heightIn(min = 49.dp)
-            .background(color = Color.White, shape = shape)
-            .border(width = 1.dp, color = DiscoveryColors.SearchBorder, shape = shape)
-            .padding(horizontal = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Search,
-            contentDescription = searchIconContentDescription,
-            tint = DiscoveryColors.Neutral500,
-            modifier = Modifier.size(24.dp),
-        )
-        Box(
+    Box(modifier = modifier) {
+        // Invisible target that absorbs the initial focus instead of the text field below.
+        Spacer(
             modifier = Modifier
-                .padding(start = Spacing.sm)
-                .weight(1f),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            // Invisible target that absorbs the initial focus instead of the text field below.
-            Spacer(
-                modifier = Modifier
-                    .size(1.dp)
-                    .focusRequester(focusEater)
-                    .focusable(),
-            )
-            if (query.isEmpty()) {
-                Text(
-                    text = placeholder,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = DiscoveryColors.Neutral500,
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = LocalTextStyle.current.merge(
-                    MaterialTheme.typography.bodyMedium.copy(color = DiscoveryColors.Blue800),
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-            )
-        }
+                .size(1.dp)
+                .focusRequester(focusEater)
+                .focusable(),
+        )
+        // The whole pill is the text field (decorated via decorationBox), so tapping anywhere on
+        // it — icon, placeholder or empty space — focuses the field and opens the keyboard.
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 49.dp)
+                .background(color = Color.White, shape = shape)
+                .border(width = 1.dp, color = DiscoveryColors.SearchBorder, shape = shape),
+            singleLine = true,
+            textStyle = LocalTextStyle.current.merge(
+                MaterialTheme.typography.bodyMedium.copy(color = DiscoveryColors.Blue800),
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = 49.dp)
+                        .padding(horizontal = Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = searchIconContentDescription,
+                        tint = DiscoveryColors.Neutral500,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(start = Spacing.sm)
+                            .weight(1f),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (query.isEmpty()) {
+                            Text(
+                                text = placeholder,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = DiscoveryColors.Neutral500,
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            },
+        )
     }
 }
 
