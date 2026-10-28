@@ -1,0 +1,4 @@
+10-28 05:14:54.542  7981  7999 D KtorClient: REQUEST: http://87.99.156.164/api/v1/stt/token
+10-28 05:14:55.107  7981  7981 D KtorClient: FROM: http://87.99.156.164/api/v1/stt/token
+10-28 05:14:55.107  7981  7981 D KtorClient: {"token":"<MASKED-BY-QA, was plain text in logcat>","expiresIn":60,"provider":"deepgram","issuedAt":"2026-10-28T05:11:08.940162371Z"}
+10-28 05:34:14.554 10830 11556 D KtorClient: {"customerName":"<name plain in logcat>","customerPhone":"9XXXXXXXX (plain in logcat)","items":[{"productId":"09668689-a0cb-4d2b-ab84-1dbaa41e0f2a","quantity":1}]}

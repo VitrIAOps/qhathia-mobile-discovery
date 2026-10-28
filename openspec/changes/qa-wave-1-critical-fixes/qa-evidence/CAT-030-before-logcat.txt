@@ -1,0 +1,5 @@
+10-28 05:14:01.996  7981  8000 D KtorClient: REQUEST: http://87.99.156.164/api/v1/conversations/search
+10-28 05:14:01.996  7981  8000 D KtorClient: {"transcribedText":"","language":"es"}
+10-28 05:14:02.238  7981  7981 D KtorClient: RESPONSE: 422 
+10-28 05:14:02.238  7981  7981 D KtorClient: FROM: http://87.99.156.164/api/v1/conversations/search
+10-28 05:14:02.238  7981  7981 D KtorClient: {"type":"/errors/validation-error","title":"Validation Error","status":422,"detail":"Validation failed","instance":"/api/v1/conversations/search","errorCode":"VALIDATION_ERROR","timestamp":"2026-10-28T05:10:16.073592512Z","fieldErrors":{"transcribedText":"transcribedText must not be blank"}}
