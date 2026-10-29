@@ -108,8 +108,8 @@
 
 ## 11. Verification (QA by Claude)
 
-- [ ] 11.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green; fix any regression in existing tests.
-- [ ] 11.2 `./gradlew lint assembleDebug assembleProfile` green.
+- [x] 11.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green; fix any regression in existing tests.
+- [x] 11.2 `./gradlew lint assembleDebug assembleProfile` green.
 - [ ] 11.3 Emulator QA (`profile` APK on `Medium_Tablet` API 26 and the API 36 tablet AVD), automated with adb (uiautomator dump, screenshots, logcat). Per case:
   - Landscape: on both AVDs, on every screen (onboarding, pairing, Home, catalog, search, detail, cart, settings), set `user_rotation 0` / `2` with auto-rotate off and on → still landscape (`dumpsys window | grep -i rotation` + screenshot), and the activity is not recreated (no new `onCreate` in logcat).
   - Pairing (no approval needed): a code on screen for more than 90 s → the socket is still open or reconnected (logcat), zero calls to `/token` while waiting; `svc wifi disable` / `enable` → immediate reconnect, same code.
