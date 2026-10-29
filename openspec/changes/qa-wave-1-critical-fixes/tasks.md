@@ -94,8 +94,9 @@
 
 ## 9. Log redaction (D10): RED-060 (app side)
 
-- [ ] 9.1 `LogRedactor` in `core:network` plus `sanitizeHeader(Authorization)` in `KtorClientFactory`.
-- [ ] 9.2 Unit tests (including `exitPinHash`): masks each listed field in requests and responses, keeps the other fields, and leaves non-JSON bodies unchanged.
+- [x] 9.1 `LogRedactor` in `core:network` plus `sanitizeHeader(Authorization)` in `KtorClientFactory`.
+- [x] 9.2 Unit tests (including `exitPinHash`): masks each listed field in requests and responses, keeps the other fields, and leaves non-JSON bodies unchanged.
+  - Done 2026-10-29. `LogRedactor` (internal, `core:network`) masks string, number, boolean and null values of the listed members, including escaped quotes and pretty-printed JSON, and leaves fields that only contain a listed name (`tokenExpiresAt`, `phoneVerified`) alone. Every logged line goes through it; `sanitizeHeader` masks `Authorization`. The field list is pinned by a test. Checked in logcat in 11.3.
 
 ## 10. Landscape only (D12): business rule, VIN-030, VIN-052, CAT-027, DET-024, CAR-048
 

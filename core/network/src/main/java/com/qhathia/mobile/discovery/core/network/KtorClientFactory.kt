@@ -11,6 +11,7 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -54,12 +55,15 @@ internal object KtorClientFactory {
         }
         if (enableLogging) {
             install(Logging) {
+                // Personal data and secrets never reach logcat (design D10, RED-060). The level stays
+                // BODY so QA still sees the shape of each call.
                 logger = object : Logger {
                     override fun log(message: String) {
-                        Log.d("KtorClient", message)
+                        Log.d("KtorClient", LogRedactor.redact(message))
                     }
                 }
                 level = LogLevel.BODY
+                sanitizeHeader { header -> header == HttpHeaders.Authorization }
             }
         }
     }
