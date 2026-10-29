@@ -100,10 +100,11 @@
 
 ## 10. Landscape only (D12): business rule, VIN-030, VIN-052, CAT-027, DET-024, CAR-048
 
-- [ ] 10.1 `app/AndroidManifest.xml`: `android:screenOrientation="landscape"` on `MainActivity` and `RestartActivity`.
-- [ ] 10.2 `<application>`: `<property android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY" android:value="true" />` with a comment saying the opt-out ends at target SDK 37.
-- [ ] 10.3 `docs/android/tablet-kiosk-setup.md`: turn auto-rotate off and set landscape on the device (UI steps and `adb shell settings put system accelerometer_rotation 0` / `user_rotation 1`), plus the target-SDK-37 note.
-- [ ] 10.4 Update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md`: the portrait cases move out of wave 3 (closed by the rule).
+- [x] 10.1 `app/AndroidManifest.xml`: `android:screenOrientation="landscape"` on `MainActivity` and `RestartActivity`.
+- [x] 10.2 `<application>`: `<property android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY" android:value="true" />` with a comment saying the opt-out ends at target SDK 37.
+- [x] 10.3 `docs/android/tablet-kiosk-setup.md`: turn auto-rotate off and set landscape on the device (UI steps and `adb shell settings put system accelerometer_rotation 0` / `user_rotation 1`), plus the target-SDK-37 note.
+- [x] 10.4 Update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md`: the portrait cases move out of wave 3 (closed by the rule).
+  - Done 2026-10-29. `RestartActivity` was already landscape (group 6). Both activities carry `tools:ignore="DiscouragedApi,LockedOrientationActivity"` for lint. Checked in the merged `profile` manifest (property and both orientations present). The handoff table has no wave sections, so the four portrait rows are marked closed in place, with a note above the table; the rotation part of VIN-030 also goes away, and the rest of it is D6. Emulator rotation checks (API 26 and API 36) are in 11.3.
 
 ## 11. Verification (QA by Claude)
 

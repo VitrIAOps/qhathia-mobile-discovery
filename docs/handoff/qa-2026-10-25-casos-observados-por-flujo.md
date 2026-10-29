@@ -2,6 +2,8 @@
 
 Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v2)*. Se incluyen los casos con hallazgo (✖ falló, △ menor, ◐ parcial con hallazgo, ✔ con anotación) y los exploratorios (EXP-). Los IDs agrupados comparten un mismo hallazgo.
 
+> **Regla de negocio, 2026-10-29:** la app se usa solo en horizontal (`qa-wave-1-critical-fixes`, D12). Los casos de diseño en vertical (VIN-052, CAT-027, DET-024, CAR-048) quedan cerrados por la regla y salen de la ola 3. La rotación de VIN-030 desaparece con la misma regla; el resto de VIN-030 (código regenerado al recrear la pantalla) se corrige en la ola 1 (D6).
+
 | Flujo | Caso(s) | Sev. | Qué se observó | Lado |
 |---|---|---|---|---|
 | **01 · Vinculación** | VIN-031 | CRÍTICO | El WebSocket de vinculación se cierra siempre a los 61 s; si el comercio aprueba después, la tablet nunca se vincula y no avisa. | Front + Backend |
@@ -11,7 +13,7 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | | VIN-024 · EXP-002 (vinc.) | MEDIO | Toques rápidos en "Generar nuevo código" terminan en el error falso "No se pudo generar…". | Front |
 | | VIN-003 | BAJO | Home muestra "TIENDA" en lugar del nombre del comercio. | Front |
 | | VIN-011 | BAJO | El backend no acepta el código de vinculación en minúsculas (400 INVALID_PAIRING_TOKEN). | Backend |
-| | VIN-052 | BAJO | En vertical el 5.º recuadro del código queda recortado. | Front |
+| | VIN-052 | BAJO | En vertical el 5.º recuadro del código queda recortado. **Cerrado por la regla de solo horizontal (`qa-wave-1-critical-fixes`, D12); sale de la ola 3.** | Front |
 | | VIN-070 (◐) · EXP-005 (vinc.) | BAJO | Button clicable sin texto junto a "Volver" y "Generar nuevo código"; el código se expone como 5 TextView sueltos. | Front |
 | | EXP-003 (vinc.) | BAJO | Antes de vincular, la pantalla se apaga a los 60 s mientras se muestra el código. | Front |
 | | EXP-004 (vinc.) | BAJO | El permiso de micrófono se pide en el primer arranque, sobre Welcome. | Front |
@@ -27,7 +29,7 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | | EXP-005 | BAJO | Al volver por el historial, los chips aparecen desmarcados aunque los resultados están filtrados. | Front |
 | **04 · Catálogo** | CAT-030 · VOZ-009 | ALTO | El micrófono del Catálogo manda una búsqueda vacía (422) sin escuchar y a los 30 s vuelve a Home. | Front |
 | | CAT-024 · CAT-025 | MEDIO | "Volver" y Atrás del sistema con ítems en el carrito no hacen lo mismo. | Front |
-| | CAT-027 | BAJO | En vertical se recortan las pestañas. | Front |
+| | CAT-027 | BAJO | En vertical se recortan las pestañas. **Cerrado por la regla de solo horizontal (D12); sale de la ola 3.** | Front |
 | **05 · Detalle de producto** | DET-032 | CRÍTICO | Compartir con status FAILED (WhatsApp no entregado) se muestra como éxito. | Infra + Front + Backend |
 | | DET-031 | ALTO | Compartir un producto con descuento: el PDF usa el precio lleno, no el que vio el cliente. | Backend (B-01) + Front |
 | | DET-013 | ALTO | Un producto inactivo abre igual y se deja agregar. | Front + Backend (B-14) |
@@ -35,7 +37,7 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | | DET-012 | MEDIO | Un relacionado con descuento se muestra y se cobra a precio lleno. | Backend (B-02) + Front |
 | | DET-021 · DET-022 | MEDIO | Doble toque en relacionado y "Volver" rápido ×3 apilan/duplican pantallas. | Front |
 | | DET-004 | BAJO | El stepper no vuelve a 1 tras "Agregar"; el segundo toque suma otra vez (3 + 3 = 6) sin aviso. | Front |
-| | DET-024 | BAJO | En vertical se recortan los botones del Detalle. | Front |
+| | DET-024 | BAJO | En vertical se recortan los botones del Detalle. **Cerrado por la regla de solo horizontal (D12); sale de la ola 3.** | Front |
 | | DET-063 · DET-062 | BAJO | Imagen rota o producto sin foto: área en blanco, sin placeholder. | Front |
 | | DET-080 | BAJO | Las miniaturas no tienen etiqueta de accesibilidad. | Front |
 | **06 · Carrito, pedido y cotización** | CAR-007 · CAR-032 | CRÍTICO | Ningún WhatsApp se entrega (Meta #133010 *Account not registered*), pero la tablet siempre dice "Revisa tu celular…" / "¡Cotización enviada!". | Infra + Front + Backend |
@@ -49,7 +51,7 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | | CAR-043 · CAR-044 | MEDIO | Los diálogos se cierran con la petición en curso y la pantalla de éxito queda colgada. | Front |
 | | CAR-014 | BAJO | El celular acepta letras (teclado no numérico, a diferencia del Detalle). | Front |
 | | CAR-031 | BAJO | "Compartir" se ve habilitado con el formulario vacío y no hace nada. | Front |
-| | CAR-048 | BAJO | En vertical se recorta el precio del carrito. | Front |
+| | CAR-048 | BAJO | En vertical se recorta el precio del carrito. **Cerrado por la regla de solo horizontal (D12); sale de la ola 3.** | Front |
 | | CAR-080 | BAJO | Los EditText del carrito y del diálogo Compartir no exponen hint ni etiqueta. | Front |
 | **07 · Ajustes** | AJU-011 | ALTO | El PIN de Ajustes no tiene límite de intentos (50 fallidos seguidos). | Front |
 | | AJU-031 · AJU-050 | MEDIO | Sin red, Vincular muestra un error de código incorrecto y "Reintentar" genera un código en una tablet ya vinculada. | Front |
