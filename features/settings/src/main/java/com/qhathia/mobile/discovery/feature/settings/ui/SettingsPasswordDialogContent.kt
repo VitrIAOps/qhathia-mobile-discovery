@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.settings.ui
 
+import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
  * digits are entered (at least four), and a numeric keypad (1–9, 0, confirm, backspace). The keypad
  * feeds digits up through [SettingsUiEvent.PasswordChanged]; confirm sends
  * [SettingsUiEvent.SubmitPassword] (enabled from 4 digits) and the 6th digit validates automatically.
+ * After too many wrong PINs the keypad is disabled and the time left on the lock is shown (design D9).
  */
 @Composable
 fun SettingsPasswordDialogContent(
@@ -66,7 +68,9 @@ fun SettingsPasswordDialogContent(
                 pinLength = uiState.passwordInput.length,
                 dotCount = uiState.pinDotCount,
                 isError = uiState.showError,
-                isInputEnabled = !uiState.isValidating,
+                isInputEnabled = uiState.isInputEnabled,
+                isLocked = uiState.isLocked,
+                lockedMinutesLeft = uiState.lockedMinutesLeft,
                 isSubmitEnabled = uiState.isSubmitEnabled,
                 onSubmit = { onEvent(SettingsUiEvent.SubmitPassword) },
                 onDigit = { digit ->
@@ -126,6 +130,8 @@ private fun Keypad(
     dotCount: Int,
     isError: Boolean,
     isInputEnabled: Boolean,
+    isLocked: Boolean,
+    lockedMinutesLeft: Long?,
     isSubmitEnabled: Boolean,
     onSubmit: () -> Unit,
     onDigit: (String) -> Unit,
@@ -141,28 +147,35 @@ private fun Keypad(
 
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             KeyRow {
-                DigitKey("1", digit)
-                DigitKey("2", digit)
-                DigitKey("3", digit)
+                DigitKey("1", digit, enabled = !isLocked)
+                DigitKey("2", digit, enabled = !isLocked)
+                DigitKey("3", digit, enabled = !isLocked)
             }
             KeyRow {
-                DigitKey("4", digit)
-                DigitKey("5", digit)
-                DigitKey("6", digit)
+                DigitKey("4", digit, enabled = !isLocked)
+                DigitKey("5", digit, enabled = !isLocked)
+                DigitKey("6", digit, enabled = !isLocked)
             }
             KeyRow {
-                DigitKey("7", digit)
-                DigitKey("8", digit)
-                DigitKey("9", digit)
+                DigitKey("7", digit, enabled = !isLocked)
+                DigitKey("8", digit, enabled = !isLocked)
+                DigitKey("9", digit, enabled = !isLocked)
             }
             KeyRow {
                 ConfirmKey(enabled = isSubmitEnabled, onSubmit = onSubmit)
-                DigitKey("0", digit)
-                BackspaceKey(backspace)
+                DigitKey("0", digit, enabled = !isLocked)
+                BackspaceKey(backspace, enabled = !isLocked)
             }
         }
 
-        if (isError) {
+        if (isLocked && lockedMinutesLeft != null) {
+            Text(
+                text = stringResource(R.string.settings_password_locked, formatHoursMinutes(lockedMinutesLeft)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+            )
+        } else if (isError) {
             Text(
                 text = stringResource(R.string.settings_password_error),
                 style = MaterialTheme.typography.bodySmall,
@@ -205,23 +218,23 @@ private fun KeyRow(content: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-private fun RowScope.DigitKey(digit: String, onDigit: (String) -> Unit) {
-    KeyCell(onClick = { onDigit(digit) }) {
+private fun RowScope.DigitKey(digit: String, onDigit: (String) -> Unit, enabled: Boolean = true) {
+    KeyCell(onClick = { onDigit(digit) }, enabled = enabled) {
         Text(
             text = digit,
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else DISABLED_ALPHA),
         )
     }
 }
 
 @Composable
-private fun RowScope.BackspaceKey(onBackspace: () -> Unit) {
-    KeyCell(onClick = onBackspace) {
+private fun RowScope.BackspaceKey(onBackspace: () -> Unit, enabled: Boolean = true) {
+    KeyCell(onClick = onBackspace, enabled = enabled) {
         Icon(
             painter = painterResource(R.drawable.ic_backspace),
             contentDescription = stringResource(R.string.settings_pin_backspace_cd),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else DISABLED_ALPHA),
             modifier = Modifier.size(28.dp),
         )
     }
@@ -258,6 +271,11 @@ private fun RowScope.KeyCell(onClick: () -> Unit, enabled: Boolean = true, conte
     }
 }
 
+/** Time left on the lock as "HH:mm" (e.g. 1439 → "23:59"). */
+private fun formatHoursMinutes(totalMinutes: Long): String =
+    String.format(Locale.ROOT, "%02d:%02d", totalMinutes / MINUTES_PER_HOUR, totalMinutes % MINUTES_PER_HOUR)
+
+private const val MINUTES_PER_HOUR = 60L
 private val KEY_HEIGHT = 56.dp
 private const val DISABLED_ALPHA = 0.38f
 
@@ -303,6 +321,36 @@ private fun SettingsPasswordConfirmDarkPreview() {
 @Composable
 private fun SettingsPasswordErrorPreview() {
     DiscoveryTheme(darkTheme = false) {
+        SettingsPasswordDialogContent(uiState = SettingsUiState(showError = true), onEvent = {})
+    }
+}
+
+@Preview(name = "Settings PIN — locked (light)", showBackground = true, widthDp = 360)
+@Composable
+private fun SettingsPasswordLockedLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        SettingsPasswordDialogContent(
+            uiState = SettingsUiState(isResolvingAccess = false, lockedMinutesLeft = 23 * 60 + 59),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Settings PIN — locked (dark)", showBackground = true, widthDp = 360)
+@Composable
+private fun SettingsPasswordLockedDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        SettingsPasswordDialogContent(
+            uiState = SettingsUiState(isResolvingAccess = false, lockedMinutesLeft = 75),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Settings PIN — error (dark)", showBackground = true, widthDp = 360)
+@Composable
+private fun SettingsPasswordErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
         SettingsPasswordDialogContent(uiState = SettingsUiState(showError = true), onEvent = {})
     }
 }

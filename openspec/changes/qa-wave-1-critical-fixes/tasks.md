@@ -79,10 +79,10 @@
 
 ## 8. Settings PIN lockout (D9): AJU-011
 
-- [ ] 8.1 `core:domain`: `SettingsConstants.PIN_MAX_ATTEMPTS = 5` and `PIN_LOCK_DURATION = 24.hours`; `SettingsPinAttemptsRepository` port; `RegisterPinFailureUseCase`, `ResetPinAttemptsUseCase`, `ObservePinLockUseCase` (state: attempts left / locked with time left), with a `Clock` injected for tests.
-- [ ] 8.2 `core:data`: DataStore implementation (`failedCount`, `lockedAt`, `pinFingerprint`); clear the lock when the remote settings bring a different PIN fingerprint (hash, never the PIN itself) or remove the PIN.
-- [ ] 8.3 `SettingsViewModel` / PIN dialog: keypad disabled while locked; "Demasiados intentos. Podrás intentarlo de nuevo en HH:mm h" refreshed every minute; only wrong PINs count; new strings and previews (locked / not locked).
-- [ ] 8.4 Unit tests (test clock):
+- [x] 8.1 `core:domain`: `SettingsConstants.PIN_MAX_ATTEMPTS = 5` and `PIN_LOCK_DURATION = 24.hours`; `SettingsPinAttemptsRepository` port; `RegisterPinFailureUseCase`, `ResetPinAttemptsUseCase`, `ObservePinLockUseCase` (state: attempts left / locked with time left), with a `Clock` injected for tests.
+- [x] 8.2 `core:data`: DataStore implementation (`failedCount`, `lockedAt`, `pinFingerprint`); clear the lock when the remote settings bring a different PIN fingerprint (hash, never the PIN itself) or remove the PIN.
+- [x] 8.3 `SettingsViewModel` / PIN dialog: keypad disabled while locked; "Demasiados intentos. Podrás intentarlo de nuevo en HH:mm h" refreshed every minute; only wrong PINs count; new strings and previews (locked / not locked).
+- [x] 8.4 Unit tests (test clock):
   - 4 failures → not locked; the 5th → locked for 24 h.
   - 23 h 59 m → still locked; 24 h → unlocked with 5 attempts.
   - A success after 3 failures resets the count.
@@ -90,6 +90,7 @@
   - Clock moved back → still locked from the new time.
   - Remote PIN changed or removed → lock cleared.
   - Network error → not counted.
+  - Done 2026-10-29. The rules live in `PinLockPolicy` (internal to `core:domain`), shared by the three use cases. `ObservePinLockUseCase` re-emits every minute while locked (`SettingsConstants.PIN_LOCK_REFRESH_INTERVAL`) and clears the stored lock once 24 h have passed. The fingerprint is a SHA-256 of the stored bcrypt hash, written with every attempt; the lock is lifted lazily: when the current PIN hash no longer matches (new PIN or removed), the attempts read as none, so no hook in the settings sync is needed. Failures while already locked are not counted again and do not extend the lock. The time left is rounded up to whole minutes (never "00:00" while locked). A check that could not run still shows "PIN incorrecto" but is not counted. `java.time.Clock` is provided by `ClockDataModule`; tests use the new `MutableClock` in `core:testing`. The "new instance" data test reads a copy of the DataStore file, because DataStore forbids two live stores on one file.
 
 ## 9. Log redaction (D10): RED-060 (app side)
 

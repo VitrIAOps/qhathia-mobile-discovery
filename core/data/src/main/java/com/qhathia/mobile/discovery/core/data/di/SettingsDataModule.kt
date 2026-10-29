@@ -2,15 +2,20 @@ package com.qhathia.mobile.discovery.core.data.di
 
 import com.qhathia.mobile.discovery.core.data.settings.DeviceSettingsRepositoryImpl
 import com.qhathia.mobile.discovery.core.data.settings.SettingsAccessRepositoryImpl
+import com.qhathia.mobile.discovery.core.data.settings.SettingsPinAttemptsRepositoryImpl
 import com.qhathia.mobile.discovery.core.domain.repository.DeviceSettingsRepository
 import com.qhathia.mobile.discovery.core.domain.repository.SettingsAccessRepository
+import com.qhathia.mobile.discovery.core.domain.repository.SettingsPinAttemptsRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-/** Binds the settings-access repository (exit PIN validation) and the remote device settings repository. */
+/**
+ * Binds the settings-access repository (exit PIN validation), its wrong-attempt store, and the remote
+ * device settings repository.
+ */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class SettingsDataModule {
@@ -20,6 +25,12 @@ abstract class SettingsDataModule {
     abstract fun bindSettingsAccessRepository(
         impl: SettingsAccessRepositoryImpl,
     ): SettingsAccessRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSettingsPinAttemptsRepository(
+        impl: SettingsPinAttemptsRepositoryImpl,
+    ): SettingsPinAttemptsRepository
 
     @Binds
     @Singleton

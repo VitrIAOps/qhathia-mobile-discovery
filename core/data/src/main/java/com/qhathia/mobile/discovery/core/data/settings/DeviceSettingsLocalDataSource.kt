@@ -28,6 +28,9 @@ class DeviceSettingsLocalDataSource @Inject constructor(
 
     suspend fun exitPinHash(): String? = dataStore.data.first()[KEY_EXIT_PIN_HASH]
 
+    /** The stored exit PIN hash, again whenever the remote settings change it. */
+    fun observeExitPinHash(): Flow<String?> = dataStore.data.map { it[KEY_EXIT_PIN_HASH] }
+
     suspend fun save(stored: Stored) {
         val settings = stored.settings
         dataStore.edit { preferences ->

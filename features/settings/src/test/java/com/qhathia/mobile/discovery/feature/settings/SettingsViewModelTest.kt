@@ -1,15 +1,23 @@
 package com.qhathia.mobile.discovery.feature.settings
 
 import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.model.PinAttempts
 import com.qhathia.mobile.discovery.core.domain.usecase.IsSettingsPinRequiredUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObservePinLockUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RegisterPinFailureUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ResetPinAttemptsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateSettingsPasswordUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeSettingsAccessRepository
+import com.qhathia.mobile.discovery.core.testing.FakeSettingsPinAttemptsRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
+import com.qhathia.mobile.discovery.core.testing.MutableClock
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEffect
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
 import com.qhathia.mobile.discovery.feature.settings.ui.SettingsViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -27,16 +35,25 @@ class SettingsViewModelTest {
     private val sixDigitPin = "246810"
     private val fourDigitPin = "2468"
 
+    private val attempts = FakeSettingsPinAttemptsRepository()
+    private val clock = MutableClock { mainDispatcher.dispatcher.scheduler.currentTime }
+
+    private fun newViewModel(repository: FakeSettingsAccessRepository) = SettingsViewModel(
+        validateSettingsPassword = ValidateSettingsPasswordUseCase(repository),
+        isSettingsPinRequired = IsSettingsPinRequiredUseCase(repository),
+        observePinLock = ObservePinLockUseCase(attempts, clock),
+        registerPinFailure = RegisterPinFailureUseCase(attempts, clock),
+        resetPinAttempts = ResetPinAttemptsUseCase(attempts),
+    )
+
     private fun viewModel(repository: FakeSettingsAccessRepository = FakeSettingsAccessRepository(password = sixDigitPin)) =
-        SettingsViewModel(ValidateSettingsPasswordUseCase(repository), IsSettingsPinRequiredUseCase(repository))
-            .also { it.onEvent(SettingsUiEvent.Reset) }
+        newViewModel(repository).also { it.onEvent(SettingsUiEvent.Reset) }
+
+    private fun SettingsViewModel.enterWrongPin() = onEvent(SettingsUiEvent.PasswordChanged("000000"))
 
     @Test
     fun given_no_pin_set_when_opened_then_unlocks_without_dialog() = runTest(mainDispatcher.dispatcher) {
-        val vm = SettingsViewModel(
-            ValidateSettingsPasswordUseCase(FakeSettingsAccessRepository(pinRequired = false)),
-            IsSettingsPinRequiredUseCase(FakeSettingsAccessRepository(pinRequired = false)),
-        )
+        val vm = newViewModel(FakeSettingsAccessRepository(pinRequired = false))
 
         vm.uiEffect.test {
             vm.onEvent(SettingsUiEvent.Reset)
@@ -117,13 +134,91 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun given_validation_fails_then_treated_as_wrong_pin() = runTest(mainDispatcher.dispatcher) {
+    fun given_validation_fails_then_shows_error_without_counting_an_attempt() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeSettingsAccessRepository(failure = IllegalStateException("boom"))
         val vm = viewModel(repository)
 
-        vm.onEvent(SettingsUiEvent.PasswordChanged(sixDigitPin))
+        repeat(6) { vm.onEvent(SettingsUiEvent.PasswordChanged(sixDigitPin)) }
 
         assertTrue(vm.uiState.value.showError)
+        assertFalse(vm.uiState.value.isLocked)
+        assertEquals(PinAttempts.NONE, attempts.stored.value)
+    }
+
+    // --- Lockout (AJU-011) ---
+
+    @Test
+    fun given_four_wrong_pins_then_still_open() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        repeat(4) { vm.enterWrongPin() }
+
+        assertFalse(vm.uiState.value.isLocked)
+        assertTrue(vm.uiState.value.showError)
+    }
+
+    @Test
+    fun given_fifth_wrong_pin_then_locked_for_24_hours_and_keypad_ignores_input() =
+        runTest(mainDispatcher.dispatcher) {
+            val repository = FakeSettingsAccessRepository(password = sixDigitPin)
+            val vm = viewModel(repository)
+
+            repeat(5) { vm.enterWrongPin() }
+            assertEquals(24 * 60L, vm.uiState.value.lockedMinutesLeft)
+            assertFalse(vm.uiState.value.isInputEnabled)
+
+            // Even the right PIN is not checked while locked.
+            vm.onEvent(SettingsUiEvent.PasswordChanged(sixDigitPin))
+            assertEquals(5, repository.validationCount)
+            assertEquals("", vm.uiState.value.passwordInput)
+        }
+
+    @Test
+    fun given_locked_then_time_left_refreshes_every_minute() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        repeat(5) { vm.enterWrongPin() }
+
+        advanceTimeBy(60_000)
+        runCurrent()
+
+        assertEquals(24 * 60L - 1, vm.uiState.value.lockedMinutesLeft)
+    }
+
+    @Test
+    fun given_locked_when_gate_reopened_then_still_locked() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        repeat(5) { vm.enterWrongPin() }
+
+        vm.onEvent(SettingsUiEvent.DismissDialog)
+        val reopened = viewModel()
+
+        assertTrue(reopened.uiState.value.isLocked)
+    }
+
+    @Test
+    fun given_24_hours_passed_then_unlocked_with_five_attempts() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        repeat(5) { vm.enterWrongPin() }
+
+        advanceTimeBy(24 * 60 * 60_000L)
+        runCurrent()
+
+        assertFalse(vm.uiState.value.isLocked)
+        repeat(4) { vm.enterWrongPin() }
+        assertFalse(vm.uiState.value.isLocked)
+        vm.enterWrongPin()
+        assertTrue(vm.uiState.value.isLocked)
+        vm.onEvent(SettingsUiEvent.DismissDialog)
+    }
+
+    @Test
+    fun given_correct_pin_after_three_wrong_then_count_resets() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        repeat(3) { vm.enterWrongPin() }
+
+        vm.onEvent(SettingsUiEvent.PasswordChanged(sixDigitPin))
+
+        assertEquals(PinAttempts.NONE, attempts.stored.value)
     }
 
     @Test
