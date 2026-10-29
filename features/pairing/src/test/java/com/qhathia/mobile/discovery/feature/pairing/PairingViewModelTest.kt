@@ -2,6 +2,8 @@ package com.qhathia.mobile.discovery.feature.pairing
 
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
+import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeError
+import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeException
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus
 import com.qhathia.mobile.discovery.core.domain.usecase.ExchangeDeviceTokenUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GeneratePairingCodeUseCase
@@ -12,6 +14,7 @@ import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeDevicePairingRepository
 import com.qhathia.mobile.discovery.core.testing.FakeStoreSessionRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingError
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEffect
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
@@ -43,6 +46,7 @@ class PairingViewModelTest {
         exchangeDeviceToken = ExchangeDeviceTokenUseCase(pairing),
         getPairedDevice = GetPairedDeviceUseCase(pairing),
         unpairDevice = UnpairDeviceUseCase(pairing),
+        clock = { mainDispatcher.dispatcher.scheduler.currentTime },
     )
 
     @Test
@@ -157,10 +161,11 @@ class PairingViewModelTest {
     }
 
     @Test
-    fun given_status_stream_fails_then_shows_error_phase_without_crashing() =
+    fun given_status_stream_fails_then_shows_link_error_without_crashing() =
         runTest(mainDispatcher.dispatcher) {
+            // The repository reconnects drops itself; its flow fails only when the session is unusable.
             val pairing = FakeDevicePairingRepository().apply {
-                statusStreamError = IllegalStateException("Handshake exception, expected 101 but was 400")
+                statusStreamError = PairingExchangeException(PairingExchangeError.AlreadyUsed)
             }
             val vm = viewModel(pairing)
 
@@ -168,8 +173,112 @@ class PairingViewModelTest {
             runCurrent()
 
             assertEquals(PairingPhase.Error, vm.uiState.value.phase)
+            assertEquals(PairingError.Linking, vm.uiState.value.error)
             vm.stop()
         }
+
+    @Test
+    fun given_exchange_already_used_then_link_error_offers_new_code() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository(
+                exchangeResult = Result.failure(PairingExchangeException(PairingExchangeError.AlreadyUsed)),
+            )
+            val vm = viewModel(pairing)
+            vm.start()
+
+            pairing.emitStatus(PairingStatus.Approved)
+            runCurrent()
+            assertEquals(PairingError.Linking, vm.uiState.value.error)
+
+            vm.onEvent(PairingUiEvent.GenerateCode)
+            runCurrent()
+            assertEquals(PairingPhase.WaitingForApproval, vm.uiState.value.phase)
+            assertEquals(2, pairing.generateCount)
+            vm.stop()
+        }
+
+    @Test
+    fun given_generate_fails_then_code_generation_error() = runTest(mainDispatcher.dispatcher) {
+        val pairing = FakeDevicePairingRepository(generateResult = Result.failure(RuntimeException("503")))
+        val vm = viewModel(pairing)
+
+        vm.start()
+        runCurrent()
+
+        assertEquals(PairingPhase.Error, vm.uiState.value.phase)
+        assertEquals(PairingError.CodeGeneration, vm.uiState.value.error)
+    }
+
+    @Test
+    fun given_approved_twice_then_exchanges_once() = runTest(mainDispatcher.dispatcher) {
+        val pairing = FakeDevicePairingRepository()
+        val vm = viewModel(pairing)
+        vm.start()
+
+        pairing.emitStatus(PairingStatus.Approved)
+        pairing.emitStatus(PairingStatus.Approved)
+        runCurrent()
+
+        assertEquals(1, pairing.exchangeCount)
+        vm.stop()
+    }
+
+    @Test
+    fun given_waiting_then_never_exchanges() = runTest(mainDispatcher.dispatcher) {
+        val pairing = FakeDevicePairingRepository()
+        val vm = viewModel(pairing)
+        vm.start()
+
+        pairing.emitStatus(PairingStatus.Waiting)
+        advanceTimeBy(120_000)
+
+        assertEquals(0, pairing.exchangeCount)
+        assertEquals(PairingPhase.WaitingForApproval, vm.uiState.value.phase)
+        vm.stop()
+    }
+
+    @Test
+    fun given_stop_and_start_within_ttl_then_same_code_and_remaining_time() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository()
+            val vm = viewModel(pairing)
+            vm.start()
+            runCurrent()
+
+            vm.stop() // screen off / leaving the section
+            advanceTimeBy(100_000)
+            vm.start()
+            runCurrent()
+
+            val state = vm.uiState.value
+            assertEquals(1, pairing.generateCount)
+            assertEquals("2Y567", state.code)
+            assertEquals(PairingPhase.WaitingForApproval, state.phase)
+            assertEquals(200L, state.remainingSeconds)
+            assertEquals(300L, state.totalSeconds)
+
+            // The status subscription is resumed too.
+            pairing.emitStatus(PairingStatus.Approved)
+            runCurrent()
+            assertEquals(PairingPhase.Paired, vm.uiState.value.phase)
+        }
+
+    @Test
+    fun given_stop_and_start_after_ttl_then_new_code() = runTest(mainDispatcher.dispatcher) {
+        val pairing = FakeDevicePairingRepository()
+        val vm = viewModel(pairing)
+        vm.start()
+        runCurrent()
+
+        vm.stop()
+        advanceTimeBy(301_000)
+        vm.start()
+        runCurrent()
+
+        assertEquals(2, pairing.generateCount)
+        assertEquals(PairingPhase.WaitingForApproval, vm.uiState.value.phase)
+        vm.stop()
+    }
 
     @Test
     fun given_unpair_confirmed_when_no_api_then_emits_unavailable_effect() =

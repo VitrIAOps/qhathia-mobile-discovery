@@ -12,6 +12,7 @@ import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
  *   `expiresAt`; the progress bar fills against this so it starts full regardless of the actual TTL.
  * @property device the paired-device details, present during [PairingPhase.Paired].
  * @property showUnpairConfirmation whether the unpair confirmation dialog is visible.
+ * @property error what failed, present during [PairingPhase.Error].
  */
 data class PairingUiState(
     val phase: PairingPhase = PairingPhase.Loading,
@@ -20,7 +21,17 @@ data class PairingUiState(
     val totalSeconds: Long = 0L,
     val device: PairedDevice? = null,
     val showUnpairConfirmation: Boolean = false,
+    val error: PairingError? = null,
 )
+
+/** What failed in [PairingPhase.Error]; each has its own message and action. */
+enum class PairingError {
+    /** No code could be generated; retry. */
+    CodeGeneration,
+
+    /** The approved code could not be exchanged for the device token; a new code is needed. */
+    Linking,
+}
 
 /** Mutually exclusive phases of the pairing section. */
 enum class PairingPhase {

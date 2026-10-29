@@ -11,7 +11,7 @@ import java.time.Instant
 
 /**
  * In-memory [DevicePairingRepository] for tests. Results are overridable per case; [emitStatus] pushes
- * pairing statuses to active collectors and [generateCount] records how many codes were requested.
+ * pairing statuses to active collectors; [generateCount] and [exchangeCount] record the calls.
  */
 class FakeDevicePairingRepository(
     var generateResult: Result<PairingCode> = Result.success(DEFAULT_CODE),
@@ -29,6 +29,8 @@ class FakeDevicePairingRepository(
         private set
     var lastObservedSession: String? = null
         private set
+    var exchangeCount: Int = 0
+        private set
 
     override suspend fun generateCode(): Result<PairingCode> {
         generateCount++
@@ -43,7 +45,10 @@ class FakeDevicePairingRepository(
     /** Pushes [status] to current collectors of [observeStatus]. */
     suspend fun emitStatus(status: PairingStatus) = statusFlow.emit(status)
 
-    override suspend fun exchangeForDeviceToken(sessionId: String): Result<PairedDevice> = exchangeResult
+    override suspend fun exchangeForDeviceToken(sessionId: String): Result<PairedDevice> {
+        exchangeCount++
+        return exchangeResult
+    }
 
     override suspend fun getPairedDevice(): Result<PairedDevice> = pairedResult
 

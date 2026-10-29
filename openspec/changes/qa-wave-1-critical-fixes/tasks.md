@@ -46,12 +46,12 @@
 
 ## 5. Pairing (D5, D6): VIN-031, VIN-032, VIN-030
 
-- [ ] 5.1 `core:network`: set `pingIntervalMillis = 20_000` on the `WebSockets` plugin (check it does not break the Deepgram live socket, or apply it only to the pairing client). `PairingSocketClient` tells apart "handshake rejected" (an HTTP status on upgrade) from "closed / failed".
-- [ ] 5.2 `core:network` / `core:data`: an exchange result that tells apart 200 / 409 not approved / 409 rejected / 410 expired / 410 already used / 404 / network error (parse the error `code`).
-- [ ] 5.3 `core:data`: `observeStatus` reconnect loop: backoff 1 / 2 / 4 / 8 s while the code is valid; immediate reconnect when `NetworkConnectivityState` comes back online; a rejected handshake triggers one fallback exchange. No periodic calls to the exchange endpoint.
-- [ ] 5.4 `core:data`: single-exchange guard (`Mutex` + consumed flag); retry the exchange only on connectivity errors; never retry 410 `ALREADY_USED`.
-- [ ] 5.5 `PairingViewModel`: a socket failure keeps the waiting state; `start()` resumes a held valid code (sessionId + `elapsedRealtime` expiry) instead of generating a new one; `stop()` keeps the code; a 410 `ALREADY_USED` without our own success → error with "Generar nuevo código".
-- [ ] 5.6 Unit tests (fake socket + `MockEngine`):
+- [x] 5.1 `core:network`: set `pingIntervalMillis = 20_000` on the `WebSockets` plugin (check it does not break the Deepgram live socket, or apply it only to the pairing client). `PairingSocketClient` tells apart "handshake rejected" (an HTTP status on upgrade) from "closed / failed".
+- [x] 5.2 `core:network` / `core:data`: an exchange result that tells apart 200 / 409 not approved / 409 rejected / 410 expired / 410 already used / 404 / network error (parse the error `code`).
+- [x] 5.3 `core:data`: `observeStatus` reconnect loop: backoff 1 / 2 / 4 / 8 s while the code is valid; immediate reconnect when `NetworkConnectivityState` comes back online; a rejected handshake triggers one fallback exchange. No periodic calls to the exchange endpoint.
+- [x] 5.4 `core:data`: single-exchange guard (`Mutex` + consumed flag); retry the exchange only on connectivity errors; never retry 410 `ALREADY_USED`.
+- [x] 5.5 `PairingViewModel`: a socket failure keeps the waiting state; `start()` resumes a held valid code (sessionId + `elapsedRealtime` expiry) instead of generating a new one; `stop()` keeps the code; a 410 `ALREADY_USED` without our own success → error with "Generar nuevo código".
+- [x] 5.6 Unit tests (fake socket + `MockEngine`):
   - The socket completes without a final status → reconnects with backoff → APPROVED → one exchange.
   - Offline, then online → immediate reconnect.
   - APPROVED twice (after a reconnect) → one exchange.
@@ -59,6 +59,7 @@
   - Exchange network error → retried; 410 already used → not retried.
   - Zero exchange calls while waiting.
   - `start` / `stop` / `start` within the TTL → same code and no second generate call; after the TTL → new code.
+  - Done 2026-10-29. The 20 s ping is sent by `PairingSocketClient` itself, not set on the shared `WebSockets` plugin, so the Deepgram voice socket is unchanged. A refused upgrade (`WebSocketException` / `ResponseException` before the socket opened) becomes `PairingHandshakeRejectedException`. The exchange returns `PairingExchangeResponse` with the body `errorCode`; without one, 409 is read as not approved and 410 as expired. "Back online" is a new `ConnectivitySnapshot.hasInternet` (offline → online transition). The exchange retries connectivity and timeout errors up to 4 times (1 / 2 / 4 / 8 s). The single-exchange guard caches the device per session, so the fallback 200 and a later `APPROVED` share one request. The held code expiry uses a new `ElapsedRealtimeClock` (`core:common`), so screen-off time counts. Exchange failures show a new "link" error with "Generar nuevo código"; code generation failures keep "Reintentar".
 
 ## 6. Kiosk (D7, D8): KIO-041, EXP-002/007, EXP-001/006/010
 

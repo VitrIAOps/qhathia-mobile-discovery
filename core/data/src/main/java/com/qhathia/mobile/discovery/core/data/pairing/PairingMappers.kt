@@ -2,11 +2,13 @@ package com.qhathia.mobile.discovery.core.data.pairing
 
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
+import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeError
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus
 import com.qhathia.mobile.discovery.core.network.dto.DeviceInfoResponseDto
 import com.qhathia.mobile.discovery.core.network.dto.DeviceTokenResponseDto
 import com.qhathia.mobile.discovery.core.network.dto.PairingStatusMessageDto
 import com.qhathia.mobile.discovery.core.network.dto.PairingTokenResponseDto
+import com.qhathia.mobile.discovery.core.network.service.PairingExchangeResponse
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -52,6 +54,17 @@ internal fun PairingStatusMessageDto.toDomainOrNull(): PairingStatus? = when (st
     "REJECTED" -> PairingStatus.Rejected
     "EXPIRED" -> PairingStatus.Expired
     else -> null
+}
+
+/**
+ * Maps an exchange HTTP error to its meaning (api-contract.md §5). Without an `errorCode`, a 409 is
+ * read as "not approved yet" (keep waiting) and a 410 as "expired" (new code): both are the safe guess.
+ */
+internal fun PairingExchangeResponse.HttpError.toExchangeError(): PairingExchangeError = when (code) {
+    409 -> if (errorCode == "PAIRING_REJECTED") PairingExchangeError.Rejected else PairingExchangeError.NotApproved
+    410 -> if (errorCode == "PAIRING_TOKEN_ALREADY_USED") PairingExchangeError.AlreadyUsed else PairingExchangeError.Expired
+    404 -> PairingExchangeError.NotFound
+    else -> PairingExchangeError.Other
 }
 
 private fun parseInstantOrNull(value: String): Instant? =

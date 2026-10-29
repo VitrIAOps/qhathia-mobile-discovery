@@ -78,6 +78,7 @@ class ConnectivityDataSourceImpl @Inject constructor(
             airplaneModeActive = isAirplaneModeOn(),
             connectedSsid = if (onWifi) connectedSsid() else null,
             wifiActive = onWifi,
+            hasInternet = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true,
         )
     }
 
