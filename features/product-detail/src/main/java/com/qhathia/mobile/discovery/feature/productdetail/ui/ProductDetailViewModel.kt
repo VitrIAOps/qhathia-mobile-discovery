@@ -12,6 +12,7 @@ import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.IsOrderableUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
@@ -58,6 +59,7 @@ class ProductDetailViewModel @Inject constructor(
     private val validateName: ValidateConsumerNameUseCase,
     private val validatePhone: ValidateConsumerPhoneUseCase,
     observeSessionEnd: ObserveCustomerSessionEndUseCase,
+    private val isOrderable: IsOrderableUseCase,
 ) : ViewModel() {
 
     private val productId: String = savedStateHandle.get<String>(ARG_PRODUCT_ID).orEmpty()
@@ -114,9 +116,12 @@ class ProductDetailViewModel @Inject constructor(
 
     // --- Share-quote dialog ---
 
-    /** Opens the share dialog (fresh, empty form) only when a product detail is actually loaded. */
+    /**
+     * Opens the share dialog (fresh, empty form) only when a product detail is loaded and orderable:
+     * the server rejects a share of an inactive or non-`AVAILABLE` product (DET-034).
+     */
     private fun openShareDialog() {
-        if (loadedDetail() == null) return
+        if (orderableDetail() == null) return
         updateShare { ProductDetailUiState.ShareUiState(visible = true) }
     }
 
@@ -142,7 +147,7 @@ class ProductDetailViewModel @Inject constructor(
      * rejection or exhausted retries show the simplified error screen.
      */
     private fun confirmShare() {
-        val detail = loadedDetail() ?: return
+        val detail = orderableDetail() ?: return
         val share = _uiState.value.share
         if (!share.isShareEnabled || share.submission != ProductDetailUiState.ShareSubmission.Idle) return
 
@@ -166,7 +171,7 @@ class ProductDetailViewModel @Inject constructor(
     }
 
     private fun onAddToCart() {
-        val detail = loadedDetail() ?: return
+        val detail = orderableDetail() ?: return
         val quantity = _uiState.value.quantity
         viewModelScope.launch { addToCart(detail.toCartItem(quantity)) }
     }
@@ -178,13 +183,17 @@ class ProductDetailViewModel @Inject constructor(
     }
 
     private fun adjustQuantity(delta: Int) {
-        val detail = loadedDetail() ?: return
+        val detail = orderableDetail() ?: return
         val max = CartConstants.maxQuantityFor(detail.availability)
         _uiState.update { it.copy(quantity = (it.quantity + delta).coerceIn(1, max)) }
     }
 
     private fun loadedDetail(): ProductDetail? =
         (_uiState.value.status as? ProductDetailUiState.Status.Loaded)?.detail
+
+    /** The loaded detail when it can be added or shared; `null` for an inactive or non-AVAILABLE one. */
+    private fun orderableDetail(): ProductDetail? =
+        loadedDetail()?.takeIf { isOrderable(it.availability, it.active) }
 
     private fun onSubmitSearch() {
         val query = _uiState.value.query.trim()

@@ -2,12 +2,17 @@ package com.qhathia.mobile.discovery.feature.cart.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.OrderErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.OrderException
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
+import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RevalidateCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
@@ -20,7 +25,9 @@ import com.qhathia.mobile.discovery.feature.cart.model.CartUiState
 import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
 import com.qhathia.mobile.discovery.feature.cart.model.OrderedLine
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +52,10 @@ import javax.inject.Inject
  * one customer. It therefore resets its form and submission on every session end, including the
  * inactivity timeout the app shell runs (CAR-040/041).
  *
+ * When the server rejects an order or share because a product is no longer available (`400` / `404`),
+ * [RevalidateCartUseCase] rechecks the lines. The unavailable ones are flagged "No disponible" and the
+ * actions stay blocked until they are removed, so the same basket is never resent (CAR-023/025).
+ *
  * "Realizar pedido" creates the order and, on success, also shares the quote PDF to the consumer's
  * WhatsApp through [ShareQuoteUseCase] (which owns the retry policy). The order is confirmed either
  * way; unless the quote was delivered (`SENT`), the confirmation switches to the "go to the seller and
@@ -63,6 +74,7 @@ class CartViewModel @Inject constructor(
     private val shareQuote: ShareQuoteUseCase,
     private val endCustomerSession: EndCustomerSessionUseCase,
     observeSessionEnd: ObserveCustomerSessionEndUseCase,
+    private val revalidateCart: RevalidateCartUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CartUiState())
@@ -82,6 +94,10 @@ class CartViewModel @Inject constructor(
                         items = cart.items.toImmutableList(),
                         totalItemCount = cart.totalItemCount,
                         totalAmount = cart.totalAmount,
+                        // Forget flags of lines that left the basket.
+                        unavailableIds = it.unavailableIds
+                            .filterTo(mutableSetOf()) { id -> cart.items.any { item -> item.productId == id } }
+                            .toImmutableSet(),
                     )
                 }
             }
@@ -124,8 +140,11 @@ class CartViewModel @Inject constructor(
                         it.copy(submission = OrderSubmission.Success(summary, shareDelivered = delivered))
                     }
                 }
-                .onFailure {
-                    _uiState.update { it.copy(submission = OrderSubmission.Error) }
+                .onFailure { cause ->
+                    when ((cause as? OrderException)?.category) {
+                        OrderErrorCategory.Unavailable, OrderErrorCategory.NotFound -> flagUnavailableLines(state.items)
+                        else -> _uiState.update { it.copy(submission = OrderSubmission.Error) }
+                    }
                 }
         }
     }
@@ -139,7 +158,12 @@ class CartViewModel @Inject constructor(
         val state = beginSubmission() ?: return
         val summary = state.summary()
         viewModelScope.launch {
-            val submission = when (shareQuote(state.name, state.phone, state.items)) {
+            val outcome = shareQuote(state.name, state.phone, state.items)
+            if (outcome.isUnavailableRejection()) {
+                flagUnavailableLines(state.items)
+                return@launch
+            }
+            val submission = when (outcome) {
                 is ShareOutcome.Delivered -> OrderSubmission.Success(summary, isQuoteOnly = true)
                 is ShareOutcome.NotDelivered -> OrderSubmission.QuoteNotDelivered
                 is ShareOutcome.Rejected, is ShareOutcome.Failed -> OrderSubmission.Error
@@ -155,10 +179,30 @@ class CartViewModel @Inject constructor(
      */
     private fun beginSubmission(): CartUiState? {
         val state = _uiState.value
-        if (!state.isOrderEnabled || state.submission != OrderSubmission.Idle) return null
+        if (!state.canSubmit || state.submission != OrderSubmission.Idle) return null
         _uiState.update { it.copy(submission = OrderSubmission.Submitting) }
         return state
     }
+
+    /**
+     * After a `400` / `404`: rechecks [items] (the loader stays up meanwhile). Flagged lines return the
+     * consumer to the cart with the "No disponible" marks; when nothing can be blamed, the generic
+     * error is shown as before.
+     */
+    private suspend fun flagUnavailableLines(items: List<CartItem>) {
+        val flagged = revalidateCart(items)
+        _uiState.update {
+            if (flagged.isEmpty()) {
+                it.copy(submission = OrderSubmission.Error)
+            } else {
+                it.copy(submission = OrderSubmission.Idle, unavailableIds = flagged.toImmutableSet())
+            }
+        }
+    }
+
+    private fun ShareOutcome.isUnavailableRejection(): Boolean =
+        this is ShareOutcome.Rejected &&
+            (kind == ShareRejection.Unavailable || kind == ShareRejection.NotFound)
 
     /** Snapshots the basket lines for the confirmation summary, so it survives the basket being cleared. */
     private fun CartUiState.summary(): kotlinx.collections.immutable.ImmutableList<OrderedLine> =
@@ -187,6 +231,7 @@ class CartViewModel @Inject constructor(
                 nameError = ConsumerNameError.Empty,
                 phoneError = ConsumerPhoneError.Empty,
                 isOrderEnabled = false,
+                unavailableIds = persistentSetOf(),
             )
         }
     }

@@ -38,6 +38,7 @@ object ProductDetailFixtures {
         availability: String = "AVAILABLE",
         categoryName: String = "Taladros",
         images: List<ProductImage> = images(3),
+        active: Boolean? = true,
     ): ProductDetail = ProductDetail(
         id = id,
         name = name,
@@ -46,5 +47,6 @@ object ProductDetailFixtures {
         availability = availability,
         categoryName = categoryName,
         images = images,
+        active = active,
     )
 }

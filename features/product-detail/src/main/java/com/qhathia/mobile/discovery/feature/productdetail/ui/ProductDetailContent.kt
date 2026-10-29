@@ -45,6 +45,7 @@ import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.ProductImage
+import com.qhathia.mobile.discovery.core.domain.usecase.isOrderable
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
@@ -261,6 +262,8 @@ private fun ProductInfo(
             color = DiscoveryColors.CatalogText,
         )
         StockRow(availability = detail.availability)
+        // An inactive or non-AVAILABLE product is still shown, but cannot be added or shared (DET-013).
+        if (!detail.isOrderable) NotOrderableNote()
         DetailPrice(price = detail.price, discountedPrice = detail.discountedPrice)
         DiscoveryDivider()
         Text(
@@ -272,6 +275,7 @@ private fun ProductInfo(
         ActionRow(
             quantity = quantity,
             maxQuantity = CartConstants.maxQuantityFor(detail.availability),
+            orderable = detail.isOrderable,
             onEvent = onEvent,
         )
     }
@@ -290,9 +294,19 @@ private fun StockRow(availability: String) {
 }
 
 @Composable
+private fun NotOrderableNote() {
+    Text(
+        text = stringResource(R.string.pd_not_orderable_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+    )
+}
+
+@Composable
 private fun ActionRow(
     quantity: Int,
     maxQuantity: Int,
+    orderable: Boolean,
     onEvent: (ProductDetailUiEvent) -> Unit,
 ) {
     Row(
@@ -306,20 +320,22 @@ private fun ActionRow(
             onIncrease = { onEvent(ProductDetailUiEvent.IncreaseQuantity) },
             decreaseContentDescription = stringResource(UiR.string.discovery_cd_qty_decrease),
             increaseContentDescription = stringResource(UiR.string.discovery_cd_qty_increase),
-            canDecrease = quantity > 1,
-            canIncrease = quantity < maxQuantity,
+            canDecrease = orderable && quantity > 1,
+            canIncrease = orderable && quantity < maxQuantity,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             ActionButton(
                 text = stringResource(UiR.string.discovery_action_add_to_cart),
                 iconRes = UiR.drawable.ic_cart,
                 container = DiscoveryColors.Blue700,
+                enabled = orderable,
                 onClick = { onEvent(ProductDetailUiEvent.AddToCart) },
             )
             ActionButton(
                 text = stringResource(UiR.string.discovery_action_share),
                 iconRes = UiR.drawable.ic_whatsapp,
                 container = DiscoveryColors.Green500,
+                enabled = orderable,
                 onClick = { onEvent(ProductDetailUiEvent.ShareWhatsApp) },
             )
         }
@@ -331,13 +347,20 @@ private fun ActionButton(
     text: String,
     iconRes: Int,
     container: Color,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.heightIn(min = 48.dp),
         shape = RoundedCornerShape(8.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = Color.White),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = container,
+            contentColor = Color.White,
+            disabledContainerColor = DiscoveryColors.Divider,
+            disabledContentColor = DiscoveryColors.TextDisabled,
+        ),
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.width(Spacing.sm))
@@ -378,6 +401,7 @@ private fun RelatedProductsSection(
                                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                                 onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
                                 onAddToCart = { onEvent(ProductDetailUiEvent.RelatedProductAddToCart(product.id)) },
+                                cartEnabled = product.isOrderable,
                             )
                         }
                     }
@@ -562,7 +586,12 @@ private fun DetailPrice(
 
 // --- Previews (landscape kiosk) ---
 
-private fun sampleDetail(imageCount: Int, discountedPrice: Double? = null): ProductDetail = ProductDetail(
+private fun sampleDetail(
+    imageCount: Int,
+    discountedPrice: Double? = null,
+    availability: String = "AVAILABLE",
+    active: Boolean? = true,
+): ProductDetail = ProductDetail(
     id = "p1",
     name = "Taladro Percutor Bosch GSB 13 RE Professional 12V",
     description = "El Bosch GSB 13 RE Professional es el taladro percutor con cable más compacto y " +
@@ -570,15 +599,16 @@ private fun sampleDetail(imageCount: Int, discountedPrice: Double? = null): Prod
         "se adapta a distintos materiales: desde perforar concreto y mampostería hasta atornillar en " +
         "madera y metal.",
     price = 380.0,
-    availability = "AVAILABLE",
+    availability = availability,
     categoryName = "Taladros",
     images = (0 until imageCount).map { ProductImage("img$it.jpg", it, it == 0) },
     discountedPrice = discountedPrice,
+    active = active,
 )
 
 private fun sampleRelated(): ImmutableList<Product> = listOf(
     Product("rel1", "Taladro stilson 14\"", "", 380.0, "AVAILABLE", "Taladros", "", discountedPrice = 340.0),
-    Product("rel2", "Set de brocas (5 piezas)", "", 49.90, "AVAILABLE", "Accesorios", ""),
+    Product("rel2", "Set de brocas (5 piezas)", "", 49.90, "LOW_STOCK", "Accesorios", ""),
     Product("rel3", "Lentes de seguridad", "", 19.90, "AVAILABLE", "Seguridad", ""),
 ).toImmutableList()
 
@@ -587,8 +617,9 @@ private fun loadedState(
     related: ProductDetailUiState.RelatedProducts = ProductDetailUiState.RelatedProducts.Loaded(sampleRelated()),
     showCloseConfirmDialog: Boolean = false,
     discountedPrice: Double? = null,
+    active: Boolean? = true,
 ): ProductDetailUiState = ProductDetailUiState(
-    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice)),
+    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice, active = active)),
     relatedProducts = related,
     showCloseConfirmDialog = showCloseConfirmDialog,
 )
@@ -606,6 +637,22 @@ private fun DetailLoadedLightPreview() {
 private fun DetailLoadedDarkPreview() {
     DiscoveryTheme(darkTheme = true) {
         ProductDetailContent(uiState = loadedState(imageCount = 4), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail not orderable — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailNotOrderableLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, active = false), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail not orderable — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailNotOrderableDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, active = false), onEvent = {})
     }
 }
 

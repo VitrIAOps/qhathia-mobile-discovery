@@ -9,6 +9,8 @@
     <string name="pd_availability_available">Disponible</string>
     <string name="pd_availability_low_stock">Pocas unidades</string>
     <string name="pd_availability_consult">Consultar disponibilidad</string>
+    <!-- Shown when the product is inactive or not AVAILABLE: it cannot be added or shared. -->
+    <string name="pd_not_orderable_note">No disponible por ahora</string>
 
     <!-- Loading / error states (feature-specific copy; shared error copy lives in core:ui). -->
     <string name="pd_not_found_title">Producto no encontrado</string>

@@ -35,13 +35,14 @@
 
 ## 4. Orderable products (D4): DET-013, CAR-023/025, BUS-042 (app side)
 
-- [ ] 4.1 Map `ProductDetailDto.active` → `ProductDetail.active`; add `IsOrderableUseCase`.
-- [ ] 4.2 Product detail: disable add, stepper and share and show a "No disponible por ahora" note when not orderable.
-- [ ] 4.3 Disable quick-add for non-orderable cards in search results, catalog and related products.
-- [ ] 4.4 `OrderErrorCategory.Unavailable` / `NotFound` from 400 / 404 in `OrderRepository`; parse the error `code` best effort (`ApiErrorDto`).
-- [ ] 4.5 `RevalidateCartUseCase`: `GET /products/{id}` for each line (limited concurrency), returns the ids that are not orderable or not found.
-- [ ] 4.6 Cart: on Unavailable / NotFound (order or share), run the recheck, mark the lines "No disponible", show the message, and keep the actions disabled until those lines are removed. Fall back to the generic error when no line is flagged.
-- [ ] 4.7 Unit tests: `IsOrderableUseCase` table; detail ViewModel with active = false and with `LOW_STOCK`; `RevalidateCartUseCase` (inactive, `LOW_STOCK`, 404, all ok); `CartViewModel` (400 → flagged lines → remove → enabled; 400 with nothing flagged → generic error).
+- [x] 4.1 Map `ProductDetailDto.active` → `ProductDetail.active`; add `IsOrderableUseCase`.
+- [x] 4.2 Product detail: disable add, stepper and share and show a "No disponible por ahora" note when not orderable.
+- [x] 4.3 Disable quick-add for non-orderable cards in search results, catalog and related products.
+- [x] 4.4 `OrderErrorCategory.Unavailable` / `NotFound` from 400 / 404 in `OrderRepository`; parse the error `code` best effort (`ApiErrorDto`).
+- [x] 4.5 `RevalidateCartUseCase`: `GET /products/{id}` for each line (limited concurrency), returns the ids that are not orderable or not found.
+- [x] 4.6 Cart: on Unavailable / NotFound (order or share), run the recheck, mark the lines "No disponible", show the message, and keep the actions disabled until those lines are removed. Fall back to the generic error when no line is flagged.
+- [x] 4.7 Unit tests: `IsOrderableUseCase` table; detail ViewModel with active = false and with `LOW_STOCK`; `RevalidateCartUseCase` (inactive, `LOW_STOCK`, 404, all ok); `CartViewModel` (400 → flagged lines → remove → enabled; 400 with nothing flagged → generic error).
+  - Done 2026-10-28. The error body `code` is not parsed: the contract's error field is `errorCode`, and `NetworkResult.HttpError` does not carry the body; the recheck finds the culprits itself, and the only other 400 (duplicated `productId`) cannot happen because the basket merges lines. `AddToCartUseCase` also refuses non-`AVAILABLE` items, so no add path can bypass the rule. The cart "Compartir" button is disabled only while a flagged line remains (the empty-form case, CAR-031, stays in wave 2).
 
 ## 5. Pairing (D5, D6): VIN-031, VIN-032, VIN-030
 

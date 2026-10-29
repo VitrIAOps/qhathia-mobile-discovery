@@ -22,6 +22,8 @@ data class ProductDetailResponseDto(
     val discounts: List<DiscountDto> = emptyList(),
     val discountedPrice: Double? = null,
     val discountEndsAt: String? = null,
+    /** `false` once the merchant deactivated the product; `null` when absent. */
+    val active: Boolean? = null,
 )
 
 @Serializable

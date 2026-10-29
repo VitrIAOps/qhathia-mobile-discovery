@@ -72,6 +72,36 @@ class OrderRepositoryImplTest {
     }
 
     @Test
+    fun given_400_when_created_then_unavailable_category() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(400, "Bad Request")
+
+        val result = repository().createOrder("Ana", "987654321", items)
+
+        assertEquals(OrderErrorCategory.Unavailable, (result.exceptionOrNull() as OrderException).category)
+    }
+
+    @Test
+    fun given_404_when_created_then_not_found_category() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(404, "Not Found")
+
+        val result = repository().createOrder("Ana", "987654321", items)
+
+        assertEquals(OrderErrorCategory.NotFound, (result.exceptionOrNull() as OrderException).category)
+    }
+
+    @Test
+    fun given_500_when_created_then_order_api_category() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(500, "Server Error")
+
+        val result = repository().createOrder("Ana", "987654321", items)
+
+        assertEquals(OrderErrorCategory.OrderApi, (result.exceptionOrNull() as OrderException).category)
+    }
+
+    @Test
     fun given_connectivity_failure_when_created_then_network_category() = runTest {
         coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns

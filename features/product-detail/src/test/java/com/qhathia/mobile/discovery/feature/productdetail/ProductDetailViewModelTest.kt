@@ -9,6 +9,7 @@ import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.IsOrderableUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
@@ -20,6 +21,7 @@ import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductDetailRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.core.testing.ProductDetailFixtures
+import com.qhathia.mobile.discovery.core.testing.ProductFixtures
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEffect
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEvent
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiState
@@ -56,6 +58,7 @@ class ProductDetailViewModelTest {
         validateName = ValidateConsumerNameUseCase(),
         validatePhone = ValidateConsumerPhoneUseCase(),
         observeSessionEnd = ObserveCustomerSessionEndUseCase(sessionRepository),
+        isOrderable = IsOrderableUseCase(),
     )
 
     /** A view model whose detail is loaded, so the share dialog can open. */
@@ -237,7 +240,7 @@ class ProductDetailViewModelTest {
     }
 
     @Test
-    fun given_consult_stock_when_increased_then_quantity_capped_at_one() = runTest(mainDispatcher.dispatcher) {
+    fun given_consult_stock_when_increased_then_quantity_stays_one() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductDetailRepository(
             result = Result.success(ProductDetailFixtures.productDetail(availability = "CONSULT")),
         )
@@ -245,7 +248,56 @@ class ProductDetailViewModelTest {
 
         vm.onEvent(ProductDetailUiEvent.IncreaseQuantity)
 
-        assertEquals(1, vm.uiState.value.quantity) // CONSULT caps at 1
+        assertEquals(1, vm.uiState.value.quantity) // not orderable: the stepper does nothing
+    }
+
+    @Test
+    fun given_inactive_product_when_add_and_share_tapped_then_nothing_happens() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository()
+        val shareRepository = FakeCartShareRepository()
+        val vm = viewModel(
+            repository = FakeProductDetailRepository(
+                result = Result.success(ProductDetailFixtures.productDetail(active = false)),
+            ),
+            cartRepository = cartRepository,
+            shareRepository = shareRepository,
+        )
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        assertTrue(cartRepository.current.isEmpty)
+        assertFalse(vm.uiState.value.share.visible)
+        assertEquals(0, shareRepository.callCount)
+    }
+
+    @Test
+    fun given_low_stock_product_when_share_tapped_then_dialog_stays_closed() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(
+            repository = FakeProductDetailRepository(
+                result = Result.success(ProductDetailFixtures.productDetail(availability = "LOW_STOCK")),
+            ),
+        )
+
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+
+        assertFalse(vm.uiState.value.share.visible)
+        assertEquals(0, vm.uiState.value.cartItemCount)
+    }
+
+    @Test
+    fun given_low_stock_related_product_when_quick_added_then_cart_stays_empty() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository()
+        val repository = FakeProductDetailRepository(
+            result = Result.success(ProductDetailFixtures.productDetail()),
+            suggestionsResult = Result.success(listOf(ProductFixtures.product(id = "r1", availability = "LOW_STOCK"))),
+        )
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.onEvent(ProductDetailUiEvent.RelatedProductAddToCart("r1"))
+
+        assertTrue(cartRepository.current.isEmpty)
     }
 
     @Test

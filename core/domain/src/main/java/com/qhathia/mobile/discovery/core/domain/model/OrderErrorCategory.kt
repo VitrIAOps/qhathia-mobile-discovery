@@ -7,5 +7,10 @@ package com.qhathia.mobile.discovery.core.domain.model
  *
  * - [Network] — lost/unstable connectivity.
  * - [OrderApi] — the order backend failed, rejected the request, or the request timed out.
+ * - [Unavailable] — `400`: a product in the basket is inactive or not `AVAILABLE` any more.
+ * - [NotFound] — `404`: a product in the basket does not exist in the store any more.
+ *
+ * [Unavailable] and [NotFound] make the cart recheck its lines and flag the unavailable ones instead
+ * of showing the generic error (CAR-023/025).
  */
-enum class OrderErrorCategory { Network, OrderApi }
+enum class OrderErrorCategory { Network, OrderApi, Unavailable, NotFound }

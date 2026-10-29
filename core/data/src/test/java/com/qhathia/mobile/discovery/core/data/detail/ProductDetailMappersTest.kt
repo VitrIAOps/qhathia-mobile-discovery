@@ -66,4 +66,11 @@ class ProductDetailMappersTest {
 
         assertEquals("", product.imageUrl)
     }
+
+    @Test
+    fun given_detail_active_flag_when_mapped_then_carried_as_is() {
+        assertEquals(false, ProductDetailResponseDto(id = "p1", active = false).toDomain().active)
+        assertEquals(true, ProductDetailResponseDto(id = "p1", active = true).toDomain().active)
+        assertEquals(null, ProductDetailResponseDto(id = "p1").toDomain().active) // absent: unknown
+    }
 }

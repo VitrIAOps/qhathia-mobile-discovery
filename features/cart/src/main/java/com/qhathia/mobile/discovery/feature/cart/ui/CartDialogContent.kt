@@ -145,7 +145,7 @@ private fun CartContent(
                         if (uiState.isEmpty) {
                             EmptyState(modifier = Modifier.align(Alignment.Center))
                         } else {
-                            ProductList(items = uiState.items, onEvent = onEvent)
+                            ProductList(items = uiState.items, unavailableIds = uiState.unavailableIds, onEvent = onEvent)
                         }
                     }
                     FooterPanel(uiState = uiState, onEvent = onEvent)
@@ -193,6 +193,7 @@ private fun Header(itemCount: Int, onClose: () -> Unit) {
 @Composable
 private fun ProductList(
     items: List<CartItem>,
+    unavailableIds: Set<String>,
     onEvent: (CartUiEvent) -> Unit,
 ) {
     LazyColumn(
@@ -200,7 +201,7 @@ private fun ProductList(
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(items = items, key = { it.productId }) { item ->
-            CartLineCard(item = item, onEvent = onEvent)
+            CartLineCard(item = item, unavailable = item.productId in unavailableIds, onEvent = onEvent)
         }
     }
 }
@@ -208,12 +209,16 @@ private fun ProductList(
 @Composable
 private fun CartLineCard(
     item: CartItem,
+    unavailable: Boolean,
     onEvent: (CartUiEvent) -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, DiscoveryColors.Divider),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (unavailable) MaterialTheme.colorScheme.error else DiscoveryColors.Divider,
+        ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
@@ -248,6 +253,13 @@ private fun CartLineCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (unavailable) {
+                    Text(
+                        text = stringResource(R.string.cart_line_unavailable),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -273,7 +285,7 @@ private fun CartLineCard(
                         onIncrease = { onEvent(CartUiEvent.IncreaseLine(item.productId)) },
                         decreaseContentDescription = stringResource(UiR.string.discovery_cd_qty_decrease),
                         increaseContentDescription = stringResource(UiR.string.discovery_cd_qty_increase),
-                        canIncrease = item.quantity < item.maxQuantity,
+                        canIncrease = !unavailable && item.quantity < item.maxQuantity,
                     )
                 }
             }
@@ -319,7 +331,18 @@ private fun FooterPanel(
     ) {
         ConsumerForm(uiState = uiState, onEvent = onEvent)
         TotalsSection(itemCount = uiState.totalItemCount, total = uiState.totalAmount)
-        ActionButtons(isOrderEnabled = uiState.isOrderEnabled, onEvent = onEvent)
+        if (uiState.hasUnavailableLines) {
+            Text(
+                text = stringResource(R.string.cart_unavailable_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        ActionButtons(
+            isOrderEnabled = uiState.canSubmit,
+            isShareEnabled = !uiState.hasUnavailableLines,
+            onEvent = onEvent,
+        )
     }
 }
 
@@ -399,6 +422,7 @@ private fun TotalsSection(itemCount: Int, total: Double) {
 @Composable
 private fun ActionButtons(
     isOrderEnabled: Boolean,
+    isShareEnabled: Boolean,
     onEvent: (CartUiEvent) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -419,8 +443,10 @@ private fun ActionButtons(
         PrimaryActionButton(
             text = stringResource(UiR.string.discovery_action_share),
             onClick = { onEvent(CartUiEvent.ShareWhatsApp) },
-            containerColor = DiscoveryColors.Green500,
-            contentColor = Color.White,
+            // Blocked while a line is flagged "No disponible" (the server would reject it again).
+            enabled = isShareEnabled,
+            containerColor = if (isShareEnabled) DiscoveryColors.Green500 else DiscoveryColors.Divider,
+            contentColor = if (isShareEnabled) Color.White else DiscoveryColors.TextDisabled,
             leadingIconRes = UiR.drawable.ic_whatsapp,
             iconContentDescription = stringResource(R.string.cart_share_whatsapp_cd),
         )
@@ -602,6 +628,34 @@ private fun ShareNotDeliveredDarkPreview() {
         )
     }
 }
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — unavailable line (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartUnavailablePreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(uiState = unavailableState(), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — unavailable line (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartUnavailableDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(uiState = unavailableState(), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+private fun unavailableState() = CartUiState(
+    items = sampleItems(),
+    totalItemCount = 6,
+    totalAmount = 438.5,
+    name = "Ana Pérez",
+    phone = "987654321",
+    nameError = null,
+    phoneError = null,
+    isOrderEnabled = true,
+    unavailableIds = kotlinx.collections.immutable.persistentSetOf("p2"),
+)
 
 @androidx.compose.ui.tooling.preview.Preview(name = "Order — error (light)", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable

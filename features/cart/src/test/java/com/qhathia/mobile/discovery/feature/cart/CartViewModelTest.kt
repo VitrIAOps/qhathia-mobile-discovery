@@ -1,13 +1,18 @@
 package com.qhathia.mobile.discovery.feature.cart
 
 import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.model.OrderErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.Product
+import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
+import com.qhathia.mobile.discovery.core.domain.repository.ProductDetailRepository
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RevalidateCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
@@ -18,6 +23,7 @@ import com.qhathia.mobile.discovery.core.testing.FakeCartShareRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeOrderRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
+import com.qhathia.mobile.discovery.core.testing.ProductDetailFixtures
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
@@ -42,6 +48,7 @@ class CartViewModelTest {
         orderRepository: FakeOrderRepository = FakeOrderRepository(),
         shareRepository: FakeCartShareRepository = FakeCartShareRepository(),
         sessionRepository: FakeCustomerSessionRepository = FakeCustomerSessionRepository(),
+        details: ProductDetailRepository = ProductDetails(),
     ) = CartViewModel(
         observeCart = ObserveCartUseCase(repository),
         updateQuantity = UpdateCartItemQuantityUseCase(repository),
@@ -52,7 +59,18 @@ class CartViewModelTest {
         shareQuote = ShareQuoteUseCase(shareRepository),
         endCustomerSession = EndCustomerSessionUseCase(repository, sessionRepository),
         observeSessionEnd = ObserveCustomerSessionEndUseCase(sessionRepository),
+        revalidateCart = RevalidateCartUseCase(details),
     )
+
+    /** Product details for the recheck: ids in [inactive] are inactive, every other id is orderable. */
+    private class ProductDetails(private val inactive: Set<String> = emptySet()) : ProductDetailRepository {
+        var requests = 0
+        override suspend fun getProduct(id: String): Result<ProductDetail> {
+            requests++
+            return Result.success(ProductDetailFixtures.productDetail(id = id, active = id !in inactive))
+        }
+        override suspend fun getSuggestions(id: String): Result<List<Product>> = Result.success(emptyList())
+    }
 
     /** Enters valid consumer data so the order can be placed. */
     private fun CartViewModel.enterValidData() {
@@ -348,6 +366,97 @@ class CartViewModelTest {
         vm.onEvent(CartUiEvent.CancelOrder)
 
         assertEquals(1, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_order_400_with_inactive_line_when_placed_then_line_flagged_and_actions_blocked() =
+        runTest(mainDispatcher.dispatcher) {
+            val cart = CartFixtures.cart()
+            val flaggedId = cart.items.first().productId
+            val orderRepository = FakeOrderRepository().apply { failWith(OrderErrorCategory.Unavailable) }
+            val vm = viewModel(FakeCartRepository(cart), orderRepository, details = ProductDetails(setOf(flaggedId)))
+            vm.enterValidData()
+
+            vm.onEvent(CartUiEvent.PlaceOrder)
+
+            val state = vm.uiState.value
+            assertEquals(OrderSubmission.Idle, state.submission) // back to the cart, not the error loop
+            assertEquals(setOf(flaggedId), state.unavailableIds)
+            assertTrue(state.hasUnavailableLines)
+            assertFalse(state.canSubmit)
+
+            vm.onEvent(CartUiEvent.PlaceOrder) // the same basket cannot be resent
+            vm.onEvent(CartUiEvent.ShareWhatsApp)
+            assertEquals(1, orderRepository.callCount)
+        }
+
+    @Test
+    fun given_flagged_line_when_removed_then_actions_enabled_again() = runTest(mainDispatcher.dispatcher) {
+        val cart = CartFixtures.cart()
+        val flaggedId = cart.items.first().productId
+        val vm = viewModel(
+            FakeCartRepository(cart),
+            FakeOrderRepository().apply { failWith(OrderErrorCategory.Unavailable) },
+            details = ProductDetails(setOf(flaggedId)),
+        )
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        vm.onEvent(CartUiEvent.RemoveLine(flaggedId))
+
+        val state = vm.uiState.value
+        assertFalse(state.hasUnavailableLines)
+        assertTrue(state.canSubmit)
+        assertTrue(state.unavailableIds.isEmpty())
+    }
+
+    @Test
+    fun given_order_400_with_nothing_to_blame_when_placed_then_generic_error() = runTest(mainDispatcher.dispatcher) {
+        val details = ProductDetails()
+        val vm = viewModel(
+            FakeCartRepository(CartFixtures.cart()),
+            FakeOrderRepository().apply { failWith(OrderErrorCategory.Unavailable) },
+            details = details,
+        )
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+        assertEquals(2, details.requests) // every line was rechecked
+    }
+
+    @Test
+    fun given_generic_order_failure_when_placed_then_no_recheck() = runTest(mainDispatcher.dispatcher) {
+        val details = ProductDetails()
+        val vm = viewModel(
+            FakeCartRepository(CartFixtures.cart()),
+            FakeOrderRepository().apply { failWith(OrderErrorCategory.OrderApi) },
+            details = details,
+        )
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+        assertEquals(0, details.requests)
+    }
+
+    @Test
+    fun given_share_404_with_missing_line_when_shared_then_line_flagged() = runTest(mainDispatcher.dispatcher) {
+        val cart = CartFixtures.cart()
+        val flaggedId = cart.items.last().productId
+        val vm = viewModel(
+            FakeCartRepository(cart),
+            shareRepository = FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.NotFound)),
+            details = ProductDetails(setOf(flaggedId)),
+        )
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
+        assertEquals(setOf(flaggedId), vm.uiState.value.unavailableIds)
     }
 
     @Test

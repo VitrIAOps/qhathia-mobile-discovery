@@ -13,6 +13,18 @@ import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
  */
 internal object OrderErrorMapper {
 
+    /**
+     * `400` means a product is inactive or not `AVAILABLE` (the server's only other `400`, a duplicated
+     * `productId`, cannot happen: the basket merges lines). `404` means a product is gone. Any other
+     * HTTP failure is a generic order failure. The error body is not read: the cart recheck finds the
+     * affected lines itself.
+     */
+    fun fromHttpError(code: Int): OrderErrorCategory = when (code) {
+        400 -> OrderErrorCategory.Unavailable
+        404 -> OrderErrorCategory.NotFound
+        else -> OrderErrorCategory.OrderApi
+    }
+
     fun fromNetworkError(kind: NetworkErrorKind): OrderErrorCategory = when (kind) {
         NetworkErrorKind.Connectivity -> OrderErrorCategory.Network
         NetworkErrorKind.Timeout -> OrderErrorCategory.OrderApi

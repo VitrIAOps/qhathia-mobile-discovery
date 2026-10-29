@@ -4,7 +4,9 @@ import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 
 /**
  * Immutable snapshot of the cart dialog.
@@ -18,6 +20,8 @@ import kotlinx.collections.immutable.persistentListOf
  * @property phoneError the phone validation error, or `null` when valid.
  * @property isOrderEnabled whether the consumer data is complete and valid (gates "Realizar pedido").
  * @property submission the order-submission phase overlaid on the dialog (loading / success / error).
+ * @property unavailableIds products the server no longer accepts, found by the recheck after a
+ *   `400` / `404`. Their lines show "No disponible" and block the order and share actions.
  */
 data class CartUiState(
     val items: ImmutableList<CartItem> = persistentListOf(),
@@ -29,9 +33,16 @@ data class CartUiState(
     val phoneError: ConsumerPhoneError? = ConsumerPhoneError.Empty,
     val isOrderEnabled: Boolean = false,
     val submission: OrderSubmission = OrderSubmission.Idle,
+    val unavailableIds: ImmutableSet<String> = persistentSetOf(),
 ) {
     /** True when the basket has no lines. */
     val isEmpty: Boolean get() = items.isEmpty()
+
+    /** True while a line flagged "No disponible" is still in the basket. */
+    val hasUnavailableLines: Boolean get() = items.any { it.productId in unavailableIds }
+
+    /** Whether "Realizar pedido" and "Compartir" may run: valid consumer data and no flagged line. */
+    val canSubmit: Boolean get() = isOrderEnabled && !hasUnavailableLines
 
     /** True while an order request is in flight — the dialog blocks all inputs. */
     val isSubmitting: Boolean get() = submission is OrderSubmission.Submitting

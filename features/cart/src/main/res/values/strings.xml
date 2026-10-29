@@ -62,6 +62,10 @@
     <string name="cart_share_not_delivered_title">No pudimos enviar la cotización</string>
     <string name="cart_share_not_delivered_message">La cotización no llegó a tu WhatsApp. Acércate al vendedor para que te ayude.</string>
 
+    <!-- A product the server no longer accepts (inactive, not AVAILABLE or gone), found after a 400/404. -->
+    <string name="cart_line_unavailable">No disponible</string>
+    <string name="cart_unavailable_message">Algunos productos ya no están disponibles. Quítalos del carrito para continuar.</string>
+
     <!-- Order submission — error. -->
     <string name="cart_error_title">Algo salió mal</string>
     <string name="cart_error_message">Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos.</string>
