@@ -13,6 +13,7 @@ import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
@@ -43,7 +44,8 @@ import javax.inject.Inject
  * "Compartir por WhatsApp" opens a self-contained dialog that collects the consumer's name + phone
  * (validated with the same rules as the cart) and shares a quote PDF of the selected product via
  * [ShareQuoteUseCase] (which owns the retry policy), reusing the cart's loading/success/error
- * overlays. The mic action and the mock related-products taps remain no-ops for this slice.
+ * overlays. When the customer session ends (inactivity timeout), the dialog closes and its form is
+ * cleared, so the next customer never sees the previous one's name or phone. The mic action and the mock related-products taps remain no-ops for this slice.
  */
 @HiltViewModel
 class ProductDetailViewModel @Inject constructor(
@@ -55,6 +57,7 @@ class ProductDetailViewModel @Inject constructor(
     private val shareQuote: ShareQuoteUseCase,
     private val validateName: ValidateConsumerNameUseCase,
     private val validatePhone: ValidateConsumerPhoneUseCase,
+    observeSessionEnd: ObserveCustomerSessionEndUseCase,
 ) : ViewModel() {
 
     private val productId: String = savedStateHandle.get<String>(ARG_PRODUCT_ID).orEmpty()
@@ -75,6 +78,9 @@ class ProductDetailViewModel @Inject constructor(
             observeCart().collect { cart ->
                 _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
             }
+        }
+        viewModelScope.launch {
+            observeSessionEnd().collect { closeShareDialog() }
         }
     }
 

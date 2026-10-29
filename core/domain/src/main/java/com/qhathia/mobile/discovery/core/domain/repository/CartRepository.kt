@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Port for the session-scoped cart basket. Implemented in `core:data` as an in-memory singleton (the
- * basket is ephemeral session state, cleared on order placement or off-Home inactivity).
+ * basket is ephemeral session state, cleared whenever the customer session ends — see
+ * [com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase]).
  */
 interface CartRepository {
 

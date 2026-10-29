@@ -62,6 +62,9 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 // Name every APK exactly `qhathia-discovery-v<versionName>.apk` (no build-type suffix). Each build
@@ -113,7 +116,12 @@ dependencies {
     ksp(libs.hilt.compiler)
     ksp(libs.kotlin.metadata.jvm)
 
-    testImplementation(libs.junit)
+    testImplementation(project(":core:testing"))
+    testImplementation(libs.junit5.api)
+    testImplementation(libs.turbine)
+    testImplementation(libs.coroutines.test)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit5.launcher)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

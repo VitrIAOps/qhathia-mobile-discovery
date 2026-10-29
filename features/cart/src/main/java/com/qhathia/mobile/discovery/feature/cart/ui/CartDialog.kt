@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.qhathia.mobile.discovery.core.ui.component.reportUserActivity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalView
@@ -70,7 +71,8 @@ fun CartDialog(
             runCatching { focusTrap.requestFocus() }
         }
 
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // A dialog is its own window: report its touches to the inactivity timer (CAR-042).
+        Box(modifier = Modifier.fillMaxSize().reportUserActivity(), contentAlignment = Alignment.Center) {
             // Invisible focus trap: takes the dialog's initial focus so no field auto-focuses.
             Box(
                 modifier = Modifier

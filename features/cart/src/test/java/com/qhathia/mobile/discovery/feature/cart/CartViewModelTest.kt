@@ -3,9 +3,10 @@ package com.qhathia.mobile.discovery.feature.cart
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
-import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
@@ -14,6 +15,7 @@ import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUse
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCartShareRepository
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeOrderRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
@@ -39,6 +41,7 @@ class CartViewModelTest {
         repository: FakeCartRepository = FakeCartRepository(),
         orderRepository: FakeOrderRepository = FakeOrderRepository(),
         shareRepository: FakeCartShareRepository = FakeCartShareRepository(),
+        sessionRepository: FakeCustomerSessionRepository = FakeCustomerSessionRepository(),
     ) = CartViewModel(
         observeCart = ObserveCartUseCase(repository),
         updateQuantity = UpdateCartItemQuantityUseCase(repository),
@@ -47,7 +50,8 @@ class CartViewModelTest {
         validatePhone = ValidateConsumerPhoneUseCase(),
         createOrder = CreateOrderUseCase(orderRepository),
         shareQuote = ShareQuoteUseCase(shareRepository),
-        clearCart = ClearCartUseCase(repository),
+        endCustomerSession = EndCustomerSessionUseCase(repository, sessionRepository),
+        observeSessionEnd = ObserveCustomerSessionEndUseCase(sessionRepository),
     )
 
     /** Enters valid consumer data so the order can be placed. */
@@ -298,6 +302,52 @@ class CartViewModelTest {
 
         // Phase reset so a reopened cart is not stuck on the success screen.
         assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
+    }
+
+    @Test
+    fun given_filled_form_when_session_ends_elsewhere_then_form_and_submission_reset() =
+        runTest(mainDispatcher.dispatcher) {
+            // The inactivity timeout ends the session from the app shell, not from this dialog.
+            val sessionRepository = FakeCustomerSessionRepository()
+            val vm = viewModel(FakeCartRepository(CartFixtures.cart()), sessionRepository = sessionRepository)
+            vm.enterValidData()
+            vm.onEvent(CartUiEvent.ShareWhatsApp) // → Success
+
+            sessionRepository.end()
+
+            val state = vm.uiState.value
+            assertEquals(OrderSubmission.Idle, state.submission)
+            assertEquals("", state.name)
+            assertEquals("", state.phone)
+            assertFalse(state.isOrderEnabled)
+        }
+
+    @Test
+    fun given_success_when_accept_then_ends_the_customer_session_once() = runTest(mainDispatcher.dispatcher) {
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), sessionRepository = sessionRepository)
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        vm.onEvent(CartUiEvent.AcceptSuccess)
+
+        assertEquals(1, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_error_when_cancel_then_ends_the_customer_session() = runTest(mainDispatcher.dispatcher) {
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(
+            FakeCartRepository(CartFixtures.cart()),
+            FakeOrderRepository().apply { failWith() },
+            sessionRepository = sessionRepository,
+        )
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        vm.onEvent(CartUiEvent.CancelOrder)
+
+        assertEquals(1, sessionRepository.endCount)
     }
 
     @Test

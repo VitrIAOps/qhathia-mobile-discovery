@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.qhathia.mobile.discovery.core.ui.component.reportUserActivity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -76,7 +77,8 @@ fun ShareProductDialog(
             runCatching { focusTrap.requestFocus() }
         }
 
-        Box(contentAlignment = Alignment.Center) {
+        // A dialog is its own window: report its touches to the inactivity timer.
+        Box(modifier = Modifier.reportUserActivity(), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
                     .size(1.dp)

@@ -3,9 +3,10 @@ package com.qhathia.mobile.discovery.feature.cart.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
-import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
@@ -36,9 +37,13 @@ import javax.inject.Inject
  * validates the consumer-data form on input, and adjusts line quantities / removes lines. "Realizar
  * pedido" submits the basket + consumer data to the order API and drives the submission phase
  * ([OrderSubmission]): a blocking loader while in flight, a success summary on `201`, or a simplified
- * error otherwise. Accepting the success or cancelling the error clears the session (basket **and**
- * consumer form) and returns Home; "Entendido" returns to the cart summary. Line taps and the close
- * controls surface as one-shot effects.
+ * error otherwise. Accepting the success or cancelling the error ends the customer session through
+ * [EndCustomerSessionUseCase] (basket **and** consumer form) and returns Home; "Entendido" returns to
+ * the cart summary. Line taps and the close controls surface as one-shot effects.
+ *
+ * This ViewModel is scoped to the Activity (the dialog is hosted outside the NavHost), so it outlives
+ * one customer. It therefore resets its form and submission on every session end, including the
+ * inactivity timeout the app shell runs (CAR-040/041).
  *
  * "Realizar pedido" creates the order and, on success, also shares the quote PDF to the consumer's
  * WhatsApp through [ShareQuoteUseCase] (which owns the retry policy). The order is confirmed either
@@ -56,7 +61,8 @@ class CartViewModel @Inject constructor(
     private val validatePhone: ValidateConsumerPhoneUseCase,
     private val createOrder: CreateOrderUseCase,
     private val shareQuote: ShareQuoteUseCase,
-    private val clearCart: ClearCartUseCase,
+    private val endCustomerSession: EndCustomerSessionUseCase,
+    observeSessionEnd: ObserveCustomerSessionEndUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CartUiState())
@@ -79,6 +85,9 @@ class CartViewModel @Inject constructor(
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            observeSessionEnd().collect { resetCustomerData() }
         }
     }
 
@@ -158,20 +167,27 @@ class CartViewModel @Inject constructor(
 
     private fun finishAndReturnHome() {
         viewModelScope.launch {
-            clearCart()
-            // Reset the phase and clear the consumer form so a reopened cart is fresh — never stuck on
-            // the previous success/error screen nor pre-filled with the last consumer's data.
-            _uiState.update {
-                it.copy(
-                    submission = OrderSubmission.Idle,
-                    name = "",
-                    phone = "",
-                    nameError = ConsumerNameError.Empty,
-                    phoneError = ConsumerPhoneError.Empty,
-                    isOrderEnabled = false,
-                )
-            }
+            endCustomerSession()
+            // The session-end collector resets too; resetting here keeps the order deterministic.
+            resetCustomerData()
             _uiEffect.emit(CartUiEffect.ReturnHome)
+        }
+    }
+
+    /**
+     * Resets the phase and clears the consumer form so a reopened cart is fresh — never stuck on the
+     * previous success/error screen nor pre-filled with the last consumer's data.
+     */
+    private fun resetCustomerData() {
+        _uiState.update {
+            it.copy(
+                submission = OrderSubmission.Idle,
+                name = "",
+                phone = "",
+                nameError = ConsumerNameError.Empty,
+                phoneError = ConsumerPhoneError.Empty,
+                isOrderEnabled = false,
+            )
         }
     }
 

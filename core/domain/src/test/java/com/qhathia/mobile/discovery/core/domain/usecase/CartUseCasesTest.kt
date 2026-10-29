@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.core.domain.usecase
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -56,13 +57,16 @@ class CartUseCasesTest {
     }
 
     @Test
-    fun `clear empties the cart`() = runTest {
+    fun `ending the session empties the cart and signals the end`() = runTest {
+        val sessionRepository = FakeCustomerSessionRepository()
         repository.addProduct(CartFixtures.cartItem(productId = "p1"))
 
-        ObserveCartUseCase(repository)().test {
-            assertEquals(1, awaitItem().items.size)
-            ClearCartUseCase(repository)()
-            assertTrue(awaitItem().isEmpty)
+        ObserveCustomerSessionEndUseCase(sessionRepository)().test {
+            EndCustomerSessionUseCase(repository, sessionRepository)()
+
+            awaitItem()
+            assertTrue(repository.current.isEmpty)
+            assertEquals(1, sessionRepository.endCount)
             cancelAndIgnoreRemainingEvents()
         }
     }

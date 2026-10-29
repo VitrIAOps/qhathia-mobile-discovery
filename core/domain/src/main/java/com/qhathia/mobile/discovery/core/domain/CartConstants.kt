@@ -1,12 +1,17 @@
 package com.qhathia.mobile.discovery.core.domain
 
 /**
- * Single source of truth for the cart's business + technical rules: the off-Home inactivity budget,
+ * Single source of truth for the cart's business + technical rules: the customer-session inactivity budget,
  * the stock-derived quantity caps, and the consumer-data validation rules.
  */
 object CartConstants {
 
-    /** The basket is cleared after this many seconds of inactivity on any screen other than Home. */
+    /**
+     * The customer session ends after this many seconds without activity (customer-session capability):
+     * on any screen other than Home and onboarding, and on Home while the basket is not empty. Ending
+     * the session clears the basket and the consumer forms, closes the overlays and returns Home.
+     * Touches inside dialogs and typing count as activity.
+     */
     const val INACTIVITY_TIMEOUT_SECONDS: Long = 60
 
     // TODO(inventory-stock): the product API exposes only an availability enum, not a unit count, so

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.qhathia.mobile.discovery.core.ui.component.reportUserActivity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -29,7 +30,8 @@ fun SettingsPasswordDialog(
         onDismissRequest = { onEvent(SettingsUiEvent.DismissDialog) },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // A dialog is its own window: report its touches to the inactivity timer.
+        Box(modifier = Modifier.fillMaxSize().reportUserActivity(), contentAlignment = Alignment.Center) {
             SettingsPasswordDialogContent(
                 uiState = uiState,
                 onEvent = onEvent,

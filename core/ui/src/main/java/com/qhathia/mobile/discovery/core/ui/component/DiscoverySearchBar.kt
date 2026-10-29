@@ -71,9 +71,14 @@ fun DiscoverySearchBar(
         )
         // The whole pill is the text field (decorated via decorationBox), so tapping anywhere on
         // it — icon, placeholder or empty space — focuses the field and opens the keyboard.
+        // The IME sends no pointer events, so each text change reports activity itself.
+        val reportActivity = LocalUserActivity.current
         BasicTextField(
             value = query,
-            onValueChange = onQueryChange,
+            onValueChange = {
+                reportActivity()
+                onQueryChange(it)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 49.dp)

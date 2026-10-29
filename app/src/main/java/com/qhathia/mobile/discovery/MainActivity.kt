@@ -26,9 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,10 +43,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.BrightnessMode
 import com.qhathia.mobile.discovery.core.domain.model.KioskLockState
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.ui.component.LocalUserActivity
 import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.cart.ui.CartDialog
@@ -67,7 +65,6 @@ import com.qhathia.mobile.discovery.feature.settings.navigation.NETWORK_SETTINGS
 import com.qhathia.mobile.discovery.feature.settings.navigation.networkSettingsScreen
 import com.qhathia.mobile.discovery.feature.settings.ui.SettingsPasswordGate
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -98,7 +95,11 @@ private fun DiscoveryAppRoot(
     ApplyKioskLock(kioskLock)
 
     // Remote "Asistente por voz": when off, every MicButton renders nothing.
-    CompositionLocalProvider(LocalVoiceAssistantEnabled provides deviceSettings.voiceAssistantEnabled) {
+    // LocalUserActivity: dialogs and text fields report interactions to the inactivity timer.
+    CompositionLocalProvider(
+        LocalVoiceAssistantEnabled provides deviceSettings.voiceAssistantEnabled,
+        LocalUserActivity provides mainViewModel::onUserActivity,
+    ) {
         DiscoveryAppContent(mainViewModel)
     }
 }
@@ -203,8 +204,6 @@ private fun DiscoveryNavHost(
     // a correct PIN navigates straight to the Network settings screen.
     var showSettingsGate by rememberSaveable { mutableStateOf(false) }
 
-    // Off-Home inactivity: any touch-down anywhere bumps the tick, restarting the 1-minute timer.
-    var interactionTick by remember { mutableIntStateOf(0) }
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     val kioskLock by mainViewModel.kioskLock.collectAsStateWithLifecycle()
@@ -218,11 +217,15 @@ private fun DiscoveryNavHost(
     // Kiosk: Back on Home would finish the root activity, which ends screen pinning; swallow it.
     BackHandler(enabled = kioskLock.active && currentRoute == HOME_ROUTE) { }
 
-    // Business rule: clear the cart after 1 minute of inactivity on any screen that isn't Home.
-    LaunchedEffect(currentRoute, interactionTick) {
-        if (currentRoute != null && currentRoute != HOME_ROUTE) {
-            delay(CartConstants.INACTIVITY_TIMEOUT_SECONDS * 1_000L)
-            mainViewModel.clearCart()
+    // Customer session (design D2): the ViewModel runs the inactivity timer from the current route.
+    LaunchedEffect(currentRoute) { mainViewModel.onRouteChanged(currentRoute) }
+
+    // The session ended on inactivity and its data is already cleared: close every overlay and go Home.
+    LaunchedEffect(Unit) {
+        mainViewModel.sessionTimeout.collect {
+            showCart = false
+            showSettingsGate = false
+            navController.popBackStack(HOME_ROUTE, inclusive = false)
         }
     }
 
@@ -239,12 +242,13 @@ private fun DiscoveryNavHost(
                 .padding(innerPadding)
                 .pointerInput(Unit) {
                     // Observe-only (Initial pass, no consume) so the timer resets without
-                    // intercepting taps/scrolls meant for the screen below.
+                    // intercepting taps/scrolls meant for the screen below. Dialogs are other
+                    // windows; they report through LocalUserActivity instead.
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             if (event.changes.any { it.changedToDownIgnoreConsumed() }) {
-                                interactionTick++
+                                mainViewModel.onUserActivity()
                             }
                         }
                     }

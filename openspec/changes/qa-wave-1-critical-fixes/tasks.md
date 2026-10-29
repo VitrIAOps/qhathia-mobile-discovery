@@ -23,14 +23,15 @@
 
 ## 3. Customer session (D2, D3): CAR-040, CAR-041, CAR-042
 
-- [ ] 3.1 `core:domain`: `CustomerSessionRepository` port (`sessionEnded: Flow<Unit>`, `end()`), `EndCustomerSessionUseCase` (clear basket + emit), `ObserveCustomerSessionEndUseCase`.
-- [ ] 3.2 `core:data`: in-memory `@Singleton` implementation and Hilt binding.
-- [ ] 3.3 `CartViewModel`: "Aceptar" / "Cancelar orden" go through `EndCustomerSessionUseCase`; reset the form and submission on `sessionEnded`.
-- [ ] 3.4 `ProductDetailViewModel`: close and reset the share dialog on `sessionEnded`.
-- [ ] 3.5 `core:ui`: `LocalUserActivity` and `Modifier.reportUserActivity()`. Apply them to the cart dialog, the product share dialog, the settings PIN dialog and the close-confirm dialogs; text fields report from `onValueChange`.
-- [ ] 3.6 `app`: move the inactivity timer into `MainViewModel` (activity stream + current route + basket count). Off Home it always runs; on Home only with a non-empty basket. On timeout: `EndCustomerSessionUseCase`, close the cart and settings overlays, pop to Home.
-- [ ] 3.7 Update `CartConstants` docs and `shopping-cart` references to the new rule.
-- [ ] 3.8 Unit tests: `EndCustomerSessionUseCase`; `CartViewModel` form reset on session end; `MainViewModel` timer (virtual time): off Home → ends at 60 s, activity at 59 s → restarts, Home + empty basket → never ends, Home + items → ends.
+- [x] 3.1 `core:domain`: `CustomerSessionRepository` port (`sessionEnded: Flow<Unit>`, `end()`), `EndCustomerSessionUseCase` (clear basket + emit), `ObserveCustomerSessionEndUseCase`.
+- [x] 3.2 `core:data`: in-memory `@Singleton` implementation and Hilt binding.
+- [x] 3.3 `CartViewModel`: "Aceptar" / "Cancelar orden" go through `EndCustomerSessionUseCase`; reset the form and submission on `sessionEnded`.
+- [x] 3.4 `ProductDetailViewModel`: close and reset the share dialog on `sessionEnded`.
+- [x] 3.5 `core:ui`: `LocalUserActivity` and `Modifier.reportUserActivity()`. Apply them to the cart dialog, the product share dialog, the settings PIN dialog and the close-confirm dialogs; text fields report from `onValueChange`.
+- [x] 3.6 `app`: move the inactivity timer into `MainViewModel` (activity stream + current route + basket count). Off Home it always runs; on Home only with a non-empty basket. On timeout: `EndCustomerSessionUseCase`, close the cart and settings overlays, pop to Home.
+- [x] 3.7 Update `CartConstants` docs and `shopping-cart` references to the new rule.
+- [x] 3.8 Unit tests: `EndCustomerSessionUseCase`; `CartViewModel` form reset on session end; `MainViewModel` timer (virtual time): off Home → ends at 60 s, activity at 59 s → restarts, Home + empty basket → never ends, Home + items → ends.
+  - Done 2026-10-28. The timer also skips the onboarding routes (`welcome`, `initial_configuration`): there is no customer before pairing. `ClearCartUseCase` was removed; every path goes through `EndCustomerSessionUseCase`. Typing is reported from the two shared text fields (`DiscoveryTextField`, `DiscoverySearchBar`), so it covers the main window too (search, Wi-Fi). Dialog roots covered: cart, product share, settings PIN, Wi-Fi password, and `ConfirmationDialog` (close-confirm and unpair). The `app` module moved to JUnit 5 like the other modules. The main `shopping-cart` spec is updated by the delta at archive time.
 
 ## 4. Orderable products (D4): DET-013, CAR-023/025, BUS-042 (app side)
 
