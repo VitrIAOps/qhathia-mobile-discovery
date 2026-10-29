@@ -54,6 +54,7 @@ import com.qhathia.mobile.discovery.core.ui.component.LocalKioskImmersive
 import com.qhathia.mobile.discovery.core.ui.component.LocalUserActivity
 import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
 import com.qhathia.mobile.discovery.core.ui.component.hideSystemBars
+import com.qhathia.mobile.discovery.core.ui.component.keepSystemBarsHidden
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.cart.ui.CartDialog
 import com.qhathia.mobile.discovery.feature.catalog.navigation.catalogRoute
@@ -80,6 +81,9 @@ class MainActivity : ComponentActivity() {
 
     /** Whether the kiosk lock is applied, so focus changes hide the system bars again. */
     private var kioskImmersive = false
+
+    /** Stops re-hiding the bars after the keyboard (Android 10 and older); set while locked. */
+    private var stopKeepingBarsHidden: (() -> Unit)? = null
 
     private val pinningThrottle = PinningRequestThrottle(
         DeviceConstants.PINNING_REQUEST_MIN_INTERVAL.inWholeMilliseconds,
@@ -112,9 +116,12 @@ class MainActivity : ComponentActivity() {
         if (active) {
             requestPinning(throttled = false)
             window.hideSystemBars()
+            if (stopKeepingBarsHidden == null) stopKeepingBarsHidden = window.keepSystemBarsHidden()
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             if (isPinned()) runCatching { stopLockTask() }
+            stopKeepingBarsHidden?.invoke()
+            stopKeepingBarsHidden = null
             WindowCompat.getInsetsController(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
