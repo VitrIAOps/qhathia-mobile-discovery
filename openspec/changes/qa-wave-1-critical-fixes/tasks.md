@@ -73,8 +73,9 @@
 
 ## 7. Catalog microphone (D11): CAT-030, VOZ-009
 
-- [ ] 7.1 `ProductSearchViewModel.init`: Voice + blank query → `startVoiceCapture()` instead of `performSearch`.
-- [ ] 7.2 Unit tests: Voice + "" → voice session started and no search call; Voice + "taladro" → search as before.
+- [x] 7.1 `ProductSearchViewModel.init`: Voice + blank query → `startVoiceCapture()` instead of `performSearch`.
+- [x] 7.2 Unit tests: Voice + "" → voice session started and no search call; Voice + "taladro" → search as before.
+  - Done 2026-10-29. With no previous screen to restore, a voice entry that hears nothing, fails or is cancelled emits a new `ProductSearchUiEffect.NavigateBack` (wired to `popBackStack()` in the shell), so it goes back to the Catalog instead of leaving the initial `Searching` spinner with no request in flight.
 
 ## 8. Settings PIN lockout (D9): AJU-011
 

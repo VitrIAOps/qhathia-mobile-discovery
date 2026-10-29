@@ -103,7 +103,14 @@ class ProductSearchViewModel @Inject constructor(
     private var sourceBeforeVoice: SearchSource = SearchSource.Text
 
     init {
-        performSearch(initialQuery, initialSource)
+        // The Catalog microphone opens this screen with source Voice and no query: listen here
+        // instead of sending an empty search (design D11, CAT-030).
+        if (initialSource == SearchSource.Voice && initialQuery.isBlank()) {
+            startVoiceCapture()
+            phaseBeforeVoice = null // nothing to go back to on this screen
+        } else {
+            performSearch(initialQuery, initialSource)
+        }
         viewModelScope.launch {
             observeCart().collect { cart ->
                 _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
@@ -261,7 +268,8 @@ class ProductSearchViewModel @Inject constructor(
     }
 
     private fun restorePreVoicePhase() {
-        val restore = phaseBeforeVoice ?: ProductSearchPhase.NetworkError
+        // Entered by voice and nothing was heard (or it was cancelled): go back where the consumer came from.
+        val restore = phaseBeforeVoice ?: return emit(ProductSearchUiEffect.NavigateBack)
         _uiState.update { it.copy(source = sourceBeforeVoice, phase = restore) }
         if (restore is ProductSearchPhase.Unhappy) startIdleTimer()
     }

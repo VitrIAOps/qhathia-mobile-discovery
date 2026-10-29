@@ -358,6 +358,7 @@ private fun DiscoveryNavHost(
                 )
                 productSearchScreen(
                     onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
+                    onNavigateBack = { navController.popBackStack() },
                     onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
                     onOpenCart = { showCart = true },
                 )
