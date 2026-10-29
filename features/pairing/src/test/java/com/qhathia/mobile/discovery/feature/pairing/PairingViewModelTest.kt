@@ -7,11 +7,14 @@ import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeException
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus
 import com.qhathia.mobile.discovery.core.domain.usecase.ExchangeDeviceTokenUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GeneratePairingCodeUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.GetHeldPairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.HoldPairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePairingStatusUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeDevicePairingRepository
+import com.qhathia.mobile.discovery.core.testing.FakeHeldPairingCodeRepository
 import com.qhathia.mobile.discovery.core.testing.FakeStoreSessionRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingError
@@ -36,6 +39,9 @@ class PairingViewModelTest {
     @RegisterExtension
     val mainDispatcher = MainDispatcherExtension()
 
+    /** Outlives each ViewModel, like the app singleton. */
+    private val heldCodes = FakeHeldPairingCodeRepository()
+
     private fun viewModel(
         pairing: FakeDevicePairingRepository,
         session: FakeStoreSessionRepository = FakeStoreSessionRepository(),
@@ -46,6 +52,8 @@ class PairingViewModelTest {
         exchangeDeviceToken = ExchangeDeviceTokenUseCase(pairing),
         getPairedDevice = GetPairedDeviceUseCase(pairing),
         unpairDevice = UnpairDeviceUseCase(pairing),
+        getHeldPairingCode = GetHeldPairingCodeUseCase(heldCodes),
+        holdPairingCode = HoldPairingCodeUseCase(heldCodes),
         clock = { mainDispatcher.dispatcher.scheduler.currentTime },
     )
 
@@ -262,6 +270,46 @@ class PairingViewModelTest {
             runCurrent()
             assertEquals(PairingPhase.Paired, vm.uiState.value.phase)
         }
+
+    @Test
+    fun given_section_left_and_viewmodel_destroyed_then_new_viewmodel_shows_same_code() =
+        runTest(mainDispatcher.dispatcher) {
+            // Onboarding "Volver" pops the pairing destination: its ViewModel is destroyed.
+            val pairing = FakeDevicePairingRepository()
+            val first = viewModel(pairing)
+            first.start()
+            runCurrent()
+            first.stop()
+            advanceTimeBy(30_000)
+
+            val second = viewModel(pairing)
+            second.start()
+            runCurrent()
+
+            val state = second.uiState.value
+            assertEquals(1, pairing.generateCount)
+            assertEquals(PairingPhase.WaitingForApproval, state.phase)
+            assertEquals("2Y567", state.code)
+            assertEquals(270L, state.remainingSeconds)
+            assertEquals(300L, state.totalSeconds)
+            second.stop()
+        }
+
+    @Test
+    fun given_rejected_then_next_visit_generates_a_new_code() = runTest(mainDispatcher.dispatcher) {
+        val pairing = FakeDevicePairingRepository()
+        val first = viewModel(pairing)
+        first.start()
+        pairing.emitStatus(PairingStatus.Rejected)
+        runCurrent()
+
+        val second = viewModel(pairing)
+        second.start()
+        runCurrent()
+
+        assertEquals(2, pairing.generateCount)
+        second.stop()
+    }
 
     @Test
     fun given_stop_and_start_after_ttl_then_new_code() = runTest(mainDispatcher.dispatcher) {

@@ -3,11 +3,14 @@ package com.qhathia.mobile.discovery.feature.pairing.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.common.ElapsedRealtimeClock
+import com.qhathia.mobile.discovery.core.domain.model.HeldPairingCode
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus
 import com.qhathia.mobile.discovery.core.domain.usecase.ExchangeDeviceTokenUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GeneratePairingCodeUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.GetHeldPairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.HoldPairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePairingStatusUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
@@ -38,9 +41,11 @@ import javax.inject.Inject
  * status channel. The code's TTL drives a one-second countdown that, on reaching zero, requests a
  * fresh code — mirroring the server's `EXPIRED` push. Unpairing is wired but unavailable server-side.
  *
- * The code survives the section being recreated (design D6): [stop] keeps it, and [start] resumes it
- * with its remaining time while it is valid, measured on [ElapsedRealtimeClock] so a screen off/on is
- * counted. Socket drops are handled by the repository (it reconnects), so they never show an error.
+ * The code survives the section being closed and recreated (design D6): it is held outside this
+ * ViewModel ([HoldPairingCodeUseCase]), so [start] shows it again with its remaining time while it is
+ * valid, also after "Volver" destroyed this ViewModel. Its expiry is measured on
+ * [ElapsedRealtimeClock] so a screen off/on is counted. Socket drops are handled by the repository
+ * (it reconnects), so they never show an error.
  *
  * The ViewModel is host-agnostic: it always drives pairing to completion and announces success via
  * [PairingUiEffect.Paired]; the host (Settings or onboarding) decides what success means.
@@ -53,6 +58,8 @@ class PairingViewModel @Inject constructor(
     private val exchangeDeviceToken: ExchangeDeviceTokenUseCase,
     private val getPairedDevice: GetPairedDeviceUseCase,
     private val unpairDevice: UnpairDeviceUseCase,
+    private val getHeldPairingCode: GetHeldPairingCodeUseCase,
+    private val holdPairingCode: HoldPairingCodeUseCase,
     private val clock: ElapsedRealtimeClock,
 ) : ViewModel() {
 
@@ -68,9 +75,6 @@ class PairingViewModel @Inject constructor(
     private var countdownJob: Job? = null
     private var statusJob: Job? = null
     private var exchangeJob: Job? = null
-
-    /** The code on screen and when it expires on [clock]; kept across [stop] / [start]. */
-    private var held: HeldCode? = null
 
     /**
      * Enter the pairing section: load the paired device when already paired, resume the held code
@@ -115,20 +119,28 @@ class PairingViewModel @Inject constructor(
     }
 
     private fun resumeOrStartPairing() {
-        val code = held
-        val remaining = code?.let(::remainingSeconds) ?: 0L
-        if (code == null || remaining <= 0 || _uiState.value.phase != PairingPhase.WaitingForApproval) {
+        val held = getHeldPairingCode()
+        val remaining = held?.let(::remainingSeconds) ?: 0L
+        if (held == null || remaining <= 0) {
             startPairing()
             return
         }
-        _uiState.update { it.copy(remainingSeconds = remaining) }
+        _uiState.update {
+            it.copy(
+                phase = PairingPhase.WaitingForApproval,
+                code = held.code.code,
+                remainingSeconds = remaining,
+                totalSeconds = held.code.ttlSeconds,
+                error = null,
+            )
+        }
         startCountdown()
-        observeStatus(code.code.sessionId)
+        observeStatus(held.code.sessionId)
     }
 
     private fun startPairing() {
         cancelJobs()
-        held = null
+        holdPairingCode(null)
         _uiState.update {
             it.copy(phase = PairingPhase.Loading, code = null, remainingSeconds = 0L, error = null)
         }
@@ -144,7 +156,9 @@ class PairingViewModel @Inject constructor(
         // from the documented 5 min). Using the relative TTL instead of expiresAt − now keeps the timer
         // immune to device↔server clock skew; the expiry is then tracked on the monotonic clock.
         val ttl = code.ttlSeconds
-        held = HeldCode(code, expiresAtMillis = clock.elapsedRealtimeMillis() + ttl * ONE_SECOND_MS)
+        holdPairingCode(
+            HeldPairingCode(code, expiresAtElapsedMillis = clock.elapsedRealtimeMillis() + ttl * ONE_SECOND_MS),
+        )
         _uiState.update {
             it.copy(
                 phase = PairingPhase.WaitingForApproval,
@@ -157,18 +171,18 @@ class PairingViewModel @Inject constructor(
         observeStatus(code.sessionId)
     }
 
-    private fun remainingSeconds(code: HeldCode): Long {
-        val leftMillis = code.expiresAtMillis - clock.elapsedRealtimeMillis()
+    private fun remainingSeconds(code: HeldPairingCode): Long {
+        val leftMillis = code.expiresAtElapsedMillis - clock.elapsedRealtimeMillis()
         return ((leftMillis + ONE_SECOND_MS - 1) / ONE_SECOND_MS).coerceAtLeast(0)
     }
 
     private fun startCountdown() {
         countdownJob?.cancel()
         countdownJob = viewModelScope.launch {
-            var remaining = held?.let(::remainingSeconds) ?: 0L
+            var remaining = getHeldPairingCode()?.let(::remainingSeconds) ?: 0L
             while (remaining > 0) {
                 delay(ONE_SECOND_MS)
-                remaining = held?.let(::remainingSeconds) ?: 0L
+                remaining = getHeldPairingCode()?.let(::remainingSeconds) ?: 0L
                 _uiState.update { it.copy(remainingSeconds = remaining) }
             }
             // Expired on screen: request a fresh code + session.
@@ -189,7 +203,7 @@ class PairingViewModel @Inject constructor(
                         PairingStatus.Approved -> onApproved(sessionId)
                         PairingStatus.Rejected -> {
                             cancelJobs()
-                            held = null
+                            holdPairingCode(null)
                             _uiState.update { it.copy(phase = PairingPhase.Rejected) }
                         }
                         PairingStatus.Expired -> startPairing()
@@ -208,7 +222,7 @@ class PairingViewModel @Inject constructor(
             exchangeDeviceToken(sessionId)
                 .onSuccess { device ->
                     statusJob?.cancel()
-                    held = null
+                    holdPairingCode(null)
                     _uiState.update { it.copy(phase = PairingPhase.Paired, device = device) }
                     // Pairing completed and the device token was persisted: announce success so the
                     // host can react (Settings shows the details in place; onboarding navigates Home).
@@ -220,7 +234,7 @@ class PairingViewModel @Inject constructor(
 
     private fun showError(error: PairingError) {
         cancelJobs()
-        held = null
+        holdPairingCode(null)
         _uiState.update { it.copy(phase = PairingPhase.Error, error = error) }
     }
 
@@ -240,8 +254,6 @@ class PairingViewModel @Inject constructor(
         cancelJobs()
         super.onCleared()
     }
-
-    private data class HeldCode(val code: PairingCode, val expiresAtMillis: Long)
 
     private companion object {
         const val ONE_SECOND_MS = 1_000L
