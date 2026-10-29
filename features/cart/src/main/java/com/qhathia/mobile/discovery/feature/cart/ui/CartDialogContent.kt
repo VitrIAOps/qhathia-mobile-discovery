@@ -68,14 +68,24 @@ fun CartDialogContent(
     when (val submission = uiState.submission) {
         is OrderSubmission.Success ->
             SubmissionSuccessContent(
-                title = stringResource(R.string.cart_success_title),
+                // A quote-only share never says an order was generated (CAR-008).
+                title = stringResource(
+                    if (submission.isQuoteOnly) R.string.cart_share_success_title else R.string.cart_success_title,
+                ),
                 subtitle = stringResource(
-                    if (submission.shareDelivered) R.string.cart_success_subtitle
-                    else R.string.cart_success_share_failed_subtitle,
+                    when {
+                        submission.isQuoteOnly -> R.string.cart_share_success_subtitle
+                        submission.shareDelivered -> R.string.cart_success_subtitle
+                        else -> R.string.cart_success_share_failed_subtitle
+                    },
                 ),
                 summary = submission.summary.toSubmissionLines(),
                 // The "check your phone" prompt only applies when the quote actually reached WhatsApp.
-                footnote = if (submission.shareDelivered) stringResource(R.string.cart_success_check_phone) else null,
+                footnote = when {
+                    submission.isQuoteOnly -> stringResource(R.string.cart_share_success_check_phone)
+                    submission.shareDelivered -> stringResource(R.string.cart_success_check_phone)
+                    else -> null
+                },
                 actionLabel = stringResource(R.string.cart_success_accept),
                 onAction = { onEvent(CartUiEvent.AcceptSuccess) },
                 quantityLabel = { pluralStringResource(R.plurals.cart_success_qty, it, it) },
@@ -87,6 +97,17 @@ fun CartDialogContent(
                 title = stringResource(R.string.cart_error_title),
                 message = stringResource(R.string.cart_error_message),
                 // "Entendido" carries the higher priority (filled) — it returns to the cart to retry.
+                primaryLabel = stringResource(R.string.cart_error_understood),
+                onPrimary = { onEvent(CartUiEvent.DismissError) },
+                secondaryLabel = stringResource(R.string.cart_error_cancel),
+                onSecondary = { onEvent(CartUiEvent.CancelOrder) },
+                modifier = modifier,
+            )
+
+        OrderSubmission.QuoteNotDelivered ->
+            SubmissionErrorContent(
+                title = stringResource(R.string.cart_share_not_delivered_title),
+                message = stringResource(R.string.cart_share_not_delivered_message),
                 primaryLabel = stringResource(R.string.cart_error_understood),
                 onPrimary = { onEvent(CartUiEvent.DismissError) },
                 secondaryLabel = stringResource(R.string.cart_error_cancel),
@@ -528,6 +549,54 @@ private fun OrderShareFailedPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
         CartDialogContent(
             uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary(), shareDelivered = false)),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — quote sent (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareSuccessPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary(), isQuoteOnly = true)),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — quote sent (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareSuccessDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary(), isQuoteOnly = true)),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — not delivered (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareNotDeliveredPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.QuoteNotDelivered),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — not delivered (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareNotDeliveredDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.QuoteNotDelivered),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )

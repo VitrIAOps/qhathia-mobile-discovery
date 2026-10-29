@@ -2,7 +2,7 @@ package com.qhathia.mobile.discovery.core.data.share
 
 import com.qhathia.mobile.discovery.core.data.order.toApiMobileNumber
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
-import com.qhathia.mobile.discovery.core.domain.model.CartShare
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.network.dto.ShareCartItemRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.ShareCartRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.ShareCartResponseDto
@@ -22,9 +22,15 @@ internal fun buildShareCartRequest(
     items = items.map { ShareCartItemRequestDto(productId = it.productId, quantity = it.quantity) },
 )
 
-/** Maps the share response DTO to the domain [CartShare]. */
-internal fun ShareCartResponseDto.toDomain(): CartShare = CartShare(
-    status = status,
-    pdfUrl = pdfUrl,
-    messageId = messageId,
-)
+/**
+ * Maps a `201` share answer to its outcome. Only `SENT` is a delivery; `FAILED`, `STUB` and any
+ * unknown status mean WhatsApp did not receive the quote.
+ */
+internal fun ShareCartResponseDto.toOutcome(): ShareOutcome =
+    if (status.equals(STATUS_SENT, ignoreCase = true)) {
+        ShareOutcome.Delivered(pdfUrl)
+    } else {
+        ShareOutcome.NotDelivered(pdfUrl, status)
+    }
+
+private const val STATUS_SENT = "SENT"

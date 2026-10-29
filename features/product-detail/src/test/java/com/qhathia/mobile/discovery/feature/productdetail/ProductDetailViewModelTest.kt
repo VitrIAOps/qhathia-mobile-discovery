@@ -3,12 +3,14 @@ package com.qhathia.mobile.discovery.feature.productdetail
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
+import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.ShareCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
@@ -47,7 +49,7 @@ class ProductDetailViewModelTest {
         getSuggestions = GetProductSuggestionsUseCase(repository),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
-        shareCart = ShareCartUseCase(shareRepository),
+        shareQuote = ShareQuoteUseCase(shareRepository),
         validateName = ValidateConsumerNameUseCase(),
         validatePhone = ValidateConsumerPhoneUseCase(),
     )
@@ -325,6 +327,31 @@ class ProductDetailViewModelTest {
 
         assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
         assertEquals(3, shareRepository.callCount) // retried up to the max
+    }
+
+    @Test
+    fun given_share_answers_failed_when_confirm_then_not_delivered_and_no_retry() =
+        runTest(mainDispatcher.dispatcher) {
+            val shareRepository = FakeCartShareRepository().apply { notDelivered("FAILED") }
+            val vm = loadedViewModel(shareRepository)
+            vm.openShareWithValidData()
+
+            vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+            assertEquals(ProductDetailUiState.ShareSubmission.NotDelivered, vm.uiState.value.share.submission)
+            assertEquals(1, shareRepository.callCount)
+        }
+
+    @Test
+    fun given_share_rejected_400_when_confirm_then_error_sent_once() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.Unavailable))
+        val vm = loadedViewModel(shareRepository)
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+        assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
+        assertEquals(1, shareRepository.callCount)
     }
 
     @Test

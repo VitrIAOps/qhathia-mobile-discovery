@@ -13,12 +13,13 @@
 
 ## 2. Share outcome (D1): DET-032, CAR-007/032, CAR-008, DET-034, CAR-011
 
-- [ ] 2.1 `core:domain`: add `ShareOutcome` (`Delivered`, `NotDelivered`, `Rejected(kind)`, `Failed(category)`), and change `CartShareRepository.shareCart` to return it.
-- [ ] 2.2 `core:data`: `CartShareRepositoryImpl` maps `status` (`SENT` → Delivered, `FAILED` / `STUB` / unknown → NotDelivered) and HTTP codes (400 → Rejected.Unavailable, 404 → Rejected.NotFound, 422 → Rejected.Invalid, 5xx → Failed).
-- [ ] 2.3 `core:domain`: `ShareQuoteUseCase` with the retry policy (up to 3 attempts, only for `Failed`). Remove both private `shareWithRetry` copies.
-- [ ] 2.4 `features:cart`: "Compartir" success only on Delivered, with new share-success strings ("¡Cotización enviada!"). NotDelivered → error state with the not-delivered copy. "Realizar pedido" sets `shareDelivered = outcome is Delivered`.
-- [ ] 2.5 `features:product-detail`: share dialog uses `ShareQuoteUseCase` with the same mapping.
-- [ ] 2.6 Unit tests: repository (SENT / FAILED / STUB / 400 / 404 / 422 / 500 / timeout with `MockEngine`); use case (request count per outcome: 400 → 1, timeout ×2 + SENT → 3, FAILED → 1); `CartViewModel` and `ProductDetailViewModel` (share FAILED → error, order + FAILED → success with fallback copy, share success title is the share copy).
+- [x] 2.1 `core:domain`: add `ShareOutcome` (`Delivered`, `NotDelivered`, `Rejected(kind)`, `Failed(category)`), and change `CartShareRepository.shareCart` to return it.
+- [x] 2.2 `core:data`: `CartShareRepositoryImpl` maps `status` (`SENT` → Delivered, `FAILED` / `STUB` / unknown → NotDelivered) and HTTP codes (400 → Rejected.Unavailable, 404 → Rejected.NotFound, 422 → Rejected.Invalid, 5xx → Failed).
+- [x] 2.3 `core:domain`: `ShareQuoteUseCase` with the retry policy (up to 3 attempts, only for `Failed`). Remove both private `shareWithRetry` copies.
+- [x] 2.4 `features:cart`: "Compartir" success only on Delivered, with new share-success strings ("¡Cotización enviada!"). NotDelivered → error state with the not-delivered copy. "Realizar pedido" sets `shareDelivered = outcome is Delivered`.
+- [x] 2.5 `features:product-detail`: share dialog uses `ShareQuoteUseCase` with the same mapping.
+- [x] 2.6 Unit tests: repository (SENT / FAILED / STUB / 400 / 404 / 422 / 500 / timeout with `MockEngine`); use case (request count per outcome: 400 → 1, timeout ×2 + SENT → 3, FAILED → 1); `CartViewModel` and `ProductDetailViewModel` (share FAILED → error, order + FAILED → success with fallback copy, share success title is the share copy).
+  - Done 2026-10-28. The wire side (JSON body, HTTP codes, timeout → `NetworkResult`) is tested with `MockEngine` in `core:network` (`CartShareApiServiceTest`), because `KtorClientFactory` is internal there; the classification into `ShareOutcome` is tested in `core:data` over a mocked service. Other 4xx map to `Rejected.Other`. Share "not delivered" is its own phase (`OrderSubmission.QuoteNotDelivered`, `ShareSubmission.NotDelivered`).
 
 ## 3. Customer session (D2, D3): CAR-040, CAR-041, CAR-042
 

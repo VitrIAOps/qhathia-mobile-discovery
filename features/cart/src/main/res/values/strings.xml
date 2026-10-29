@@ -53,6 +53,15 @@
     </plurals>
     <string name="cart_success_accept">Aceptar</string>
 
+    <!-- "Compartir por WhatsApp" — quote delivered (status SENT). No order exists. -->
+    <string name="cart_share_success_title">¡Cotización enviada!</string>
+    <string name="cart_share_success_subtitle">Acércate al vendedor para recibir tus productos y realizar el pago.</string>
+    <string name="cart_share_success_check_phone">Revisa tu celular para ver la cotización.</string>
+
+    <!-- "Compartir por WhatsApp" — the server answered but WhatsApp did not receive the quote. -->
+    <string name="cart_share_not_delivered_title">No pudimos enviar la cotización</string>
+    <string name="cart_share_not_delivered_message">La cotización no llegó a tu WhatsApp. Acércate al vendedor para que te ayude.</string>
+
     <!-- Order submission — error. -->
     <string name="cart_error_title">Algo salió mal</string>
     <string name="cart_error_message">Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos.</string>

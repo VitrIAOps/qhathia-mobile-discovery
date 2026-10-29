@@ -32,16 +32,25 @@ sealed interface OrderSubmission {
     /**
      * The submission succeeded — [summary] lists the products for the confirmation screen.
      *
-     * @property shareDelivered whether the WhatsApp quote PDF was delivered. `true` for a standalone
-     *   share and for "Realizar pedido" when the order was created *and* its quote reached WhatsApp;
-     *   `false` when the order was created but every share retry failed, which switches the success
-     *   copy to the "go to the seller and give your name" fallback instead of "check your phone".
+     * @property isQuoteOnly `true` for "Compartir por WhatsApp" (a quote was sent, no order exists),
+     *   which shows the quote-sent copy; `false` for "Realizar pedido", which shows the order copy.
+     * @property shareDelivered whether the WhatsApp quote reached the consumer (`status = SENT`).
+     *   Always `true` for a quote-only success. For "Realizar pedido", `false` means the order was
+     *   created but the quote was not delivered, which switches the copy to the "go to the seller and
+     *   give your name" fallback instead of "check your phone".
      */
     data class Success(
         val summary: ImmutableList<OrderedLine>,
+        val isQuoteOnly: Boolean = false,
         val shareDelivered: Boolean = true,
     ) : OrderSubmission
 
     /** The order failed — the simplified error screen with "Entendido" / "Cancelar orden" is shown. */
     data object Error : OrderSubmission
+
+    /**
+     * "Compartir por WhatsApp" got an answer, but WhatsApp did not receive the quote (`FAILED` /
+     * `STUB`). Shown as an error that sends the consumer to the seller; never as a success.
+     */
+    data object QuoteNotDelivered : OrderSubmission
 }

@@ -72,8 +72,14 @@ data class ProductDetailUiState(
         /** The quote was sent — [summary] holds the shared product for the confirmation screen. */
         data class Success(val summary: ImmutableList<SubmissionLine>) : ShareSubmission
 
-        /** The share failed after retrying — the simplified error screen is shown. */
+        /** The share was rejected or failed after retrying — the simplified error screen is shown. */
         data object Error : ShareSubmission
+
+        /**
+         * The server answered but WhatsApp did not receive the quote (`FAILED` / `STUB`). Shown as an
+         * error that sends the consumer to the seller; never as a success.
+         */
+        data object NotDelivered : ShareSubmission
     }
     /** The product-detail load status. */
     sealed interface Status {

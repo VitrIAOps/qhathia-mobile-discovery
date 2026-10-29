@@ -120,6 +120,17 @@ private fun ShareDialogContent(
                 modifier = modifier,
             )
 
+        ShareSubmission.NotDelivered ->
+            SubmissionErrorContent(
+                title = stringResource(R.string.pd_share_not_delivered_title),
+                message = stringResource(R.string.pd_share_not_delivered_message),
+                primaryLabel = stringResource(R.string.pd_share_error_understood),
+                onPrimary = { onEvent(ProductDetailUiEvent.DismissShareError) },
+                secondaryLabel = stringResource(R.string.pd_share_error_cancel),
+                onSecondary = { onEvent(ProductDetailUiEvent.DismissShare) },
+                modifier = modifier,
+            )
+
         ShareSubmission.Idle, ShareSubmission.Submitting ->
             ShareForm(state = state, onEvent = onEvent, modifier = modifier)
     }
@@ -246,6 +257,30 @@ private fun ShareErrorLightPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
         ShareDialogContent(
             state = ShareUiState(visible = true, submission = ShareSubmission.Error),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — not delivered (light)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareNotDeliveredLightPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.NotDelivered),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — not delivered (dark)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareNotDeliveredDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.NotDelivered),
             onEvent = {},
             modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
         )
