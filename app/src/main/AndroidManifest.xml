@@ -38,6 +38,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- RESTART_APP trampoline (design D7): own process, joins the pinned task, kills the main
+             process and starts MainActivity again. Opaque theme: a translucent activity cannot fix
+             its orientation on API 26. -->
+        <activity
+            android:name=".RestartActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:process=":restart"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.QhathiaDiscovery"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
     </application>
 
 </manifest>

@@ -2,12 +2,14 @@ package com.qhathia.mobile.discovery.core.domain.usecase
 
 import com.qhathia.mobile.discovery.core.domain.model.DeviceCommand
 import com.qhathia.mobile.discovery.core.domain.model.DeviceCommandType
+import com.qhathia.mobile.discovery.core.domain.model.PendingRestartAck
 import com.qhathia.mobile.discovery.core.domain.repository.CatalogRefreshSignal
 import com.qhathia.mobile.discovery.core.testing.DeviceHeartbeatFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeAppRestarter
 import com.qhathia.mobile.discovery.core.testing.FakeCatalogRefreshSignal
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceCommandRepository
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceHeartbeatRepository
+import com.qhathia.mobile.discovery.core.testing.FakePendingRestartAckRepository
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceCommandRepository.Ack
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +20,12 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -28,10 +35,15 @@ class ProcessDeviceCommandsUseCaseTest {
     private val commands = FakeDeviceCommandRepository()
     private val refresh = FakeCatalogRefreshSignal()
     private val restarter = FakeAppRestarter()
+    private val pending = FakePendingRestartAckRepository()
+    private val now = Instant.parse("2026-10-29T12:00:00Z")
+    private var clock: Clock = Clock.fixed(now, ZoneOffset.UTC)
     private val retryDelay = 2.seconds
 
     private fun TestScope.start(signal: CatalogRefreshSignal = refresh) {
-        val useCase = ProcessDeviceCommandsUseCase(heartbeat, commands, signal, restarter, retryDelay)
+        val useCase = ProcessDeviceCommandsUseCase(
+            heartbeat, commands, signal, restarter, pending, clock, retryDelay,
+        )
         backgroundScope.launch { useCase() }
         runCurrent()
     }
@@ -53,31 +65,66 @@ class ProcessDeviceCommandsUseCaseTest {
     }
 
     @Test
-    fun restart_acks_before_restarting() = runTest {
+    fun restart_stores_the_id_and_sends_no_ack_before_restarting() = runTest {
+        var storedAtRestart: PendingRestartAck? = null
         var acksAtRestart = -1
-        restarter.onRestart = { acksAtRestart = commands.acks.size }
+        restarter.onRestart = {
+            storedAtRestart = pending.stored
+            acksAtRestart = commands.acks.size
+        }
         start()
 
         deliver(DeviceCommand("r1", DeviceCommandType.RestartApp))
 
         assertEquals(1, restarter.restartCount)
-        assertEquals(1, acksAtRestart)
-        assertEquals(listOf(Ack("r1", true, null)), commands.acks)
+        assertEquals(PendingRestartAck("r1", now), storedAtRestart)
+        assertEquals(0, acksAtRestart)
+        assertEquals(emptyList<Ack>(), commands.acks)
     }
 
     @Test
-    fun restart_waits_for_ack_retries() = runTest {
-        commands.failuresBeforeSuccess = 3
+    fun pending_restart_is_acked_after_the_first_heartbeat_of_the_new_process() = runTest {
+        pending.stored = PendingRestartAck("r1", now.minusSeconds(20))
+        start()
+        assertEquals(emptyList<Ack>(), commands.acks)
+
+        deliver()
+
+        assertEquals(listOf(Ack("r1", true, null)), commands.acks)
+        assertNull(pending.stored)
+    }
+
+    @Test
+    fun stale_pending_restart_is_dropped_without_ack() = runTest {
+        pending.stored = PendingRestartAck("r1", now.minus(Duration.ofMinutes(11)))
+        start()
+
+        deliver()
+
+        assertEquals(emptyList<Ack>(), commands.acks)
+        assertNull(pending.stored)
+    }
+
+    @Test
+    fun pending_restart_from_the_future_is_dropped_without_ack() = runTest {
+        // The clock moved back after the restart: the age cannot be trusted.
+        pending.stored = PendingRestartAck("r1", now.plusSeconds(3_600))
+        start()
+
+        deliver()
+
+        assertEquals(emptyList<Ack>(), commands.acks)
+    }
+
+    @Test
+    fun same_restart_delivered_again_after_relaunch_does_not_restart_again() = runTest {
+        pending.stored = PendingRestartAck("r1", now.minusSeconds(20))
         start()
 
         deliver(DeviceCommand("r1", DeviceCommandType.RestartApp))
+
         assertEquals(0, restarter.restartCount)
-
-        advanceTimeBy(retryDelay.inWholeMilliseconds * 2)
-        runCurrent()
-
-        assertEquals(3, commands.acks.size)
-        assertEquals(1, restarter.restartCount)
+        assertEquals(listOf(Ack("r1", true, null)), commands.acks)
     }
 
     @Test
@@ -166,7 +213,8 @@ class ProcessDeviceCommandsUseCaseTest {
             DeviceCommand("r1", DeviceCommandType.RestartApp),
         )
 
-        assertEquals(listOf("c1", "r1"), commands.acks.map { it.commandId })
+        // The restart is acked by the next process; only the refresh is acked here.
+        assertEquals(listOf("c1"), commands.acks.map { it.commandId })
         assertEquals(1, restarter.restartCount)
     }
 }

@@ -34,7 +34,11 @@ fun ConfirmationDialog(
         onDismissRequest = onDismiss,
         // A dialog is its own window: report its touches to the inactivity timer.
         modifier = Modifier.reportUserActivity(),
-        title = { Text(text = title) },
+        title = {
+            // Kiosk: keep the system bars hidden over this dialog window.
+            KioskImmersiveDialogEffect()
+            Text(text = title)
+        },
         text = { Text(text = message) },
         containerColor = containerColor ?: AlertDialogDefaults.containerColor,
         confirmButton = {

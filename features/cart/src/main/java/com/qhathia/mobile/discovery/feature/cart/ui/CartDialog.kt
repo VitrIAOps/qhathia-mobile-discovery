@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.qhathia.mobile.discovery.core.ui.component.KioskImmersiveDialogEffect
 import com.qhathia.mobile.discovery.core.ui.component.reportUserActivity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -55,6 +56,8 @@ fun CartDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        // Kiosk: keep the system bars hidden over this dialog window and its keyboard.
+        KioskImmersiveDialogEffect()
         // The cart must open WITHOUT popping the soft keyboard; the consumer taps a field to type.
         // A dialog auto-opens the keyboard because it gives the initial focus to the first focusable
         // element — the "Nombres" field — and a focused text field shows the IME. We prevent that by

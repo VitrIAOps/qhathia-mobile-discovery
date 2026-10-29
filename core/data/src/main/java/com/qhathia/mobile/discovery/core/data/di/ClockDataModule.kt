@@ -6,6 +6,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.time.Clock
 
 /** Provides the platform clocks. */
 @Module
@@ -14,4 +15,7 @@ object ClockDataModule {
 
     @Provides
     fun provideElapsedRealtimeClock(): ElapsedRealtimeClock = SystemElapsedRealtimeClock()
+
+    @Provides
+    fun provideClock(): Clock = Clock.systemUTC()
 }

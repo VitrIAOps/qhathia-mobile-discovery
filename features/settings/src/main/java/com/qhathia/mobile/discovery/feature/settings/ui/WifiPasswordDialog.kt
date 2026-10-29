@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.qhathia.mobile.discovery.core.ui.component.KioskImmersiveDialogEffect
 import com.qhathia.mobile.discovery.core.ui.component.reportUserActivity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -24,6 +25,8 @@ fun WifiPasswordDialog(
     modifier: Modifier = Modifier,
 ) {
     Dialog(onDismissRequest = { onEvent(NetworkSettingsUiEvent.DismissWifiDialog) }) {
+        // Kiosk: keep the system bars hidden over this dialog window and its keyboard.
+        KioskImmersiveDialogEffect()
         WifiPasswordDialogContent(
             network = network,
             password = password,

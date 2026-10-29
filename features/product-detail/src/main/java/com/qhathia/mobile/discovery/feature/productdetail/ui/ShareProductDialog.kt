@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.qhathia.mobile.discovery.core.ui.component.KioskImmersiveDialogEffect
 import com.qhathia.mobile.discovery.core.ui.component.reportUserActivity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -64,6 +65,8 @@ fun ShareProductDialog(
         onDismissRequest = { onEvent(ProductDetailUiEvent.DismissShare) },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        // Kiosk: keep the system bars hidden over this dialog window and its keyboard.
+        KioskImmersiveDialogEffect()
         // Mirror the cart: open WITHOUT popping the soft keyboard by parking the initial focus on an
         // invisible trap and keeping the IME hidden on entry.
         val view = LocalView.current

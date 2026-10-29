@@ -1,10 +1,11 @@
 package com.qhathia.mobile.discovery
 
 import android.Manifest
-import android.app.Activity
 import android.app.ActivityManager
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Process
+import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -27,6 +28,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,18 +38,22 @@ import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.flowWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.qhathia.mobile.discovery.core.domain.DeviceConstants
 import com.qhathia.mobile.discovery.core.domain.model.BrightnessMode
 import com.qhathia.mobile.discovery.core.domain.model.KioskLockState
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.ui.component.LocalKioskImmersive
 import com.qhathia.mobile.discovery.core.ui.component.LocalUserActivity
 import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
+import com.qhathia.mobile.discovery.core.ui.component.hideSystemBars
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.cart.ui.CartDialog
 import com.qhathia.mobile.discovery.feature.catalog.navigation.catalogRoute
@@ -72,6 +78,13 @@ class MainActivity : ComponentActivity() {
     private val requestMicPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* handled at point of use */ }
 
+    /** Whether the kiosk lock is applied, so focus changes hide the system bars again. */
+    private var kioskImmersive = false
+
+    private val pinningThrottle = PinningRequestThrottle(
+        DeviceConstants.PINNING_REQUEST_MIN_INTERVAL.inWholeMilliseconds,
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -83,6 +96,54 @@ class MainActivity : ComponentActivity() {
             DiscoveryAppRoot()
         }
     }
+
+    /** The keyboard closing or a system dialog (e.g. "Pin app?") going away shows the bars: hide them. */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && kioskImmersive) window.hideSystemBars()
+    }
+
+    /**
+     * Applies the kiosk lock (design D5/D8): screen pinning without Device Owner, hidden system bars
+     * (a swipe shows them transiently) and screen kept on. Pinning is always asked here (resume).
+     */
+    fun applyKioskLock(active: Boolean) {
+        kioskImmersive = active
+        if (active) {
+            requestPinning(throttled = false)
+            window.hideSystemBars()
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            if (isPinned()) runCatching { stopLockTask() }
+            WindowCompat.getInsetsController(window, window.decorView)
+                .show(WindowInsetsCompat.Type.systemBars())
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    /**
+     * Asks for screen pinning when the task is not pinned yet. [throttled] requests (from Home) are
+     * dropped when one was made less than [DeviceConstants.PINNING_REQUEST_MIN_INTERVAL] ago, so a
+     * refused "Pin app?" is not shown in a loop.
+     */
+    fun requestPinning(throttled: Boolean) {
+        if (isPinned()) return
+        val now = SystemClock.elapsedRealtime()
+        if (throttled) {
+            if (!pinningThrottle.tryAcquire(now)) return
+        } else {
+            pinningThrottle.record(now)
+        }
+        runCatching { startLockTask() }
+    }
+
+    /** Carries out a remote restart from inside the pinned task (design D7). */
+    fun restartInTask() {
+        startActivity(RestartActivity.intent(this, Process.myPid()))
+    }
+
+    private fun isPinned(): Boolean =
+        getSystemService(ActivityManager::class.java).lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
 }
 
 @Composable
@@ -93,12 +154,15 @@ private fun DiscoveryAppRoot(
     val kioskLock by mainViewModel.kioskLock.collectAsStateWithLifecycle()
     ApplyWindowBrightness(deviceSettings.brightnessMode)
     ApplyKioskLock(kioskLock)
+    CarryOutRestarts(mainViewModel)
 
     // Remote "Asistente por voz": when off, every MicButton renders nothing.
     // LocalUserActivity: dialogs and text fields report interactions to the inactivity timer.
+    // LocalKioskImmersive: dialogs hide the system bars on their own windows while locked.
     CompositionLocalProvider(
         LocalVoiceAssistantEnabled provides deviceSettings.voiceAssistantEnabled,
         LocalUserActivity provides mainViewModel::onUserActivity,
+        LocalKioskImmersive provides (kioskLock?.active == true),
     ) {
         DiscoveryAppContent(mainViewModel)
     }
@@ -140,34 +204,32 @@ private fun BrightnessMode.windowBrightness(): Float = when (this) {
 }
 
 /**
- * Applies the kiosk lock to this activity on every resume and whenever it changes (design D5): screen
- * pinning without Device Owner, hidden system bars (a swipe shows them transiently) and screen kept on.
- * Re-applying on resume also pins again after the merchant or a customer unpinned with the system
- * gesture.
+ * Applies the kiosk lock to this activity on every resume and whenever it changes. Re-applying on
+ * resume also pins again after the merchant or a customer unpinned with the system gesture. Nothing
+ * is applied while [lock] is `null` (not read yet): applying a default would unpin a pinned task on
+ * every start, including the relaunch after a remote restart (design D8).
  */
 @Composable
-private fun ApplyKioskLock(lock: KioskLockState) {
-    val activity = LocalActivity.current ?: return
+private fun ApplyKioskLock(lock: KioskLockState?) {
+    val activity = LocalActivity.current as? MainActivity ?: return
+    if (lock == null) return
     LifecycleResumeEffect(lock.active) {
         activity.applyKioskLock(lock.active)
         onPauseOrDispose { }
     }
 }
 
-private fun Activity.applyKioskLock(active: Boolean) {
-    val pinned = getSystemService(ActivityManager::class.java).lockTaskModeState !=
-        ActivityManager.LOCK_TASK_MODE_NONE
-    val insets = WindowCompat.getInsetsController(window, window.decorView)
-    if (active) {
-        // Only ask when not pinned yet, so an already pinned task is not asked again.
-        if (!pinned) runCatching { startLockTask() }
-        insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        insets.hide(WindowInsetsCompat.Type.systemBars())
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    } else {
-        if (pinned) runCatching { stopLockTask() }
-        insets.show(WindowInsetsCompat.Type.systemBars())
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+/**
+ * Carries out remote restarts while the activity is started (design D7). When it is not, nobody
+ * collects and the restarter relaunches the app directly.
+ */
+@Composable
+private fun CarryOutRestarts(mainViewModel: MainViewModel) {
+    val activity = LocalActivity.current as? MainActivity ?: return
+    LaunchedEffect(activity) {
+        mainViewModel.restartRequests
+            .flowWithLifecycle(activity.lifecycle, Lifecycle.State.STARTED)
+            .collect { activity.restartInTask() }
     }
 }
 
@@ -207,6 +269,8 @@ private fun DiscoveryNavHost(
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     val kioskLock by mainViewModel.kioskLock.collectAsStateWithLifecycle()
+    val kioskActive = kioskLock?.active == true
+    val activity = LocalActivity.current as? MainActivity
 
     // Kiosk: a temporary exit from Configuración ends when the merchant is back on Home (any way back:
     // the side-menu "Volver" or system Back), so the lock applies again.
@@ -214,8 +278,15 @@ private fun DiscoveryNavHost(
         if (currentRoute == HOME_ROUTE) mainViewModel.resumeKioskMode()
     }
 
+    // Kiosk (design D8): a refused "Pin app?" is asked again when the consumer is back on Home, and on
+    // touches on Home below, at most once every 15 s.
+    LaunchedEffect(currentRoute, kioskActive) {
+        if (kioskActive && currentRoute == HOME_ROUTE) activity?.requestPinning(throttled = true)
+    }
+    val askPinningOnTouch by rememberUpdatedState(kioskActive && currentRoute == HOME_ROUTE)
+
     // Kiosk: Back on Home would finish the root activity, which ends screen pinning; swallow it.
-    BackHandler(enabled = kioskLock.active && currentRoute == HOME_ROUTE) { }
+    BackHandler(enabled = kioskActive && currentRoute == HOME_ROUTE) { }
 
     // Customer session (design D2): the ViewModel runs the inactivity timer from the current route.
     LaunchedEffect(currentRoute) { mainViewModel.onRouteChanged(currentRoute) }
@@ -249,6 +320,7 @@ private fun DiscoveryNavHost(
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             if (event.changes.any { it.changedToDownIgnoreConsumed() }) {
                                 mainViewModel.onUserActivity()
+                                if (askPinningOnTouch) activity?.requestPinning(throttled = true)
                             }
                         }
                     }

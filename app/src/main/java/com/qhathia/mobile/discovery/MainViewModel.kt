@@ -6,6 +6,7 @@ import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.DeviceSettings
 import com.qhathia.mobile.discovery.core.domain.model.KioskLockState
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveAppRestartRequestsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveDeviceSettingsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveKioskLockUseCase
@@ -54,6 +55,7 @@ class MainViewModel @Inject constructor(
     observeDeviceSettings: ObserveDeviceSettingsUseCase,
     observeKioskLock: ObserveKioskLockUseCase,
     private val resumeKioskModeUseCase: ResumeKioskModeUseCase,
+    observeAppRestartRequests: ObserveAppRestartRequestsUseCase,
 ) : ViewModel() {
 
     /** The tablet's remote settings, applied by the app shell (voice assistant, brightness). */
@@ -61,10 +63,20 @@ class MainViewModel @Inject constructor(
         observeDeviceSettings()
             .stateIn(viewModelScope, SharingStarted.Eagerly, DeviceSettings.DEFAULT)
 
-    /** Whether the tablet must be locked on Discovery (screen pinning, no system bars, screen on). */
-    val kioskLock: StateFlow<KioskLockState> =
+    /**
+     * Whether the tablet must be locked on Discovery (screen pinning, no system bars, screen on).
+     * `null` until the real state is read: the shell must not apply anything before that, or an
+     * INACTIVE seed would unpin a pinned task on every start (design D8, task 1.1).
+     */
+    val kioskLock: StateFlow<KioskLockState?> =
         observeKioskLock()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, KioskLockState.INACTIVE)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Remote `RESTART_APP` requests the shell carries out from its Activity, so the trampoline joins
+     * the pinned task (design D7). Collect only while the activity is started.
+     */
+    val restartRequests: Flow<Unit> = observeAppRestartRequests()
 
     /**
      * The first destination to show. Starts as [StartDestination.Loading] until the persisted session

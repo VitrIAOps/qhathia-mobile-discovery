@@ -1,12 +1,15 @@
 package com.qhathia.mobile.discovery
 
+import com.qhathia.mobile.discovery.core.domain.model.KioskLockState
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveAppRestartRequestsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveDeviceSettingsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveKioskLockUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ResumeKioskModeUseCase
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
+import com.qhathia.mobile.discovery.core.testing.FakeAppRestarter
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceSettingsRepository
@@ -43,8 +46,7 @@ class MainViewModelTest {
     /** An off-Home customer screen. */
     private val offHomeRoute = catalogRoute()
 
-    private fun viewModel(): MainViewModel {
-        val storeSession = FakeStoreSessionRepository()
+    private fun viewModel(storeSession: FakeStoreSessionRepository = FakeStoreSessionRepository()): MainViewModel {
         val settings = FakeDeviceSettingsRepository()
         val kioskSession = FakeKioskSessionRepository()
         return MainViewModel(
@@ -54,6 +56,7 @@ class MainViewModelTest {
             observeDeviceSettings = ObserveDeviceSettingsUseCase(settings),
             observeKioskLock = ObserveKioskLockUseCase(storeSession, settings, kioskSession),
             resumeKioskModeUseCase = ResumeKioskModeUseCase(kioskSession),
+            observeAppRestartRequests = ObserveAppRestartRequestsUseCase(FakeAppRestarter()),
         )
     }
 
@@ -67,6 +70,19 @@ class MainViewModelTest {
     private fun TestScope.wait(seconds: Long) {
         advanceTimeBy(seconds * 1_000L)
         runCurrent()
+    }
+
+    @Test
+    fun kiosk_lock_is_never_inactive_before_the_real_state_is_read() = runTest(mainDispatcher.dispatcher) {
+        // A pinned tablet restarting: paired, kioskMode on. An INACTIVE seed would unpin it (task 1.1).
+        val storeSession = FakeStoreSessionRepository().apply { saveDeviceSession("device-jwt", "Tablet") }
+        val vm = viewModel(storeSession)
+        val seen = mutableListOf<KioskLockState?>()
+        backgroundScope.launch { vm.kioskLock.collect { seen += it } }
+
+        runCurrent()
+
+        assertEquals(listOf(null, KioskLockState(active = true)), seen)
     }
 
     @Test
