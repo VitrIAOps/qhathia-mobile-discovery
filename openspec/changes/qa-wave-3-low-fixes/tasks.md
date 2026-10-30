@@ -18,16 +18,16 @@
 
 ## 2. Labels on touchable controls (D1): INI-070, CAR-080, DET-080, VIN-070
 
-- [ ] 2.1 `core:ui`: a helper for labelled icon controls (`LabeledIconButton` or `Modifier.labeled(description)`) that sets the description on the clickable node and none on the icon. Use it in `CloseIconButton`, the search bar mic and search icons, `QuantityStepper`, and the card cart buttons (`ProductCard`, `ProductRowCard`).
-- [ ] 2.2 Features: apply it to the Home gear and mic, the back arrows (Catalog, Search, Detail, Pairing), the cart line remove and "Ver detalle", the share dialog close, the Wi-Fi dialog icons, and any other clickable icon found by the 1.1 script.
-- [ ] 2.3 `DiscoveryTextField`: expose the field label as the description (also when empty).
-- [ ] 2.4 Pairing code row: one node, "Código de vinculación: 2 Y 5 6 7" (`clearAndSetSemantics`). Gallery thumbnails: "Foto N de <producto>" (new `core:ui` string with placeholders).
-- [ ] 2.5 Compose UI test or unit check is not set up in the project; the 1.1 script is the check (9.2).
+- [x] 2.1 `core:ui`: a helper for labelled icon controls (`LabeledIconButton` or `Modifier.labeled(description)`) that sets the description on the clickable node and none on the icon. Use it in `CloseIconButton`, the search bar mic and search icons, `QuantityStepper`, and the card cart buttons (`ProductCard`, `ProductRowCard`).
+- [x] 2.2 Features: apply it to the Home gear and mic, the back arrows (Catalog, Search, Detail, Pairing), the cart line remove and "Ver detalle", the share dialog close, the Wi-Fi dialog icons, and any other clickable icon found by the 1.1 script.
+- [x] 2.3 `DiscoveryTextField`: expose the field label as the description (also when empty).
+- [x] 2.4 Pairing code row: one node, "Código de vinculación: 2 Y 5 6 7" (`clearAndSetSemantics`). Gallery thumbnails: "Foto N de <producto>" (new `core:ui` string with placeholders).
+- [x] 2.5 Compose UI test or unit check is not set up in the project; the 1.1 script is the check (9.2).
 
 ## 3. Product images (D2): DET-062, DET-063
 
-- [ ] 3.1 `core:ui`: `ProductImage(url, contentDescription, modifier)` with the "no image" placeholder for null, blank and failed URLs, and the neutral background while loading. Light and dark previews.
-- [ ] 3.2 Replace the six `AsyncImage` calls (cards, gallery main and thumbnails, cart lines, success summary) with it.
+- [x] 3.1 `core:ui`: `ProductImage(url, contentDescription, modifier)` with the "no image" placeholder for null, blank and failed URLs, and the neutral background while loading. Light and dark previews.
+- [x] 3.2 Replace the six `AsyncImage` calls (cards, gallery main and thumbnails, cart lines, success summary) with it.
 
 ## 4. Product detail (D3): DET-004, RED-004
 
@@ -50,18 +50,19 @@
 
 ## 8. Settings (D7): AJU-022, AJU-030, AJU-032, AJU-040, AJU-041, AJU-043, VIN-003
 
-- [ ] 8.1 `core:network`: optional `storeName` in the `/devices/me` DTO. `core:domain`: `PairedDevice.lastSeenAt`. `core:data`: mapping; `getPairedDevice` saves a non-blank `storeName` with `UpdateStoreNameUseCase`.
-- [ ] 8.2 Session DataStore: `pairingCode` saved on a successful exchange, cleared on unpair; `getPairedDevice` reads it. Unit tests in the repository.
-- [ ] 8.3 Pairing details: "Actividad" uses `lastSyncAt ?: lastSeenAt`; "Código usado" shows "No disponible" when missing; previews updated.
-- [ ] 8.4 `NetworkSettingsRepository.rescan()` (`WifiManager.startScan()`); `RefreshNetworks` calls it; `LocationPermissionResult(granted = true)` also calls it. Unit tests in the ViewModel with a fake repository.
-- [ ] 8.5 Location permission missing: message plus "Permitir ubicación" that relaunches the request; the "no longer asked" case shows the device-settings message (`shouldShowRequestPermissionRationale` false after a refusal).
-- [ ] 8.6 "Datos móviles" as a status row ("Activos" / "Inactivos" / "Sin SIM"); remove the toggle path (`ToggleMobileData`, `SetMobileDataEnabledUseCase`, `actionNotPermitted` if unused elsewhere) and its tests.
-- [ ] 8.7 "Abrir ajustes de datos" (hidden without SIM): runs `ExitKioskModeUseCase`, then a one-shot effect that starts the intent chosen by API level (panel on 29+, `ACTION_WIRELESS_SETTINGS` on 26–28; results of 1.0 in `design.md`). The screen re-reads the network state on resume. Unit test: the event exits kiosk mode and emits the effect; no effect without SIM.
+- [x] 8.1 `core:network`: optional `storeName` in the `/devices/me` DTO. `core:domain`: `PairedDevice.lastSeenAt`. `core:data`: mapping; `getPairedDevice` saves a non-blank `storeName` with `UpdateStoreNameUseCase`.
+- [x] 8.2 Session DataStore: `pairingCode` saved on a successful exchange, cleared on unpair; `getPairedDevice` reads it. Unit tests in the repository.
+- [x] 8.3 Pairing details: "Actividad" uses `lastSyncAt ?: lastSeenAt`; "Código usado" shows "No disponible" when missing; previews updated.
+- [x] 8.4 `NetworkSettingsRepository.rescan()` (`WifiManager.startScan()`); `RefreshNetworks` calls it; `LocationPermissionResult(granted = true)` also calls it. Unit tests in the ViewModel with a fake repository.
+- [x] 8.5 Location permission missing: message plus "Permitir ubicación" that relaunches the request; the "no longer asked" case shows the device-settings message (`shouldShowRequestPermissionRationale` false after a refusal).
+- [x] 8.6 "Datos móviles" as a status row ("Activos" / "Inactivos" / "Sin SIM"); remove the toggle path (`ToggleMobileData`, `SetMobileDataEnabledUseCase`, `actionNotPermitted` if unused elsewhere) and its tests.
+- [x] 8.7 "Abrir ajustes de datos" (hidden without SIM): runs `ExitKioskModeUseCase`, then a one-shot effect that starts the intent chosen by API level (panel on 29+, `ACTION_WIRELESS_SETTINGS` on 26–28; results of 1.0 in `design.md`). The screen re-reads the network state on resume. Unit test: the event exits kiosk mode and emits the effect; no effect without SIM.
 
 ## 9. Build checks and emulator QA
 
-- [ ] 9.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green.
-- [ ] 9.2 `./gradlew lint assembleDebug assembleProfile` green; previews (light and dark) for every new or changed state.
-- [ ] 9.3 Re-run every case of 1.1 on the new `profile` APK for the "after" column; the label script shows zero unlabelled clickable nodes on each screen.
-- [ ] 9.4 Regression sweep: waves 1 and 2 flows still pass (navigation guard, Back = "Volver", voice stop, cart dismissal, session timeout, pinning).
-- [ ] 9.5 Complete `qa-report.md` and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with an **Ola 3** status in each wave-3 row, noting what stays with the backend.
+- [x] 9.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green.
+- [x] 9.2 `./gradlew lint assembleDebug assembleProfile` green; previews (light and dark) for every new or changed state.
+- [x] 9.3 Re-run every case of 1.1 on the new `profile` APK for the "after" column; the label script shows zero unlabelled clickable nodes on each screen.
+  - Done 2026-10-30: zero on all nine screens (`LABELS-after.txt`); every case fixed except DET-062/063 and RED-004, which still cannot be reproduced on the emulator (code + unit tests / previews). Settings run with the exit PIN from the user.
+- [x] 9.4 Regression sweep: waves 1 and 2 flows still pass (navigation guard, Back = "Volver", voice stop, cart dismissal, session timeout, pinning).
+- [x] 9.5 Complete `qa-report.md` and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with an **Ola 3** status in each wave-3 row, noting what stays with the backend.

@@ -48,6 +48,12 @@ Alternative: rely on Compose merging the icon into the button for TalkBack. It w
 
 QA check: a script over `uiautomator dump` lists clickable nodes with empty `text` and `content-desc`; the target is zero on Home, Catalog, Search, Detail, Cart, Pairing and Settings.
 
+Implementation notes (found while applying the change, 2026-10-30):
+- Compose sends the unmerged tree to accessibility. A `contentDescription` on a clickable element that has children is moved into a separate child node, so the button itself stays unlabelled. `Modifier.labeled(description)` (`core:ui`) uses `clearAndSetSemantics`, which keeps the description on the touchable node.
+- `clearAndSetSemantics` also drops the semantics of the modifiers that come AFTER it on the same element. So `labeled` goes right after `clickable` / `selectable` / `toggleable`, and never as the `modifier` of a Material `IconButton` / `Button` (their click comes after the caller's modifier). An `IconButton` gets a plain `semantics { contentDescription }` with a `null` icon description (no child, so the label stays on it); text buttons use `PrimaryActionButton` (new `fillMaxWidth` option).
+- Product cards are clickable and contain their own cart button: the card's tap sits on a background layer labelled "<nombre>, <precio>", the texts are hidden from accessibility, and the cart button stays a separate labelled control.
+- Text fields: every Compose text field has an inner scroll node, so the field's description always lands in a label node right inside the `EditText`, and clearing it would drop the editing semantics. TalkBack reads it as the field's label; the QA script accepts this one case.
+
 ### D2. One `ProductImage` with a placeholder (DET-062, DET-063)
 
 `core:ui` gets `ProductImage(url, contentDescription, modifier)`: `AsyncImage` with a neutral "no image" placeholder (gray background and a photo icon) for `null`, empty and failed URLs, and the same background while loading. Cards, the gallery main image and thumbnails, cart lines and the success summary use it.

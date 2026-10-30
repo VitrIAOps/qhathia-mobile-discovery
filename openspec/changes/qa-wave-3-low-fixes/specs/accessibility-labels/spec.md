@@ -12,7 +12,7 @@ Every touchable control without visible text (icon buttons such as the settings 
 #### Scenario: No unlabelled clickable controls
 
 - **WHEN** the Home, Catalog, Search, Detail, Cart, Pairing and Settings screens are inspected
-- **THEN** no clickable element has both an empty text and an empty description
+- **THEN** no clickable element has both an empty text and an empty description (a text field counts as labelled when the label node it contains carries the description)
 
 ### Requirement: Text fields expose their label
 
