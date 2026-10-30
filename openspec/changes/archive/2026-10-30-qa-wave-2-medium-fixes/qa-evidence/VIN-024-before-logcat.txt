@@ -1,0 +1,7 @@
+# VIN-024 before (main @ 96798d5, profile, Tablet_API36): code-generation error offline, network back, 4 fast taps on Reintentar. 3 pairing-token requests (3 sessions created), last code shown, no error this run.
+REQUEST: http://87.99.156.164/api/v1/devices/pairing-token
+REQUEST: http://87.99.156.164/api/v1/devices/pairing-token
+REQUEST: http://87.99.156.164/api/v1/devices/pairing-token
+FROM: http://87.99.156.164/api/v1/devices/pairing-token
+FROM: http://87.99.156.164/api/v1/devices/pairing-token
+FROM: http://87.99.156.164/api/v1/devices/pairing-token

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
 import com.qhathia.mobile.discovery.core.domain.VoiceSearchConstants
+import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
@@ -13,11 +14,12 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.VoiceSearchSession
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiEffect
@@ -26,6 +28,7 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiS
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_QUERY
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_SOURCE
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
@@ -40,7 +43,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Drives the product-search screen and owns its state machine:
@@ -102,6 +104,9 @@ class ProductSearchViewModel @Inject constructor(
     private var phaseBeforeVoice: ProductSearchPhase? = null
     private var sourceBeforeVoice: SearchSource = SearchSource.Text
 
+    /** Voice capture was stopped while hidden and there was nothing to restore: leave once shown again. */
+    private var leaveOnResume = false
+
     init {
         // The Catalog microphone opens this screen with source Voice and no query: listen here
         // instead of sending an empty search (design D11, CAT-030).
@@ -135,6 +140,8 @@ class ProductSearchViewModel @Inject constructor(
             is ProductSearchUiEvent.FilterToggled -> onFilterToggled(event.criterion, event.option)
             is ProductSearchUiEvent.FilterCriterionCleared -> onFilterCriterionCleared(event.criterion)
             is ProductSearchUiEvent.SuggestionSelected -> onSuggestionSelected(event.phrase)
+            ProductSearchUiEvent.ScreenStopped -> onScreenStopped()
+            ProductSearchUiEvent.ScreenResumed -> onScreenResumed()
         }
     }
 
@@ -167,7 +174,7 @@ class ProductSearchViewModel @Inject constructor(
     private fun onCartTapped(productId: String) {
         resetIdleTimerIfUnhappy()
         val product = currentProducts().firstOrNull { it.id == productId } ?: return
-        viewModelScope.launch { addToCart(product.toCartItem()) }
+        addAndReportLimit(product.toCartItem())
     }
 
     private fun openCart() {
@@ -259,6 +266,30 @@ class ProductSearchViewModel @Inject constructor(
     private fun cancelVoiceSlowResponseTimer() {
         voiceSlowResponseJob?.cancel()
         voiceSlowResponseJob = null
+    }
+
+    /**
+     * Hidden screen (wave 2, D3: VOZ-004): stop voice capture so the microphone is released. When the
+     * screen was opened by voice there is no result to return to, so the exit runs once it is shown
+     * again (a navigation while hidden would be dropped).
+     */
+    private fun onScreenStopped() {
+        if (!_uiState.value.isVoiceCapturing) return
+        cancelVoiceJobs()
+        val restore = phaseBeforeVoice
+        if (restore == null) {
+            leaveOnResume = true
+        } else {
+            _uiState.update { it.copy(source = sourceBeforeVoice, phase = restore) }
+            if (restore is ProductSearchPhase.Unhappy) startIdleTimer()
+        }
+    }
+
+    private fun onScreenResumed() {
+        if (leaveOnResume) {
+            leaveOnResume = false
+            emit(ProductSearchUiEffect.NavigateBack)
+        }
     }
 
     private fun cancelVoiceCapture() {
@@ -377,6 +408,11 @@ class ProductSearchViewModel @Inject constructor(
     }
 
     private fun onBack() {
+        if (_uiState.value.isVoiceCapturing) {
+            // Back while the microphone is open cancels the capture, like its cancel control.
+            cancelVoiceCapture()
+            return
+        }
         if (history.size > 1) {
             history.removeAt(history.lastIndex)
             showEntry(history.last())
@@ -468,6 +504,14 @@ class ProductSearchViewModel @Inject constructor(
         val phase: ProductSearchPhase,
         val query: String,
     )
+
+
+    /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
+    private fun addAndReportLimit(item: CartItem) {
+        viewModelScope.launch {
+            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(ProductSearchUiEffect.LineLimitReached)
+        }
+    }
 
     private companion object {
         const val ONE_SECOND_MS = 1_000L

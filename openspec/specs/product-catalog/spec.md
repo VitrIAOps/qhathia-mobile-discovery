@@ -3,9 +3,7 @@
 ## Purpose
 
 The product-catalog capability lets in-store consumers browse everything the store offers — the available products grouped by the merchant's categories — as a general overview, without going through search. It owns loading the catalog from the Qhathia catalog API, the category tab bar (Todo + one tab per category + Descuentos) over a single two-row product grid, navigation to product detail, cart access, the hand-off to product search, and the network-error / idle-timeout behavior.
-
 ## Requirements
-
 ### Requirement: Catalog retrieval grouped by category
 
 The app SHALL load the store's catalog via `GET /api/v1/catalog/by-category`, authenticated with the session Bearer JWT, and present the returned products through a category **tab bar** (following the catalog Figma frame). The tab bar SHALL open with an **"Todo"** tab first, followed by one tab per category returned by the endpoint (the backend already returns only categories that have `AVAILABLE` products), preserving the order in which they are returned, and ending with the **"Descuentos"** tab. Selecting a tab SHALL filter the product grid: **Todo** shows every available product across categories; a **category** tab shows that category's products. The app SHALL impose **no limit** on the number of products shown.
@@ -175,3 +173,42 @@ The catalog screens SHALL be built from the shared design system, use Material 3
 
 - **WHEN** an assistive technology inspects the top-bar controls, the product cart buttons, and the microphone
 - **THEN** each interactive control exposes a localized content description and a touch target of at least 48dp
+
+### Requirement: Catalog system Back follows "Volver"
+
+The system Back on the Catalog screen SHALL run the Catalog "Volver" action: the close confirmation when the cart has products, and the return to Home when the cart is empty.
+
+#### Scenario: Back with products in the cart
+
+- **WHEN** the cart has products and the consumer presses the system Back on Catalog
+- **THEN** the close confirmation dialog is shown and the screen stays on Catalog until the consumer confirms
+
+### Requirement: Remote catalog refresh in place
+
+While the catalog screen is shown, a remote catalog refresh request SHALL make it re-fetch the catalog in the background. On success the products and category tabs SHALL be replaced with the fresh data, keeping the selected tab when it still exists and falling back to "Todo" otherwise. The refresh SHALL NOT show a loading indicator, SHALL NOT show the network-error screen when it fails (the current products remain), and SHALL NOT reset the inactivity timer. If the screen is showing the network-error state, the refresh SHALL behave like a retry. A refresh requested while no catalog screen is shown SHALL have no effect on a catalog screen opened later.
+
+#### Scenario: Refresh while browsing a category
+
+- **WHEN** the consumer is on the catalog with the "Iluminación" tab selected and a remote refresh is requested
+- **THEN** the catalog is fetched again, the fresh products for "Iluminación" are shown, and the "Iluminación" tab stays selected without a loading indicator
+
+#### Scenario: Selected tab no longer exists
+
+- **WHEN** a remote refresh returns a catalog without the currently selected category
+- **THEN** the "Todo" tab is selected
+
+#### Scenario: Refresh fails
+
+- **WHEN** the background re-fetch fails
+- **THEN** the current products stay on screen and no error screen is shown
+
+#### Scenario: Refresh on the network-error screen
+
+- **WHEN** the catalog shows the network-error screen and a remote refresh is requested
+- **THEN** the catalog is loaded again as on a retry
+
+#### Scenario: Catalog opened after the refresh
+
+- **WHEN** a remote refresh is requested while the consumer is on Home and the catalog is opened afterwards
+- **THEN** the catalog performs its normal single load and no extra refresh
+

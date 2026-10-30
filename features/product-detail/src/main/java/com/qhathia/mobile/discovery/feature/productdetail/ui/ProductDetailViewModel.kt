@@ -4,11 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.CartConstants
-import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
+import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
@@ -24,6 +27,7 @@ import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiE
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiState
 import com.qhathia.mobile.discovery.feature.productdetail.navigation.ARG_PRODUCT_ID
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.BufferOverflow
@@ -35,7 +39,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Drives the product-detail screen. Reads the product id from [SavedStateHandle], fetches the detail
@@ -106,11 +109,12 @@ class ProductDetailViewModel @Inject constructor(
             is ProductDetailUiEvent.ShareNameChanged -> onShareNameChanged(event.name)
             is ProductDetailUiEvent.SharePhoneChanged -> onSharePhoneChanged(event.phone)
             ProductDetailUiEvent.ConfirmShare -> confirmShare()
-            ProductDetailUiEvent.DismissShare -> closeShareDialog()
+            ProductDetailUiEvent.DismissShare -> if (!_uiState.value.share.isSubmitting) closeShareDialog()
+            ProductDetailUiEvent.ShareDismissRequest -> onShareDismissRequest()
             ProductDetailUiEvent.AcceptShareSuccess -> closeShareDialog()
             ProductDetailUiEvent.DismissShareError -> updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
-            // Render-only interaction — out of scope for this change.
-            ProductDetailUiEvent.ActivateMic -> Unit
+            // Voice is handed off to the search screen, which listens in place (wave 2, D4).
+            ProductDetailUiEvent.ActivateMic -> emit(ProductDetailUiEffect.NavigateToSearch("", SearchSource.Voice))
         }
     }
 
@@ -123,6 +127,19 @@ class ProductDetailViewModel @Inject constructor(
     private fun openShareDialog() {
         if (orderableDetail() == null) return
         updateShare { ProductDetailUiState.ShareUiState(visible = true) }
+    }
+
+    /**
+     * Outside tap or system Back on the share dialog (wave 2, D6): a request in flight keeps it open,
+     * and a result screen runs its main action ("Aceptar" closes, "Entendido" returns to the form).
+     */
+    private fun onShareDismissRequest() {
+        when (_uiState.value.share.submission) {
+            ProductDetailUiState.ShareSubmission.Submitting -> Unit
+            ProductDetailUiState.ShareSubmission.Error, ProductDetailUiState.ShareSubmission.NotDelivered ->
+                updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
+            else -> closeShareDialog()
+        }
     }
 
     /** Closes the dialog and resets its form so a re-open — or the next share — starts blank. */
@@ -173,13 +190,13 @@ class ProductDetailViewModel @Inject constructor(
     private fun onAddToCart() {
         val detail = orderableDetail() ?: return
         val quantity = _uiState.value.quantity
-        viewModelScope.launch { addToCart(detail.toCartItem(quantity)) }
+        addAndReportLimit(detail.toCartItem(quantity))
     }
 
     private fun onAddRelatedToCart(productId: String) {
         val related = _uiState.value.relatedProducts as? ProductDetailUiState.RelatedProducts.Loaded ?: return
         val product = related.items.firstOrNull { it.id == productId } ?: return
-        viewModelScope.launch { addToCart(product.toCartItem()) }
+        addAndReportLimit(product.toCartItem())
     }
 
     private fun adjustQuantity(delta: Int) {
@@ -248,4 +265,11 @@ class ProductDetailViewModel @Inject constructor(
             DetailErrorCategory.Network -> ProductDetailUiState.ErrorKind.Network
             DetailErrorCategory.DetailApi -> ProductDetailUiState.ErrorKind.Generic
         }
+
+    /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
+    private fun addAndReportLimit(item: CartItem) {
+        viewModelScope.launch {
+            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(ProductDetailUiEffect.LineLimitReached)
+        }
+    }
 }

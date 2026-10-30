@@ -3,9 +3,7 @@
 ## Purpose
 
 The product-detail capability lets in-store consumers open a single product from a search result and read its full detail — name, description and characteristics, price, availability, and its photo gallery — closing the discovery loop from "I found something that might match" to "I can read about it and decide". It owns fetching a product by id from the Qhathia backend, the detail screen layout and load states, the purchase actions (Add-to-cart, and Share via WhatsApp which shares the viewed product as a WhatsApp quote per the cart-whatsapp-share capability), the related-products section sourced from the suggestions API, and the retained microphone animation and top-bar navigation controls.
-
 ## Requirements
-
 ### Requirement: Fetch product detail by id
 
 The app SHALL fetch a single product's full detail from the Qhathia backend via `GET /api/v1/products/{id}`, authenticated with the session Bearer JWT, and present it on the product-detail screen. The fetched detail SHALL include the product name, description, price, availability, and its media (photo) collection. On an authentication failure (`401`) the app SHALL drop the cached session token and retry the request once with a refreshed token, reusing the established session-token seam.
@@ -192,3 +190,61 @@ The product-detail screen SHALL be built from the shared design system, use Mate
 
 - **WHEN** an assistive technology inspects the top-bar controls, the Add-to-cart and Share-via-WhatsApp buttons, and the microphone
 - **THEN** each interactive control exposes a localized content description and a touch target of at least 48dp
+
+### Requirement: Detail microphone opens voice search
+
+The microphone control on the product detail search bar SHALL open the product search screen in voice mode with no query, which starts listening, as the Catalog microphone does.
+
+#### Scenario: Tap the detail microphone
+
+- **WHEN** the consumer taps the microphone on the product detail
+- **THEN** the product search screen opens and starts listening
+
+### Requirement: Share dialog stays open while sending
+
+While a product share request is in flight, the share dialog SHALL NOT be closed by an outside tap, the system Back or its close control. Once a result is shown, closing the dialog SHALL run the result's main action (accept on success, "Entendido" on an error).
+
+#### Scenario: Outside tap while sending
+
+- **WHEN** a product share request is in flight and the consumer taps outside the dialog
+- **THEN** the dialog stays open with its loading indicator
+
+#### Scenario: Back on the success screen
+
+- **WHEN** the share success screen is shown and the consumer presses the system Back
+- **THEN** the dialog closes as if the consumer had accepted the success screen
+
+### Requirement: Unavailable product blocks purchase actions
+
+When the loaded product detail reports the product as inactive, or its availability is not `AVAILABLE`, the product-detail screen SHALL disable the Add-to-cart and Share-via-WhatsApp buttons and the quantity stepper, and SHALL show a visible note that the product is not available right now. The rest of the detail (images, name, price, related products) SHALL still be shown.
+
+#### Scenario: Inactive product opened from a stale result
+
+- **WHEN** the consumer opens the detail of a product whose detail response has `active = false`
+- **THEN** the detail is shown with a "not available" note
+- **AND** Add-to-cart and Share are disabled
+
+#### Scenario: Low-stock product cannot be shared
+
+- **WHEN** the detail of a product with availability `LOW_STOCK` is shown
+- **THEN** the Share-via-WhatsApp button is disabled and no share request can be sent
+
+#### Scenario: Available product keeps its actions
+
+- **WHEN** the detail of an active `AVAILABLE` product is shown
+- **THEN** Add-to-cart, the stepper and Share are enabled
+
+### Requirement: Product share reports the real delivery outcome
+
+The product share dialog SHALL follow the same delivery rules as the cart share: success only when the endpoint answers `status = SENT`, the not-delivered error for `FAILED` or `STUB`, and retries only after a connectivity error, a timeout, or a 5xx answer.
+
+#### Scenario: FAILED status in the product share
+
+- **WHEN** the consumer confirms the product share and the endpoint answers `201` with `status = FAILED`
+- **THEN** the dialog shows the not-delivered error, not the success screen
+
+#### Scenario: Deterministic rejection sent once
+
+- **WHEN** the product share endpoint answers 400
+- **THEN** exactly one request is sent and the dialog shows the error state
+

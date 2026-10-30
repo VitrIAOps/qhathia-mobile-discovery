@@ -3,7 +3,6 @@
 ## Purpose
 
 The cart-whatsapp-share capability lets an in-store consumer receive a written quote of their basket on their own phone: tapping "Compartir por WhatsApp" sends the basket and consumer data to the share endpoint, which generates a quote PDF and delivers it to the consumer's WhatsApp. It owns the share request assembly (identical body to the order request, cell-phone normalized to the 9-digit mobile format) and its validation gating, the blocking share/loading state, the success summary with return-to-Home-and-session-clear, the simplified error state with its "Entendido" / "Cancelar orden" recovery, the share-phase reset on session clear, and the automatic quote share that accompanies a successful "Realizar pedido". Sharing never creates a purchase order.
-
 ## Requirements
 ### Requirement: Share the cart as a WhatsApp quote
 
@@ -41,17 +40,22 @@ While a share request is in flight the cart dialog SHALL enter a blocking state:
 
 ### Requirement: Successful share confirmation
 
-On a successful share the app SHALL replace the cart dialog with a success screen. The success screen SHALL show a summary of the shared products, each with its photo, name, and quantity. It SHALL show a title conveying that the share succeeded, a subtitle telling the consumer to go to the seller to receive the products and complete payment, and a sentence prompting the consumer to check their phone (where the WhatsApp quote arrives). The success screen SHALL present an **"Aceptar"** button that clears the session and returns to the Home screen.
+A share SHALL be treated as successful only when the share endpoint answers with `status = SENT`. On a successful share the app SHALL replace the cart dialog with a success screen. The success screen SHALL show a summary of the shared products, each with its photo, name, and quantity. It SHALL show a title conveying that the quote was sent (for example "¡Cotización enviada!"), never a title that says an order was generated, a subtitle telling the consumer to go to the seller to receive the products and complete payment, and a sentence prompting the consumer to check their phone (where the WhatsApp quote arrives). The success screen SHALL present an **"Aceptar"** button that clears the session and returns to the Home screen.
 
 #### Scenario: Success screen lists the shared products
 
-- **WHEN** the share succeeds
+- **WHEN** the share endpoint answers `status = SENT`
 - **THEN** the app shows a success screen listing each shared product with its photo, name, and quantity
 
 #### Scenario: Success screen guides the consumer
 
 - **WHEN** the success screen is shown
-- **THEN** it shows a success title, a subtitle to go to the seller, and a prompt to check the consumer's phone
+- **THEN** it shows a quote-sent title, a subtitle to go to the seller, and a prompt to check the consumer's phone
+
+#### Scenario: Share success never says an order was generated
+
+- **WHEN** the success screen is shown after "Compartir por WhatsApp"
+- **THEN** its title does not say that an order was generated
 
 #### Scenario: Accept clears the session and returns Home
 
@@ -61,28 +65,27 @@ On a successful share the app SHALL replace the cart dialog with a success scree
 
 ### Requirement: Share error recovery
 
-On any share failure the app SHALL show an error state with a single simplified message ("Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos") regardless of the underlying cause. The error state SHALL present two actions: **"Entendido"**, shown with the higher visual priority, and **"Cancelar orden"**. Tapping "Entendido" SHALL return to the cart summary dialog in its prior state (basket and entered data preserved) so the consumer can retry. Tapping "Cancelar orden" SHALL return to the Home screen, clearing the session.
+On any share failure (rejected or failed after its retries) the app SHALL show a share error state with a single simplified share message ("No pudimos enviar la cotización" / "Hubo un problema enviando la cotización. Inténtalo de nuevo en unos momentos.") regardless of the underlying cause. The share error state, and the not-delivered state, SHALL present a single action, **"Entendido"**, which SHALL return to the cart summary dialog in its prior state (basket and entered data preserved) so the consumer can retry. A share failure SHALL NOT offer "Cancelar orden" and SHALL NOT clear the basket or the consumer data. The order error state keeps its own copy and its "Cancelar orden" action.
 
-#### Scenario: All failures show the same simplified message
+#### Scenario: All failures show the same simplified share message
 
 - **WHEN** the share request fails for any reason (validation, not found, server, PDF generation, or connectivity)
-- **THEN** the app shows the single simplified error message rather than the raw cause
+- **THEN** the app shows the single simplified share error message rather than the raw cause or the order message
 
 #### Scenario: Entendido returns to the cart summary
 
-- **WHEN** the consumer taps "Entendido" on the error state
+- **WHEN** the consumer taps "Entendido" on the share error state
 - **THEN** the app returns to the cart summary dialog with the basket and entered consumer data preserved
 
-#### Scenario: Cancelar orden returns Home clearing the session
+#### Scenario: No cancel action on a share failure
 
-- **WHEN** the consumer taps "Cancelar orden" on the error state
-- **THEN** the app returns to the Home screen
-- **AND** the cart basket and the consumer-data form are cleared
+- **WHEN** the share error state or the not-delivered state is shown
+- **THEN** no "Cancelar orden" action is offered, and the basket and consumer data are kept
 
-#### Scenario: Entendido has the higher priority
+#### Scenario: Order error keeps its cancel action
 
-- **WHEN** the error state is shown
-- **THEN** the "Entendido" action is presented with a higher visual priority than "Cancelar orden"
+- **WHEN** a "Realizar pedido" request fails
+- **THEN** the order error state shows its order message with "Entendido" and "Cancelar orden"
 
 ### Requirement: Share phase reset on session clear
 
@@ -95,23 +98,23 @@ The share/success/error phase overlaid on the cart dialog SHALL be reset to the 
 
 ### Requirement: Quote shared automatically when placing an order
 
-When the consumer places a purchase order ("Realizar pedido") successfully, the app SHALL also share the WhatsApp quote for the same basket and consumer data, retrying the share up to three times before giving up. The order confirmation SHALL be shown once the order is created, regardless of the share outcome. When every share attempt fails, the success screen SHALL replace the "check your phone" prompt with a fallback instruction telling the consumer to go to the seller and give their name to review the order.
+When the consumer places a purchase order ("Realizar pedido") successfully, the app SHALL also share the WhatsApp quote for the same basket and consumer data. The share SHALL be retried up to three attempts in total only while it fails for a transient reason (connectivity, timeout, or a 5xx answer). The order confirmation SHALL be shown once the order is created, regardless of the share outcome. When the quote is not delivered (the share answered `FAILED` or `STUB`, was rejected, or every attempt failed), the success screen SHALL replace the "check your phone" prompt with a fallback instruction telling the consumer to go to the seller and give their name to review the order.
 
 #### Scenario: Placing an order also shares the quote
 
 - **WHEN** the consumer places an order successfully
 - **THEN** the app also submits a WhatsApp quote share for the same basket and consumer data
 
-#### Scenario: Share retried before giving up
+#### Scenario: Transient share failure retried before giving up
 
-- **WHEN** the quote share fails after the order was created
-- **THEN** the app retries the share up to three times before giving up
+- **WHEN** the quote share fails with a connectivity error, a timeout, or a 5xx answer after the order was created
+- **THEN** the app retries the share up to three attempts in total before giving up
 
 #### Scenario: Order confirmed even when the quote is not delivered
 
-- **WHEN** the order was created but every share attempt failed
-- **THEN** the app still shows the order success screen
-- **AND** the confirmation instructs the consumer to go to the seller and give their name to review the order, instead of prompting to check their phone
+- **WHEN** the order was created and the share answered `status = FAILED`
+- **THEN** the app shows the order success screen without retrying the share
+- **AND** the confirmation instructs the consumer to go to the seller and give their name, instead of prompting to check their phone
 
 ### Requirement: Share submission theming and accessibility
 
@@ -126,3 +129,38 @@ The share loading, success, and error states SHALL support light and dark themes
 
 - **WHEN** an assistive technology inspects the success and error state buttons
 - **THEN** each exposes a content description and a touch target of at least 48dp
+
+### Requirement: Undelivered quote is never shown as sent
+
+When the share endpoint answers `201` with `status = FAILED` or `status = STUB`, the app SHALL treat the quote as not delivered. "Compartir por WhatsApp" SHALL show the error state with a message saying the quote could not be sent to the consumer's WhatsApp and inviting them to go to the seller. The app SHALL NOT show the success screen or a "check your phone" prompt in that case.
+
+#### Scenario: FAILED status shows the not-delivered message
+
+- **WHEN** the consumer taps "Compartir por WhatsApp" and the endpoint answers `201` with `status = FAILED`
+- **THEN** the app shows the error state with the not-delivered message
+- **AND** the success screen is not shown
+
+#### Scenario: STUB status is not shown as sent
+
+- **WHEN** the endpoint answers `201` with `status = STUB`
+- **THEN** the app treats the quote as not delivered
+
+### Requirement: Deterministic share rejections are not retried
+
+The app SHALL retry a share only after a connectivity error, a timeout, or a 5xx answer, up to three attempts in total. A 4xx answer (400, 404, 422) or a `201` with `status = FAILED` SHALL be final and SHALL NOT be retried.
+
+#### Scenario: 400 is sent once
+
+- **WHEN** the share endpoint answers 400
+- **THEN** exactly one share request is sent
+
+#### Scenario: 422 is sent once
+
+- **WHEN** the share endpoint answers 422
+- **THEN** exactly one share request is sent
+
+#### Scenario: Timeout is retried
+
+- **WHEN** the first two share attempts time out and the third answers `SENT`
+- **THEN** three share requests are sent and the success screen is shown
+

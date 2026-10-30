@@ -62,7 +62,7 @@ fun ShareProductDialog(
     onEvent: (ProductDetailUiEvent) -> Unit,
 ) {
     Dialog(
-        onDismissRequest = { onEvent(ProductDetailUiEvent.DismissShare) },
+        onDismissRequest = { onEvent(ProductDetailUiEvent.ShareDismissRequest) },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         // Kiosk: keep the system bars hidden over this dialog window and its keyboard.

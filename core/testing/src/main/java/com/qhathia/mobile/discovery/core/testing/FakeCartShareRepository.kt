@@ -4,6 +4,7 @@ import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.CartShareErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.repository.CartShareRepository
+import kotlinx.coroutines.CompletableDeferred
 
 /**
  * Scriptable [CartShareRepository] for use-case / ViewModel tests. Records each call. Answers with the
@@ -24,6 +25,9 @@ class FakeCartShareRepository(
     var callCount: Int = 0
         private set
 
+    /** When set, each call waits for it before answering, to observe the in-flight state. */
+    var awaitBeforeAnswer: CompletableDeferred<Unit>? = null
+
     data class Call(val name: String, val phone: String, val items: List<CartItem>)
 
     override suspend fun shareCart(
@@ -33,6 +37,7 @@ class FakeCartShareRepository(
     ): ShareOutcome {
         callCount++
         lastCall = Call(name, phone, items)
+        awaitBeforeAnswer?.await()
         return queue.removeFirstOrNull() ?: outcome
     }
 

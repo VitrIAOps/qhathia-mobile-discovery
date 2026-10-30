@@ -1,0 +1,8 @@
+REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
+METHOD: POST
+--
+FROM: http://87.99.156.164/api/v1/carts/share-pdf
+BODY Content-Type: application/problem+json
+--
+{"type":"/errors/validation-error","title":"Validation Error","status":422,"detail":"Validation failed for request fields","instance":"/api/v1/carts/share-pdf","errorCode":"VALIDATION_ERROR","timestamp":"2026-10-30T05:04:07.139345556Z","fieldErrors":{"items":"items must contain at least one product"}}
+BODY END

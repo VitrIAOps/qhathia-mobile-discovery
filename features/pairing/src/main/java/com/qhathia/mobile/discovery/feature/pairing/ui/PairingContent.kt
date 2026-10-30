@@ -105,6 +105,11 @@ fun PairingContent(
                     actionLabel = stringResource(R.string.pairing_generate_new),
                     onAction = { onEvent(PairingUiEvent.GenerateCode) },
                 )
+                PairingError.PairedDeviceLoad -> MessageState(
+                    message = stringResource(R.string.pairing_paired_device_error),
+                    actionLabel = stringResource(UiR.string.discovery_action_retry),
+                    onAction = { onEvent(PairingUiEvent.RetryPairedDeviceLoad) },
+                )
                 PairingError.CodeGeneration, null -> MessageState(
                     message = stringResource(R.string.pairing_error),
                     actionLabel = stringResource(UiR.string.discovery_action_retry),
@@ -599,5 +604,29 @@ private fun PairingLinkErrorDarkPreview() {
 private fun PairingLoadingPreview() {
     DiscoveryTheme(darkTheme = true) {
         PairingContent(uiState = PairingUiState(phase = PairingPhase.Loading), onEvent = {}, title = "TIENDA")
+    }
+}
+
+@Preview(name = "Pairing — paired device load error (light)", showBackground = true, widthDp = 960, heightDp = 800)
+@Composable
+private fun PairingPairedDeviceErrorLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        PairingContent(
+            uiState = PairingUiState(phase = PairingPhase.Error, error = PairingError.PairedDeviceLoad),
+            onEvent = {},
+            title = "TIENDA",
+        )
+    }
+}
+
+@Preview(name = "Pairing — paired device load error (dark)", showBackground = true, widthDp = 960, heightDp = 800)
+@Composable
+private fun PairingPairedDeviceErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        PairingContent(
+            uiState = PairingUiState(phase = PairingPhase.Error, error = PairingError.PairedDeviceLoad),
+            onEvent = {},
+            title = "TIENDA",
+        )
     }
 }

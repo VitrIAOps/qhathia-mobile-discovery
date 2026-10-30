@@ -34,12 +34,22 @@ The pairing ("Vincular") experience SHALL be a host-agnostic, reusable slice tha
 
 ### Requirement: Pairing code generation gated to the pairing screen
 
-A pairing code SHALL be generated only while the merchant is viewing the pairing section. The app SHALL request a code (and its session) from the pairing-token endpoint when the section becomes visible and SHALL NOT generate codes from any other screen.
+A pairing code SHALL be generated only while the merchant is viewing the pairing section. The app SHALL request a code (and its session) from the pairing-token endpoint when the section becomes visible and no valid code is held, and SHALL NOT generate codes from any other screen. When the pairing section is recreated (screen turned off and on, leaving and coming back, a configuration change) while the held code is still valid, the app SHALL keep showing that same code with its remaining time instead of generating a new one.
 
 #### Scenario: Code generated on entering the pairing section
 
 - **WHEN** the merchant opens the pairing section and no valid code is currently held
 - **THEN** the app requests a new pairing code and session and displays the returned 5-character code
+
+#### Scenario: Screen off and on keeps the code
+
+- **WHEN** a code is shown and the screen is turned off and on again before the code expires
+- **THEN** the same code is shown with its remaining time, no new code is requested, and its status keeps being followed
+
+#### Scenario: Leaving and coming back keeps the code
+
+- **WHEN** the merchant leaves the pairing section and comes back before the code expires
+- **THEN** the same code is shown and no new code is requested
 
 #### Scenario: No code generated outside the pairing section
 
@@ -67,7 +77,7 @@ Each generated code SHALL display a countdown reflecting its remaining lifetime,
 
 ### Requirement: Pairing status subscription
 
-While a pairing session is active, the app SHALL subscribe to the pairing-session WebSocket and react to the terminal status it pushes (`WAITING`, `APPROVED`, `REJECTED`, `EXPIRED`). The subscription SHALL be torn down when the merchant leaves the pairing section.
+While a pairing session is active and the pairing section is visible, the app SHALL follow the session status through the pairing-session WebSocket and react to the status it pushes (`WAITING`, `APPROVED`, `REJECTED`, `EXPIRED`). The app SHALL send a WebSocket ping every 20 seconds. If the WebSocket closes or fails before a final status while the code is valid, the app SHALL reconnect it with backoff, and SHALL reconnect immediately when network connectivity comes back. Because the server sends the current status on every connect, a status pushed while the tablet was disconnected SHALL be received on reconnect. While reconnecting, the pairing section SHALL keep showing the waiting state, not an error. The app SHALL NOT poll the token exchange endpoint. The subscription SHALL be torn down when the merchant leaves the pairing section.
 
 #### Scenario: Waiting for approval
 
@@ -78,6 +88,26 @@ While a pairing session is active, the app SHALL subscribe to the pairing-sessio
 
 - **WHEN** the session WebSocket reports `APPROVED`
 - **THEN** the app proceeds to exchange the session for a device token
+
+#### Scenario: Idle connection kept open
+
+- **WHEN** a code is shown and the merchant has not approved it for more than 60 seconds
+- **THEN** the WebSocket stays open (or is reopened) and an approval sent afterwards completes pairing
+
+#### Scenario: Approval pushed while the network was down
+
+- **WHEN** the tablet loses connectivity for 20 seconds while the merchant approves the code
+- **THEN** once connectivity returns the app reconnects, receives `APPROVED` and completes pairing without the merchant doing anything else
+
+#### Scenario: Socket drop is not an error
+
+- **WHEN** the WebSocket closes or fails while the code is still valid
+- **THEN** the pairing section keeps the waiting state and countdown and reconnects in the background
+
+#### Scenario: No polling of the exchange endpoint
+
+- **WHEN** the app is waiting for approval with a working or reconnecting WebSocket
+- **THEN** no request is sent to the token exchange endpoint
 
 #### Scenario: Rejection received
 
@@ -92,21 +122,36 @@ While a pairing session is active, the app SHALL subscribe to the pairing-sessio
 #### Scenario: Subscription cleanup
 
 - **WHEN** the merchant leaves the pairing section
-- **THEN** the WebSocket subscription is closed and no further status is processed
+- **THEN** the WebSocket subscription is closed, reconnection stops, and no further status is processed
 
 ### Requirement: Device token exchange and persistence
 
-After an `APPROVED` status, the app SHALL exchange the session for a DEVICE access token via the token endpoint and SHALL persist that token so it survives app restarts. A successful exchange SHALL transition the pairing section to the paired state.
+After an `APPROVED` status, the app SHALL exchange the session for a DEVICE access token via the token endpoint exactly once per session, and SHALL persist that token so it survives app restarts. A connectivity error during the exchange SHALL be retried; a `410 PAIRING_TOKEN_ALREADY_USED` SHALL NOT be retried. A successful exchange SHALL transition the pairing section to the paired state. When the server rejects the WebSocket handshake, the app SHALL call the exchange once as a fallback and act on its answer: paired on 200, keep reconnecting on `409 PAIRING_NOT_APPROVED`, rejected on `409 PAIRING_REJECTED`, and a new code on `410 PAIRING_TOKEN_EXPIRED` or 404.
 
 #### Scenario: Successful token exchange
 
 - **WHEN** the session is approved and the token exchange succeeds
 - **THEN** the device access token and device identity are persisted and the paired-device details are shown
 
+#### Scenario: Exchanged only once
+
+- **WHEN** `APPROVED` is received again after a reconnect and the exchange already succeeded
+- **THEN** no second exchange request is sent
+
+#### Scenario: Handshake rejected for an approved session
+
+- **WHEN** the server rejects the WebSocket handshake and the fallback exchange answers 200
+- **THEN** the device token is persisted and pairing completes
+
+#### Scenario: Handshake rejected for an expired session
+
+- **WHEN** the server rejects the WebSocket handshake and the fallback exchange answers 410 `PAIRING_TOKEN_EXPIRED`
+- **THEN** the app requests a fresh code and session
+
 #### Scenario: Token exchange failure
 
-- **WHEN** the token exchange fails after approval
-- **THEN** the pairing section shows an error state and allows the merchant to retry the exchange or generate a new code
+- **WHEN** the token exchange fails after approval with something other than a connectivity error
+- **THEN** the pairing section shows an error state and allows the merchant to generate a new code
 
 ### Requirement: Paired-device details
 
@@ -140,4 +185,27 @@ The paired-device view SHALL provide an "Unpair" button that opens a confirmatio
 
 - **WHEN** the merchant confirms unpairing
 - **THEN** the stubbed unpair operation is invoked and the UI communicates that server-side unpairing is not yet available (TODO)
+
+### Requirement: One pairing code request at a time
+
+While a pairing code request is in flight, further requests to generate a code (repeated taps on "Generar nuevo código") SHALL be ignored. Leaving the pairing section SHALL cancel a request in flight.
+
+#### Scenario: Fast taps on "Generar nuevo código"
+
+- **WHEN** the merchant taps "Generar nuevo código" several times in quick succession
+- **THEN** a single code request is sent and a single code is shown, with no error
+
+### Requirement: Paired-device loading failure
+
+On a paired tablet, when the paired-device details cannot be loaded, the pairing section SHALL show a connection error ("No pudimos cargar los datos del dispositivo. Revisa la conexión e inténtalo de nuevo.") and its retry action SHALL load the paired-device details again. A paired tablet SHALL never request a pairing code from that section.
+
+#### Scenario: Offline on a paired tablet
+
+- **WHEN** the tablet is paired, has no network and the merchant opens "Vincular"
+- **THEN** the connection error is shown, not the code-generation error
+
+#### Scenario: Retry on a paired tablet
+
+- **WHEN** the merchant taps "Reintentar" on that error
+- **THEN** the app requests the paired-device details again and does not request a pairing code
 

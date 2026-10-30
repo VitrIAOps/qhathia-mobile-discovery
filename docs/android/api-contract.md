@@ -13,7 +13,30 @@
 
 ---
 
-## Cambios recientes (Fase 1-28)
+## Cambios recientes (Fase 1-34)
+
+**Fase 34 — 2026-10-25:** el token de la tablet lleva rubro, centro comercial y slugs, igual que el del staff. Antes llevaba solo `storeId`, y la IA de la búsqueda no sabía de qué rubro era la tienda. Para tokens viejos, vo completa esos datos desde su proyección. Detalle en la [sección 34](#34-el-token-de-la-tablet-lleva-el-rubro-fase-34). La app no cambia.
+
+
+**Fase 33 — 2026-10-25:** `GET /insights/unmet-searches` solo cuenta búsquedas en las que la IA identificó un producto. "Quiero algo negro" ya no sale como `negro`. Detalle en la [sección 33](#33-productos-no-encontrados-solo-con-producto-identificado-fase-33). Sin cambio de contrato.
+
+
+**Fase 32 — 2026-10-25:** `GET /insights/unmet-searches` separa lo que falta en el rubro de lo que piden pero no es del rubro. `groups` trae solo lo primero; lo segundo va en el campo nuevo `otherRequests`. Cada grupo suma `storeFit`. Detalle en la [sección 32](#32-afinidad-con-el-rubro-en-productos-no-encontrados-fase-32). No rompe la app actual.
+
+
+**Fase 31 — 2026-10-25:** "Algo menor a 150 soles" devuelve los productos de ese rango, más baratos primero. Antes caía en "no pude encontrar lo que buscas". Las sugerencias del "sin resultados" priorizan las que entran en el rango. "Menor" ya no aparece en "Productos no encontrados". Detalle en la [sección 31](#31-búsqueda-solo-de-precio-fase-31). Sin cambio de contrato.
+
+
+**Fase 30 — 2026-10-24:** la IA de la búsqueda por voz conoce el rubro y los productos de la tienda. Detalle en la [sección 30](#30-la-ia-de-la-búsqueda-conoce-la-tienda-fase-30). Sin cambio de contrato.
+
+
+**Fase 29 — 2026-10-24 (reporte del front del 2026-10-23):** detalle en la [sección 29](#29-búsqueda-por-voz-precio-con-descuento-y-productos-no-encontrados-fase-29).
+
+- **`POST /conversations/search` suma `discountedPrice` y `discountEndsAt`** en cada `results[*]`: resultados normales y sugerencias de "sin resultados". Misma regla que biz. Se calcula al responder, así que un descuento vencido deja de aplicar a la hora exacta. `null` = sin descuento vigente.
+- **El rango de precio de la voz mide el precio que se paga.** "Más de 50" compara contra `discountedPrice ?: price`.
+- **El texto hablado dice el precio con descuento**, no el de lista.
+- **`GET /insights/unmet-searches` deja de mostrar oraciones y adjetivos.** "Dame algo de más de 50 soles" ya no es un producto no encontrado; "Una mesa giratoria" sale como `mesa giratoria` y no como `giratoria`; las interpretaciones de baja confianza del LLM no entran.
+
 
 **Fase 25-28 — 2026-10-18 (triage de 31 bugs reportados desde la app):** detalle por bug en [`docs/qa/TRIAGE-BUGS.md`](../qa/TRIAGE-BUGS.md), tareas del front en [`docs/handoff/android-pendientes.md`](../handoff/android-pendientes.md).
 
@@ -68,6 +91,7 @@
 - **El PIN es write-only**: se guarda con BCrypt y el comerciante solo ve `exitPinSet: true|false`. Para quitarlo, `removeExitPin: true` explícito.
 - **`GET /api/v1/devices/me/settings`** (DEVICE) — la tablet lee **los suyos**; es el único endpoint que devuelve `exitPinHash`, para poder salir del modo kiosco **sin red**.
 - **`POST /api/v1/devices/heartbeat` devuelve `settingsVersion`** — sube en cada escritura. La tablet re-lee sus ajustes solo cuando el número cambia: sin polling nuevo ni push a la tablet.
+- **Intervalo del heartbeat: 60 s.** Nunca estuvo escrito en la API y cada app eligió un número por su cuenta: la tablet empezó mandándolo cada 10 min y la app del comerciante da por desconectada una tablet sin heartbeat en 10 min. Intervalo igual a ventana = "Desconectada" entre ticks, y ajustes que tardan 10 min en llegar. El contrato original (`docs/contracts/end-to-end-flow.md`) decía 30–60 s; se fija en **60 s**.
 - **`devices.model`** (V16) — el bloque INFORMACIÓN de la pantalla pide el modelo comercial ("Lenovo Tab M11"). La tablet lo reporta en el heartbeat; `serialNumber`, `linkedAt` y `appVersion` ya existían.
 - **auth V16**: tabla `device_settings`, 1:1 con `devices`, creada al vincular (y al vuelo para las tablets anteriores).
 
@@ -231,6 +255,12 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 26. [Correcciones del triage del 2026-10-18 (Fase 26)](#26-correcciones-del-triage-del-2026-10-18-fase-26)
 27. [Se retira el toggle de IGV (Fase 27)](#27-se-retira-el-toggle-de-igv-fase-27)
 28. [Filtros de Inventario y rango de precio por voz (Fase 28)](#28-filtros-de-inventario-y-rango-de-precio-por-voz-fase-28)
+29. [Búsqueda por voz: precio con descuento y productos no encontrados (Fase 29)](#29-búsqueda-por-voz-precio-con-descuento-y-productos-no-encontrados-fase-29)
+30. [La IA de la búsqueda conoce la tienda (Fase 30)](#30-la-ia-de-la-búsqueda-conoce-la-tienda-fase-30)
+31. [Búsqueda solo de precio (Fase 31)](#31-búsqueda-solo-de-precio-fase-31)
+32. [Afinidad con el rubro en "Productos no encontrados" (Fase 32)](#32-afinidad-con-el-rubro-en-productos-no-encontrados-fase-32)
+33. ["Productos no encontrados" solo con producto identificado (Fase 33)](#33-productos-no-encontrados-solo-con-producto-identificado-fase-33)
+34. [El token de la tablet lleva el rubro (Fase 34)](#34-el-token-de-la-tablet-lleva-el-rubro-fase-34)
 
 ---
 
@@ -2784,6 +2814,8 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
       "name": "Taladro Percutor Bosch GSB 13 RE",
       "description": "Taladro percutor 650W",
       "price": 189.90,
+      "discountedPrice": 161.42,
+      "discountEndsAt": "2026-10-31T05:00:00Z",
       "availability": "AVAILABLE",
       "categoryName": "Herramientas",
       "primaryImageUrl": "https://...",
@@ -2811,6 +2843,12 @@ curl -X POST http://87.99.156.164/api/v1/analytics/events \
   "fallbackMessage": null
 }
 ```
+
+**`discountedPrice` / `discountEndsAt` (Fase 29)** — en **todos** los `results[*]`,
+también en las sugerencias de los dos unhappy path de abajo. `null` = sin descuento
+vigente: se pinta solo `price`. Misma regla y mismo número que
+`GET /catalog/by-category` (ver [sección 25](#25-precio-con-descuento-y-aviso-de-expiración-fase-25)).
+`minPrice`/`maxPrice` filtran contra `discountedPrice ?: price`.
 
 **Response 200 (unhappy path con categoría entendida — Fase 8):**
 ```json
@@ -3488,9 +3526,14 @@ Params: `days` (1..90, default 7), `limit` (1..50, default 10).
 ```
 
 **Consolidación en 2 niveles** — el mismo producto se pide de muchas formas, así que se agrupa
-por el **término canónico** que ya extrae el LLM (`subtype` → `categoryKeyword` → `rawText`
-normalizado; el LLM viene sesgado por el vocabulario cerrado de tags de la tienda). Cada grupo
-trae los textos crudos más frecuentes como evidencia de qué comprar exactamente.
+por el **término canónico**: `categoryKeyword` + `subtype` ("mesa giratoria"). Desde la
+Fase 33, las búsquedas sin `categoryKeyword` no entran. **Nunca el `subtype` solo**, que suele ser un adjetivo
+(Fase 29). Cada grupo trae los textos crudos más frecuentes como evidencia de qué comprar
+exactamente.
+
+**Qué no entra (Fase 29):** las búsquedas sin sustantivo ("dame algo de más de 50 soles"), y
+las que el LLM interpretó con `confidence < 0.4`. Se siguen registrando; no se muestran como
+producto faltante.
 
 - **`personCount` (personas distintas) es la métrica principal**, no `searchCount`: alguien que
   insiste 9 veces porque no encuentra es 1 persona de demanda, no 9. Los grupos vienen ordenados
@@ -3902,7 +3945,7 @@ Cachearlo en almacenamiento cifrado del dispositivo. Se invalida solo: al cambia
 ```
 
 ```
-heartbeat (ya corre cada pocos minutos)
+heartbeat (**cada 60 s** — ver la nota de intervalo en la Fase 21)
    └─ ¿settingsVersion ≠ el que tengo guardado?
         └─ sí → GET /devices/me/settings  y aplicar
 ```
@@ -4219,6 +4262,7 @@ Están en:
 - `GET /api/v1/products` — cada fila (`ProductSummaryResponse`)
 - `GET /api/v1/products/{id}` — además de `discounts[]`, que se mantiene
 - `GET /api/v1/catalog/by-category` — cada producto de cada grupo
+- `POST /api/v1/conversations/search` (vo) — cada `results[*]`, desde la [Fase 29](#29-búsqueda-por-voz-precio-con-descuento-y-productos-no-encontrados-fase-29)
 
 ```json
 {
@@ -4486,3 +4530,332 @@ sentido, con prefijo obligatorio:
 
 `search_events` guarda también `minPrice`, para que la analítica vea la consulta
 completa.
+
+---
+
+## 29. Búsqueda por voz: precio con descuento y productos no encontrados (Fase 29)
+
+Reporte del front del 2026-10-23. Dos arreglos en vo, ninguno rompe un contrato.
+
+### `POST /conversations/search` trae el precio con descuento
+
+Hasta esta fase la búsqueda por voz devolvía solo `price`. El mismo producto se
+veía rebajado en el catálogo y a precio lleno en el resultado de la voz, en la
+misma tablet.
+
+Ahora cada `results[*]` lleva los mismos dos campos que biz:
+
+| Campo | Tipo | Significado |
+|---|---|---|
+| `discountedPrice` | `number \| null` | Precio con el mejor descuento vigente |
+| `discountEndsAt` | ISO-8601 `\| null` | Fin del descuento aplicado |
+
+```json
+{
+  "id": "…",
+  "name": "Lámpara colgante",
+  "price": 55.00,
+  "discountedPrice": 45.00,
+  "discountEndsAt": "2026-10-31T05:00:00Z",
+  "relevanceScore": 3
+}
+```
+
+Aplica a los tres casos: resultados normales, sugerencias con
+`suggestedFromCategory` y sugerencias sin él.
+
+**Las reglas son las de la [sección 25](#25-precio-con-descuento-y-aviso-de-expiración-fase-25), sin excepción.**
+Gana el más barato, no se acumulan, ventana `startsAt <= ahora < endsAt`, `HALF_UP` a 2
+decimales, tope en 0, `null` si no baja nada. vo es un proyecto aparte y no puede
+importar la clase de biz, así que la regla está **copiada** con los mismos tests y
+los mismos números. Si cambia una, cambia la otra.
+
+**Se calcula al responder, no al indexar.** La proyección de Mongo guarda cada
+descuento con su ventana; el precio sale en el momento de la request. Un descuento
+que vence a las 18:00 deja de aplicar a las 18:00 sin re-proyectar nada.
+
+**Si la búsqueda cae al respaldo** (Mongo vacío o caído), vo usa el
+`discountedPrice` que ya calcula `GET /products` de biz.
+
+### El rango de precio mide lo que paga el cliente
+
+`minPrice` y `maxPrice` comparan contra `discountedPrice ?: price`:
+
+| Pedido | Producto | ¿Entra? |
+|---|---|---|
+| "más de 50 soles" | S/ 55 rebajado a S/ 45 | No |
+| "hasta 50 soles" | S/ 55 rebajado a S/ 45 | Sí |
+| "más de 50 soles" | S/ 60 sin descuento | Sí |
+
+### El texto hablado dice el precio rebajado
+
+`spokenText` lo arma el LLM a partir de una lista de productos con su precio.
+Antes esa lista llevaba el de lista; ahora lleva el rebajado y aclara que tiene
+descuento. El asistente ya no dice en voz alta un número que la pantalla muestra
+tachado.
+
+### `GET /insights/unmet-searches`: menos oraciones, ningún adjetivo
+
+Cinco tarjetas reales del reporte, y qué pasa con cada una:
+
+| Lo que dijo el cliente | `term` antes | `term` ahora |
+|---|---|---|
+| "Dame algo de más de 50 soles." | `algo de mas de 50 sol` | **no aparece**: no pide un producto |
+| "Algo algo más de 50 soles" | `algo algo mas de 50 sol` | **no aparece** |
+| "Una mesa giratoria" | `giratoria` | `mesa giratoria` |
+| "…decirle algo Amoladora T 50 soles." | `amoladora` | `amoladora` |
+| "Paladros." | `pallet` | **no aparece si el LLM declaró baja confianza** |
+
+Lo que cambió, en orden:
+
+1. **La clave del grupo es `categoría + subtipo`.** Antes prefería el `subtype`, que
+   el LLM llena con adjetivos.
+2. **Se quita la expresión de precio y las muletillas** ("algo", "cosa", "eso"). Si
+   no queda sustantivo, el grupo se descarta. Un número sin moneda se conserva:
+   "amoladora 4.5" es un modelo.
+3. **`search_events` guarda `confidence`.** Debajo de **0.4** la interpretación es
+   una adivinanza y no entra. Los eventos anteriores, sin ese campo, entran.
+
+La búsqueda se sigue registrando igual; solo cambia lo que se le muestra al
+comerciante como algo que podría comprar.
+
+**Lo que esto no arreglaba solo**: un error del STT que el LLM adivinaba con
+confianza alta. Eso lo ataca la [Fase 30](#30-la-ia-de-la-búsqueda-conoce-la-tienda-fase-30).
+
+---
+
+## 30. La IA de la búsqueda conoce la tienda (Fase 30)
+
+Sin cambio de contrato: mismos endpoints, mismos campos. Cambia lo que la IA sabe
+cuando interpreta lo que dijo el cliente.
+
+### Antes
+
+Los dos prompts de vo —el que interpreta la consulta y el que arma el texto
+hablado— decían **"tienda de muebles y decoración en Perú"** para todas las
+tiendas, con silla, mesa y lámpara de ejemplo. Una ferretería se interpretaba con
+ojos de mueblería. Y cuando el reconocimiento de voz transcribía mal
+("Paladros" por "taladros"), la IA adivinaba sin pistas: "pallet".
+
+### Ahora, y de dónde sale cada dato
+
+| Dato | De dónde sale | Quién lo llena |
+|---|---|---|
+| **Rubro** ("ferretería y herramientas") | Claim `storeCategory` del JWT | Nadie: se elige al crear la tienda |
+| **Productos que vende** | Su propio catálogo en la proyección de Mongo: nombres de categoría y el sustantivo con que empieza cada producto | Nadie: se arma solo y se renueva cada 10 min |
+| **Tags permitidos** | Catálogo de tags del mall y rubro | Sin cambios (Fase 5) |
+
+Ejemplo de vocabulario de una ferretería:
+`herramientas eléctricas, iluminación interior, taladro, amoladora, foco, …`
+
+El sustantivo se saca salteando lo genérico y la marca: "Kit de brocas" da
+`brocas`, "Truper martillo de uña" da `martillo`. Tope de 20 categorías y 40
+sustantivos.
+
+### Qué se le pide a la IA
+
+- **Usar la lista para corregir errores de transcripción**, no para filtrar. Si el
+  cliente pide claramente algo que la tienda no tiene, se respeta: eso es lo que
+  muestra "Productos no encontrados".
+- **`category: null` cuando no se nombra un producto**: un precio solo, "algo",
+  un saludo.
+- **`confidence` de 0.3 o menos cuando adivinó** a partir de una palabra sin
+  sentido. Con la Fase 29, eso la saca de "Productos no encontrados".
+
+### Fail-open
+
+Sin Mongo o sin Redis, el vocabulario sale vacío y el prompt va sin esa sección.
+Sin rubro en el token, dice "tienda de productos variados". La búsqueda nunca
+falla por esto.
+
+### Lo que queda
+
+El intérprete de respaldo por reglas, que se usa cuando el LLM no responde,
+todavía tiene una lista fija de palabras de muebles.
+
+---
+
+## 31. Búsqueda solo de precio (Fase 31)
+
+Sin cambio de contrato. Reporte del 2026-10-25: "algo menor a 150 soles" no
+devolvía nada, y "menor" aparecía como producto no encontrado.
+
+### "Algo menor a 150 soles" ahora devuelve productos
+
+El ranking solo puntuaba si la consulta traía producto, estilo, uso o color. Sin
+ninguno forzaba cero, para que un "hola" no devolviera el catálogo entero. Pero eso
+también atrapaba las búsquedas de precio puro.
+
+| Consulta | Antes | Ahora |
+|---|---|---|
+| "algo menor a 150 soles" | `noResults: true` | Los productos de hasta S/ 150, más baratos primero |
+| "algo de más de 100 soles" | `noResults: true` | Los de S/ 100 o más, más baratos primero |
+| "hola" | `noResults: true` | Igual: sugerencias de siempre |
+
+El rango y el orden usan lo que paga el cliente: `discountedPrice ?: price`. Hasta
+20 resultados, con `filters` y `suggestions` normales. Como hay resultados, no se
+registra como búsqueda fallida.
+
+### Las sugerencias del "sin resultados" miran el rango
+
+Si la búsqueda no encuentra nada y trae un rango, primero se ofrecen las
+sugerencias que entran en él. A quien pidió "menos de 150" ya no se le ofrece uno
+de S/ 159 si hay otros que sí entran. Si **ninguna** entra, se ofrecen igual las de
+siempre, para no dejar la pantalla vacía.
+
+### "Menor" deja de ser un producto
+
+Cuando el LLM no da categoría, la tarjeta de "Productos no encontrados" limpia la
+frase original y le quita la expresión de precio. Esa limpieza no conocía "menor a":
+de "Algo menor a 150 soles" quitaba "a 150 soles" y quedaba "menor". Ahora reconoce
+las mismas formas que el intérprete de precio: "menor a/que", "mayor a/que", "por
+debajo de", "por encima de", "máximo", "mínimo", "no más de". También quita
+"barato" y "económico". Como se limpia al leer, la tarjeta "menor" que ya estaba
+registrada también desaparece.
+
+---
+
+## 32. Afinidad con el rubro en "Productos no encontrados" (Fase 32)
+
+"Pintura" en una tienda de focos no es un producto que le falte a la tienda: es
+demanda de otro rubro. Hasta esta fase salía en la misma tarjeta, con el mismo peso
+y el mismo botón "Agregar" que una amoladora en una ferretería.
+
+### Cómo se mide
+
+La IA que interpreta la búsqueda ya recibe el rubro de la tienda y la lista de lo
+que vende (Fase 30). Ahora devuelve un campo más, `storeFit`, de 0 a 1:
+
+| Valor | Significa |
+|---|---|
+| 1.0 | Es lo que vende la tienda, o una variante |
+| 0.5 | Es del mismo rubro aunque no lo tenga |
+| 0.0 | No tiene nada que ver con el rubro ni con sus productos |
+
+No hay llamada extra: es un campo más en la misma respuesta. Se guarda en
+`search_events.storeFit`.
+
+### Qué cambia en la respuesta
+
+```json
+{
+  "periodStart": "…", "periodEnd": "…", "totalPeople": 5,
+  "groups": [
+    { "term": "lampara solar", "personCount": 5, "searchCount": 7,
+      "examples": [ { "rawText": "una lámpara solar", "count": 4 } ],
+      "storeFit": 0.6 }
+  ],
+  "otherRequests": [
+    { "term": "pintura", "personCount": 3, "searchCount": 3,
+      "examples": [ { "rawText": "pintura", "count": 3 } ],
+      "storeFit": 0.1 }
+  ]
+}
+```
+
+| Campo | Qué es |
+|---|---|
+| `groups` | Lo que falta **en el rubro**: `storeFit >= 0.5`, o sin medir. Es lo que pinta hoy la tarjeta |
+| `otherRequests` | Lo que piden pero **no es del rubro**. Misma forma que `groups`. Nuevo |
+| `groups[].storeFit` | Promedio de las búsquedas del grupo. `null` si ninguna lo trae |
+| `totalPeople` | Suma solo de `groups`. Lo de otro rubro no infla el número |
+
+**Nada se borra.** Lo que no es del rubro sigue registrado y viaja en
+`otherRequests`; el comerciante puede querer verlo como demanda del pasillo.
+
+**Los eventos anteriores a esta fase** no tienen `storeFit` y cuentan como del
+rubro. Salen de la ventana de 7 días solos.
+
+### Para la app
+
+**No hay que tocar nada.** La tarjeta lee `groups`, que ahora solo trae lo del
+rubro. `otherRequests` es opcional: si se quiere, una sección aparte "También te
+piden", sin botón "Agregar".
+
+---
+
+## 33. "Productos no encontrados" solo con producto identificado (Fase 33)
+
+Sin cambio de contrato. Reporte del 2026-10-25: "quiero algo negro" aparecía en la
+tarjeta como `negro`.
+
+### Qué pasaba
+
+Cuando la IA no identificaba un producto, el backend intentaba rescatar uno de la
+frase: borraba las palabras que conocía ("quiero", "algo", los precios) y tomaba lo
+que sobraba como producto. Era una lista de palabras prohibidas, y siempre se
+colaba alguna: `menor` (Fase 31), `negro`, y vendrían `bonito`, `grande`,
+`moderno`…
+
+Ese rescate nació cuando la IA estaba caída y nunca identificaba nada. Con la IA
+funcionando y conociendo la tienda (Fase 30), ya no tiene sentido.
+
+### Qué cambia
+
+Solo entran a la tarjeta las búsquedas en las que la IA identificó un producto.
+
+| Lo que dijo el cliente | ¿La IA identificó producto? | ¿Sale en la tarjeta? |
+|---|---|---|
+| "quiero una amoladora" | Sí | `amoladora` |
+| "una mesa giratoria" | Sí | `mesa giratoria` |
+| "quiero algo negro" | No | No |
+| "algo menor a 150 soles" | No | No |
+| "algo bonito para regalar" | No | No |
+
+**La búsqueda en la tablet no cambia.** "Quiero algo negro" sigue buscando productos
+negros. Solo cambia qué llega a la tarjeta del comerciante.
+
+**Costo aceptado:** si la IA vuelve a caerse, la tarjeta queda vacía en lugar de
+llenarse de frases. `scripts/check-llm-models.sh` detecta esa caída.
+
+---
+
+## 34. El token de la tablet lleva el rubro (Fase 34)
+
+Reporte del 2026-10-25: "martillos" y "ventiladores", pedidos en una ferretería,
+no aparecían en "Productos no encontrados".
+
+### Qué pasaba
+
+Se registraron bien, pero con afinidad 0 (`storeFit: 0`), así que fueron a
+`otherRequests`. La causa: **el token de la tablet llevaba solo `storeId`**. El
+rubro y el centro comercial viajaban solo en el token del staff. La búsqueda por
+voz viene siempre de la tablet, así que la IA recibía "tienda de productos
+variados" y una lista de productos casi toda de iluminación. Contra eso,
+"martillo" parecía ajeno.
+
+Por el mismo hueco, la tablet tampoco recibía el vocabulario de tags de su rubro
+(Fase 5), porque necesita el centro comercial.
+
+### Qué cambia
+
+**1. auth: el token de la tablet lleva lo mismo que el del staff.** Además de
+`storeId` y `role`, ahora incluye:
+
+| Claim | Ejemplo |
+|---|---|
+| `storeCategory` | `TOOLS` |
+| `shoppingCenterId` | UUID del centro comercial |
+| `storeSlug` | `el-martillo` |
+| `shoppingCenterSlug` | slug del centro comercial |
+
+Se emite así en `GET /api/v1/devices/pairing-session/{sessionId}/token`, el canje
+que hace la tablet al vincularse. La forma de la respuesta no cambia: el token es
+opaco para la app.
+
+**2. vo: completa los tokens que no traen esos datos.** El token de la tablet dura
+un año y solo se emite al vincular, así que las tablets ya vinculadas siguen con el
+viejo. Cuando el token no trae rubro o centro comercial, vo los lee de su
+proyección del catálogo: cada producto guarda el rubro y el centro comercial de su
+tienda. Cache de 1 hora. Si la tienda no tiene productos, el contexto queda como
+vino.
+
+**Las tablets no necesitan volver a vincularse.** Con la parte 2 funcionan desde el
+deploy de vo. La parte 1 deja el token correcto para las que se vinculen de ahora
+en adelante.
+
+### Datos ya registrados
+
+Las búsquedas guardadas antes del deploy tienen una afinidad calculada sin rubro.
+Se limpian con un comando, después del deploy; quedan como "sin medir" y vuelven
+a la tarjeta.

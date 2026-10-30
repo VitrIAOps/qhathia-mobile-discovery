@@ -14,6 +14,13 @@ object CartConstants {
      */
     const val INACTIVITY_TIMEOUT_SECONDS: Long = 60
 
+    /**
+     * Most distinct products the basket holds: the limit `POST /orders` and `POST /carts/share-pdf`
+     * accept (`items` up to 20 entries; more is a `422`). More units of a line already in the basket
+     * are still allowed up to its quantity cap.
+     */
+    const val MAX_DISTINCT_LINES: Int = 20
+
     // TODO(inventory-stock): the product API exposes only an availability enum, not a unit count, so
     // the per-product cap is a placeholder mapping. Replace these with the real stock count when the
     // API exposes it (see openspec change add-shopping-cart, design.md → Open Questions).

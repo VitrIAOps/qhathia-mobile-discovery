@@ -3,9 +3,7 @@
 ## Purpose
 
 The cart-order-submission capability lets an in-store consumer turn the cart basket into a real purchase order. It owns the "Realizar pedido" submission flow: building the order request from the consumer-data form and the basket (name, cell-phone number, and one line per product with its identifier and quantity), the blocking in-flight state over the cart dialog, the success confirmation screen that summarizes the ordered products and guides the consumer to the seller, and the simplified error-recovery state with retry ("Entendido") and cancel ("Cancelar orden") actions. The server owns subtotal and total — the client never computes or trusts the order total. All of its loading, success, and error states support light/dark theming and accessibility.
-
 ## Requirements
-
 ### Requirement: Generate a purchase order from the cart
 
 The app SHALL let the consumer generate a purchase order from the cart basket by tapping **"Realizar pedido"**. The request SHALL send the consumer's name, the consumer's cell-phone number, and one line per cart product carrying its product identifier and chosen quantity. The order total SHALL NOT be computed or trusted on the client — the server owns subtotal and total. The order SHALL be submitted only when the consumer-data form is valid.
@@ -98,3 +96,48 @@ The order loading, success, and error states SHALL support light and dark themes
 
 - **WHEN** an assistive technology inspects the success and error state buttons
 - **THEN** each exposes a content description and a touch target of at least 48dp
+
+### Requirement: Cart dialog stays open while a request runs
+
+While an order or share request from the cart is in flight, the cart dialog SHALL NOT be closed by an outside tap, the system Back or its close control. Once a result is shown, closing the dialog by any of those means SHALL run the result's main action: accepting the success screen (which ends the customer session and returns Home), or "Entendido" on an error (which returns to the cart). A result SHALL never be left pending for the next time the cart opens.
+
+#### Scenario: Outside tap while sending
+
+- **WHEN** an order request is in flight and the consumer taps outside the cart dialog
+- **THEN** the dialog stays open with its loading indicator
+
+#### Scenario: Back on the success screen
+
+- **WHEN** the order success screen is shown and the consumer presses the system Back
+- **THEN** the app behaves as if the consumer had tapped the accept button
+
+#### Scenario: Reopening the cart after a result
+
+- **WHEN** an order or share has finished and the cart is opened again
+- **THEN** the cart shows its summary, not a previous result screen
+
+### Requirement: Unavailable products flagged after a server rejection
+
+When an order or share request is rejected because a product is no longer available (HTTP 400 or 404 from the order or share endpoint), the app SHALL recheck every cart line against the product detail endpoint. Each line whose product is inactive, not `AVAILABLE`, or not found SHALL be marked "No disponible" in the cart. The cart SHALL show a message explaining that some products are no longer available, and "Realizar pedido" and "Compartir por WhatsApp" SHALL stay disabled until those lines are removed. If the recheck finds no unavailable line, the app SHALL show the simplified error state as before.
+
+#### Scenario: Inactive product in the basket is flagged
+
+- **WHEN** the consumer places an order, the endpoint answers 400, and one cart product is now inactive
+- **THEN** that line is shown as "No disponible"
+- **AND** the order and share actions are disabled with an explanatory message
+
+#### Scenario: Removing the flagged line enables the order again
+
+- **WHEN** the consumer removes every line marked "No disponible"
+- **THEN** the order and share actions are enabled again (given a valid consumer form)
+
+#### Scenario: No generic error loop
+
+- **WHEN** the order is rejected for an unavailable product and the consumer goes back to the cart
+- **THEN** the consumer cannot resubmit the same basket until the unavailable lines are removed
+
+#### Scenario: Recheck finds nothing
+
+- **WHEN** the order endpoint answers 400 and every cart product is still active and `AVAILABLE`
+- **THEN** the app shows the simplified error state
+

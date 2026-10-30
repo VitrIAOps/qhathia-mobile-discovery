@@ -3,9 +3,10 @@ package com.qhathia.mobile.discovery.feature.productdetail
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.DetailException
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
-import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
@@ -27,7 +28,10 @@ import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiE
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiState
 import com.qhathia.mobile.discovery.feature.productdetail.navigation.ARG_PRODUCT_ID
 import com.qhathia.mobile.discovery.feature.productdetail.ui.ProductDetailViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -386,6 +390,56 @@ class ProductDetailViewModelTest {
 
         assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
         assertEquals(3, shareRepository.callCount) // retried up to the max
+    }
+
+    @Test
+    fun given_share_in_flight_when_dismissed_then_dialog_stays() = runTest(mainDispatcher.dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val vm = loadedViewModel(FakeCartShareRepository().apply { awaitBeforeAnswer = gate })
+        vm.openShareWithValidData()
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        runCurrent()
+
+        vm.onEvent(ProductDetailUiEvent.ShareDismissRequest)
+        vm.onEvent(ProductDetailUiEvent.DismissShare)
+
+        assertTrue(vm.uiState.value.share.visible)
+        assertEquals(ProductDetailUiState.ShareSubmission.Submitting, vm.uiState.value.share.submission)
+        gate.complete(Unit)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun given_share_success_when_dismissed_then_dialog_closes() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+        vm.openShareWithValidData()
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+        vm.onEvent(ProductDetailUiEvent.ShareDismissRequest)
+
+        assertFalse(vm.uiState.value.share.visible)
+    }
+
+    @Test
+    fun given_share_error_when_dismissed_then_back_to_the_form() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel(FakeCartShareRepository().apply { notDelivered() })
+        vm.openShareWithValidData()
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+
+        vm.onEvent(ProductDetailUiEvent.ShareDismissRequest)
+
+        assertTrue(vm.uiState.value.share.visible)
+        assertEquals(ProductDetailUiState.ShareSubmission.Idle, vm.uiState.value.share.submission)
+    }
+
+    @Test
+    fun given_mic_tapped_then_hands_off_to_voice_search() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductDetailUiEvent.ActivateMic)
+            assertEquals(ProductDetailUiEffect.NavigateToSearch("", SearchSource.Voice), awaitItem())
+        }
     }
 
     @Test

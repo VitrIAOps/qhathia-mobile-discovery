@@ -14,4 +14,7 @@ sealed interface PairingUiEvent {
 
     /** Dismiss the unpair confirmation dialog without unpairing. */
     data object UnpairDismissed : PairingUiEvent
+
+    /** Retry loading the paired-device details after [PairingError.PairedDeviceLoad]. */
+    data object RetryPairedDeviceLoad : PairingUiEvent
 }

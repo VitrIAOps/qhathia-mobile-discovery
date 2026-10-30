@@ -41,4 +41,10 @@ sealed interface CartUiEvent {
 
     /** Tap the top "X" — dismiss the dialog, keeping the cart. */
     data object Close : CartUiEvent
+
+    /**
+     * A tap outside the dialog or the system Back. While a request runs it is ignored; on a result
+     * screen it runs that screen's main action; otherwise it dismisses the dialog (wave 2, D6).
+     */
+    data object DismissRequest : CartUiEvent
 }

@@ -25,12 +25,14 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
+import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 
 /**
  * Stateful cart entry point. Binds [CartViewModel], collects its state with lifecycle awareness, and
  * renders the cart as a Compose [Dialog] over the current screen. Navigation and dismissal are hoisted
  * as callbacks so the app pops the overlay and routes to the product detail. Closing the dialog (the
- * "X", "Seguir buscando", system back, or a scrim tap) only dismisses — the basket is untouched.
+ * "X", "Seguir buscando", system back, or a scrim tap) only dismisses — the basket is untouched. While
+ * a request runs, closing is ignored; on a result screen a scrim tap or Back runs its main action.
  */
 @Composable
 fun CartDialog(
@@ -53,7 +55,7 @@ fun CartDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { viewModel.onEvent(CartUiEvent.DismissRequest) },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         // Kiosk: keep the system bars hidden over this dialog window and its keyboard.

@@ -11,6 +11,7 @@
     <string name="pairing_code_char_cd">Carácter %1$d del código</string>
     <string name="pairing_loading">Generando código…</string>
     <string name="pairing_error">No se pudo generar el código de vinculación</string>
+    <string name="pairing_paired_device_error">No pudimos cargar los datos del dispositivo. Revisa la conexión e inténtalo de nuevo.</string>
     <string name="pairing_link_error">No se pudo completar la vinculación. Genera un nuevo código e inténtalo otra vez.</string>
     <string name="pairing_rejected">El comercio rechazó la vinculación</string>
     <string name="pairing_generate_new">Generar nuevo código</string>

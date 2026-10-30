@@ -115,11 +115,27 @@ class CartViewModel @Inject constructor(
             is CartUiEvent.OpenLineDetail -> emit(CartUiEffect.NavigateToDetail(event.productId))
             is CartUiEvent.NameChanged -> onNameChanged(event.name)
             is CartUiEvent.PhoneChanged -> onPhoneChanged(event.phone)
-            CartUiEvent.KeepShopping, CartUiEvent.Close -> emit(CartUiEffect.Dismiss)
+            CartUiEvent.KeepShopping, CartUiEvent.Close -> if (!_uiState.value.isSubmitting) emit(CartUiEffect.Dismiss)
+            CartUiEvent.DismissRequest -> onDismissRequest()
             CartUiEvent.PlaceOrder -> placeOrder()
             CartUiEvent.ShareWhatsApp -> share()
             CartUiEvent.AcceptSuccess, CartUiEvent.CancelOrder -> finishAndReturnHome()
             CartUiEvent.DismissError -> _uiState.update { it.copy(submission = OrderSubmission.Idle) }
+        }
+    }
+
+    /**
+     * Outside tap or system Back (wave 2, D6: CAR-043, CAR-044). A request in flight keeps the dialog
+     * open; a result is never left behind for the next time the cart opens: success is accepted (the
+     * session ends as with "Aceptar") and an error returns to the cart summary as with "Entendido".
+     */
+    private fun onDismissRequest() {
+        when (_uiState.value.submission) {
+            OrderSubmission.Submitting -> Unit
+            is OrderSubmission.Success -> finishAndReturnHome()
+            OrderSubmission.Error, OrderSubmission.ShareError, OrderSubmission.QuoteNotDelivered ->
+                _uiState.update { it.copy(submission = OrderSubmission.Idle) }
+            OrderSubmission.Idle -> emit(CartUiEffect.Dismiss)
         }
     }
 
@@ -152,7 +168,7 @@ class CartViewModel @Inject constructor(
     /**
      * "Compartir por WhatsApp": shares the quote PDF only (no order). [ShareOutcome.Delivered] resolves
      * to the quote-only [OrderSubmission.Success]; [ShareOutcome.NotDelivered] to
-     * [OrderSubmission.QuoteNotDelivered]; a rejection or exhausted retries to [OrderSubmission.Error].
+     * [OrderSubmission.QuoteNotDelivered]; a rejection or exhausted retries to [OrderSubmission.ShareError].
      */
     private fun share() {
         val state = beginSubmission() ?: return
@@ -160,13 +176,13 @@ class CartViewModel @Inject constructor(
         viewModelScope.launch {
             val outcome = shareQuote(state.name, state.phone, state.items)
             if (outcome.isUnavailableRejection()) {
-                flagUnavailableLines(state.items)
+                flagUnavailableLines(state.items, fallback = OrderSubmission.ShareError)
                 return@launch
             }
             val submission = when (outcome) {
                 is ShareOutcome.Delivered -> OrderSubmission.Success(summary, isQuoteOnly = true)
                 is ShareOutcome.NotDelivered -> OrderSubmission.QuoteNotDelivered
-                is ShareOutcome.Rejected, is ShareOutcome.Failed -> OrderSubmission.Error
+                is ShareOutcome.Rejected, is ShareOutcome.Failed -> OrderSubmission.ShareError
             }
             _uiState.update { it.copy(submission = submission) }
         }
@@ -189,11 +205,14 @@ class CartViewModel @Inject constructor(
      * consumer to the cart with the "No disponible" marks; when nothing can be blamed, the generic
      * error is shown as before.
      */
-    private suspend fun flagUnavailableLines(items: List<CartItem>) {
+    private suspend fun flagUnavailableLines(
+        items: List<CartItem>,
+        fallback: OrderSubmission = OrderSubmission.Error,
+    ) {
         val flagged = revalidateCart(items)
         _uiState.update {
             if (flagged.isEmpty()) {
-                it.copy(submission = OrderSubmission.Error)
+                it.copy(submission = fallback)
             } else {
                 it.copy(submission = OrderSubmission.Idle, unavailableIds = flagged.toImmutableSet())
             }

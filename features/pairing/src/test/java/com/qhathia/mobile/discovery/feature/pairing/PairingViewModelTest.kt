@@ -5,6 +5,7 @@ import com.qhathia.mobile.discovery.core.domain.model.PairingCode
 import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeError
 import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeException
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus
+import com.qhathia.mobile.discovery.core.domain.model.StoreSession
 import com.qhathia.mobile.discovery.core.domain.usecase.ExchangeDeviceTokenUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GeneratePairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetHeldPairingCodeUseCase
@@ -22,6 +23,7 @@ import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEffect
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
 import com.qhathia.mobile.discovery.feature.pairing.ui.PairingViewModel
+import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -30,7 +32,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
-import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PairingViewModelTest {
@@ -203,6 +204,58 @@ class PairingViewModelTest {
             assertEquals(PairingPhase.WaitingForApproval, vm.uiState.value.phase)
             assertEquals(2, pairing.generateCount)
             vm.stop()
+        }
+
+    @Test
+    fun given_code_request_running_when_generate_tapped_again_then_one_request() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository(generateResult = Result.failure(RuntimeException("offline")))
+            val vm = viewModel(pairing)
+            vm.start()
+            runCurrent()
+            assertEquals(PairingError.CodeGeneration, vm.uiState.value.error)
+
+            pairing.generateResult = Result.success(FakeDevicePairingRepository.DEFAULT_CODE)
+            pairing.generateDelayMillis = 1_000
+            repeat(3) { vm.onEvent(PairingUiEvent.GenerateCode) }
+            advanceTimeBy(1_001)
+            runCurrent()
+
+            assertEquals(2, pairing.generateCount) // the failed first one + a single retry
+            assertEquals(PairingPhase.WaitingForApproval, vm.uiState.value.phase)
+            assertEquals(null, vm.uiState.value.error)
+            vm.stop()
+        }
+
+    @Test
+    fun given_paired_and_details_fail_then_connection_error() = runTest(mainDispatcher.dispatcher) {
+        val pairing = FakeDevicePairingRepository(pairedResult = Result.failure(RuntimeException("offline")))
+        val vm = viewModel(pairing, FakeStoreSessionRepository(StoreSession(deviceAccessToken = "jwt")))
+
+        vm.start()
+        runCurrent()
+
+        assertEquals(PairingPhase.Error, vm.uiState.value.phase)
+        assertEquals(PairingError.PairedDeviceLoad, vm.uiState.value.error)
+        assertEquals(0, pairing.generateCount)
+    }
+
+    @Test
+    fun given_paired_load_error_when_retried_then_reloads_details_and_never_generates() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository(pairedResult = Result.failure(RuntimeException("offline")))
+            val vm = viewModel(pairing, FakeStoreSessionRepository(StoreSession(deviceAccessToken = "jwt")))
+            vm.start()
+            runCurrent()
+
+            pairing.pairedResult = Result.success(FakeDevicePairingRepository.DEFAULT_DEVICE)
+            vm.onEvent(PairingUiEvent.RetryPairedDeviceLoad)
+            vm.onEvent(PairingUiEvent.GenerateCode)
+            runCurrent()
+
+            assertEquals(2, pairing.pairedCount)
+            assertEquals(0, pairing.generateCount)
+            assertEquals(PairingPhase.Paired, vm.uiState.value.phase)
         }
 
     @Test

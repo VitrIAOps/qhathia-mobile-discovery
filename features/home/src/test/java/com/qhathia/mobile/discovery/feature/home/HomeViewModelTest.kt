@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.feature.home
 
 import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.VoiceSearchConstants
 import com.qhathia.mobile.discovery.core.domain.audio.AudioLevel
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
@@ -142,7 +143,7 @@ class HomeViewModelTest {
             val vm = viewModel(recorder = recorder)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
-            advanceUntilIdle()
+            advancePastInputWait()
 
             assertTrue(vm.uiState.value.micState is MicState.NoAudioRetry)
         }
@@ -154,11 +155,11 @@ class HomeViewModelTest {
             val vm = viewModel(recorder = recorder)
 
             vm.onEvent(HomeUiEvent.ActivateMic)
-            advanceUntilIdle()
+            advancePastInputWait()
             val first = (vm.uiState.value.micState as MicState.NoAudioRetry).promptIndex
 
             vm.onEvent(HomeUiEvent.RetryMic)
-            advanceUntilIdle()
+            advancePastInputWait()
             val second = (vm.uiState.value.micState as MicState.NoAudioRetry).promptIndex
 
             assertNotEquals(first, second)
@@ -281,6 +282,74 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun given_no_audio_prompt_when_30s_pass_then_home_is_idle() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(recorder = FakeAudioRecorder(level = AudioLevel.Silence))
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            advancePastInputWait()
+            assertTrue(vm.uiState.value.micState is MicState.NoAudioRetry)
+
+            // The prompt appeared up to 1 s before advancePastInputWait returned.
+            advanceTimeBy(VoiceSearchConstants.ERROR_IDLE_TIMEOUT_SECONDS * 1_000L - 2_000)
+            runCurrent()
+            assertTrue(vm.uiState.value.micState is MicState.NoAudioRetry)
+
+            advanceTimeBy(2_000)
+            runCurrent()
+            assertEquals(MicState.Idle, vm.uiState.value.micState)
+        }
+
+    @Test
+    fun given_no_audio_prompt_when_retried_before_30s_then_it_keeps_listening() =
+        runTest(mainDispatcher.dispatcher) {
+            val recorder = FakeAudioRecorder(level = AudioLevel.Silence)
+            val vm = viewModel(recorder = recorder)
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            advancePastInputWait()
+
+            advanceTimeBy(20_000)
+            recorder.level = AudioLevel.Speech
+            vm.onEvent(HomeUiEvent.RetryMic)
+            advanceTimeBy(15_000) // past the first prompt's 30 s
+            runCurrent()
+
+            assertTrue(vm.uiState.value.micState is MicState.Listening)
+        }
+
+    @Test
+    fun given_listening_when_screen_stopped_then_recorder_released_and_home_idle() =
+        runTest(mainDispatcher.dispatcher) {
+            val recorder = FakeAudioRecorder()
+            val vm = viewModel(recorder = recorder)
+            vm.onEvent(HomeUiEvent.ActivateMic)
+            runCurrent()
+            assertTrue(vm.uiState.value.micState is MicState.Listening)
+
+            vm.onEvent(HomeUiEvent.ScreenStopped)
+            runCurrent()
+
+            assertEquals(MicState.Idle, vm.uiState.value.micState)
+            assertFalse(recorder.isRecording)
+        }
+
+    @Test
+    fun given_transcribing_when_screen_stopped_then_no_search_is_started() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(stt = FakeLiveTranscriptionRepository(finalText = "amoladora", finalDelayMillis = 5_000))
+            vm.uiEffect.test {
+                vm.onEvent(HomeUiEvent.ActivateMic)
+                vm.onEvent(HomeUiEvent.StopRecording)
+                runCurrent()
+
+                vm.onEvent(HomeUiEvent.ScreenStopped)
+                advanceUntilIdle()
+
+                assertEquals(MicState.Idle, vm.uiState.value.micState)
+                expectNoEvents()
+            }
+        }
+
+    @Test
     fun given_listening_when_cancelled_then_returns_to_idle_and_recorder_cancelled() =
         runTest(mainDispatcher.dispatcher) {
             val recorder = FakeAudioRecorder()
@@ -334,4 +403,10 @@ class HomeViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    /** Runs the silent listening window to its end, without reaching the 30 s idle timer after it. */
+    private fun kotlinx.coroutines.test.TestScope.advancePastInputWait() {
+        advanceTimeBy(VoiceSearchConstants.INPUT_WAIT_SECONDS * 1_000L + 1_000)
+        runCurrent()
+    }
 }

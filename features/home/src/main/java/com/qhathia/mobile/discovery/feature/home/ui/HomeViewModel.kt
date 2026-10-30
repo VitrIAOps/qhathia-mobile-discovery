@@ -89,12 +89,16 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Home is hidden (the search results are on top). A finished voice search stays on screen during
-     * the navigation transition; reset it now so Home is idle when the consumer comes back.
+     * Home is hidden (another screen on top, or the app in the background). A finished voice search
+     * stays on screen during the navigation transition; reset it now so Home is idle when the consumer
+     * comes back. A voice search still in progress is cancelled, which releases the microphone
+     * (wave 2, D3: VOZ-004).
      */
     private fun onScreenStopped() {
-        _uiState.update { state ->
-            if (state.micState is MicState.Success) state.copy(micState = MicState.Idle) else state
+        when (_uiState.value.micState) {
+            is MicState.Listening, is MicState.Transcribing, MicState.SlowResponse -> cancelVoiceSearch()
+            is MicState.Success -> _uiState.update { it.copy(micState = MicState.Idle) }
+            else -> Unit
         }
     }
 
@@ -172,17 +176,28 @@ class HomeViewModel @Inject constructor(
 
     private fun onTranscriptionError(category: SttErrorCategory) {
         _uiState.update { it.copy(micState = MicState.Error(category)) }
-        errorIdleJob = viewModelScope.launch {
-            delay(VoiceSearchConstants.ERROR_IDLE_TIMEOUT_SECONDS * ONE_SECOND_MS)
-            _uiState.update { state ->
-                if (state.micState is MicState.Error) state.copy(micState = MicState.Idle) else state
-            }
-        }
+        startErrorIdleTimer()
     }
 
     private fun showNoAudio() {
         val index = retryCount++
         _uiState.update { it.copy(micState = MicState.NoAudioRetry(promptIndex = index)) }
+        // "No te escuché…" goes back to idle like the error screens (wave 2, D3: INI-051, VOZ-003).
+        startErrorIdleTimer()
+    }
+
+    /** Returns an error or no-audio screen to idle after [VoiceSearchConstants.ERROR_IDLE_TIMEOUT_SECONDS]. */
+    private fun startErrorIdleTimer() {
+        errorIdleJob?.cancel()
+        errorIdleJob = viewModelScope.launch {
+            delay(VoiceSearchConstants.ERROR_IDLE_TIMEOUT_SECONDS * ONE_SECOND_MS)
+            _uiState.update { state ->
+                when (state.micState) {
+                    is MicState.Error, is MicState.NoAudioRetry -> state.copy(micState = MicState.Idle)
+                    else -> state
+                }
+            }
+        }
     }
 
     private fun cancelVoiceSearch() {

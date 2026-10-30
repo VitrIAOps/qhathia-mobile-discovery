@@ -131,6 +131,8 @@
   - AJU-011: with the gate locked, the staff app changes the exit PIN → lock lifted.
   - KIO-041: `RESTART_APP` while pinned → `pidof` changes, still pinned, command ACKED only after the relaunch.
   - Live `kioskMode` toggle regression.
+  - Archived 2026-10-30 with this task open: VIN-031 / VIN-032 approval handed to the QA team; AJU-011 remote PIN done; KIO-041 `RESTART_APP` from staff and the live `kioskMode` toggle stay with the user.
 - [ ] 11.5 Regression sweep of the wave-1 flows: order happy path, catalog → detail → cart, voice from Home, settings ↔ Home 10 times while pinned.
+  - Archived 2026-10-30 with this task open: the order happy path creates a real order in production and voice with speech needs a real microphone; both stay with the user. The rest of the sweep is in `qa-report.md`.
 - [x] 11.6 Complete `qa-report.md` (before / after / evidence for each case ID), note what stays blocked by backend, and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with the status of each wave-1 case.
   - Done 2026-10-29. `qa-report.md` has a summary and a "Blocked by backend or infrastructure" table; the handoff has a wave-1 status note above the table and an **Ola 1** status in each wave-1 row. Cases that still need the staff app (VIN-031/032 approval, KIO-041) are marked as pending 11.4.

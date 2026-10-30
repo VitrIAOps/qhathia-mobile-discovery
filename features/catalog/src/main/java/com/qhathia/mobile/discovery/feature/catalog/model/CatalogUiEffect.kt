@@ -16,4 +16,7 @@ sealed interface CatalogUiEffect {
 
     /** Hand off to the product-search flow, carrying the query and its source. */
     data class NavigateToSearch(val query: String, val source: SearchSource) : CatalogUiEffect
+
+    /** The basket already has 20 distinct products: tell the consumer why nothing was added. */
+    data object LineLimitReached : CatalogUiEffect
 }

@@ -3,9 +3,7 @@
 ## Purpose
 
 The product-search capability lets in-store consumers search the store's catalog from the Discovery app — by voice transcript or typed text — and view the matching products as a chat-style results catalog. It owns query submission to the Qhathia search API, the results and "unhappy" (no-results / error) screens, search processing feedback, temporary in-memory search history with back navigation, and resetting the session via a new search.
-
 ## Requirements
-
 ### Requirement: Query submission to the product search API
 
 The app SHALL submit a consumer search query to the Qhathia backend via `POST /api/v1/conversations/search`, authenticated with the session Bearer JWT, and present the returned products. The query MAY originate from voice (a transcript) or from typed text. The query SHALL be capped at **500 characters**; input beyond that limit SHALL NOT be accepted. The app SHALL wait at most **30 seconds** for the search response.
@@ -282,3 +280,47 @@ The product-search screens SHALL be built from the shared design system, use Mat
 
 - **WHEN** an assistive technology inspects the top-bar controls, the product cart buttons, and the microphone
 - **THEN** each interactive control exposes a localized content description and a touch target of at least 48dp
+
+### Requirement: Search microphone asks for permission
+
+Before starting voice capture on the search screen, the app SHALL check the microphone permission and, when it is missing, request it. When the permission is refused, the app SHALL show the same message Home shows ("Necesitamos acceso al micrófono para la búsqueda por voz") and SHALL NOT start capture.
+
+#### Scenario: Permission missing
+
+- **WHEN** the consumer taps the search microphone and the microphone permission is not granted
+- **THEN** the system permission request is shown
+
+#### Scenario: Permission refused
+
+- **WHEN** the consumer refuses the microphone permission from the search screen
+- **THEN** the message "Necesitamos acceso al micrófono para la búsqueda por voz" is shown and no capture starts
+
+#### Scenario: Permission granted
+
+- **WHEN** the permission is granted
+- **THEN** the search screen starts listening
+
+### Requirement: Leaving search stops voice capture
+
+When the search screen stops being visible, any voice capture in progress SHALL be cancelled and the screen SHALL show the results it showed before the microphone was used.
+
+#### Scenario: Background while listening on search
+
+- **WHEN** the search screen is listening and the app goes to the background
+- **THEN** the capture is cancelled and the previous results are shown when the app comes back
+
+### Requirement: Voice hand-off without a query starts listening
+
+When the product-search screen is opened with source Voice and an empty query (for example from the Catalog microphone), it SHALL start in-place voice capture immediately and SHALL NOT send a search request with an empty query.
+
+#### Scenario: Catalog microphone opens voice capture
+
+- **WHEN** the consumer taps the microphone on the Catalog and the search screen opens with an empty query
+- **THEN** the search screen shows the listening state and captures the consumer's voice
+- **AND** no search request is sent until a transcript is available
+
+#### Scenario: Voice hand-off with a query still searches
+
+- **WHEN** the search screen is opened with source Voice and a non-empty query
+- **THEN** it submits that query to the search API as before
+

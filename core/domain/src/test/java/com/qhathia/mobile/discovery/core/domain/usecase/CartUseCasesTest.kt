@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.core.domain.usecase
 
 import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
@@ -26,6 +27,47 @@ class CartUseCasesTest {
         val cart = ObserveCartUseCase(repository)().first()
         assertEquals(1, cart.items.size)
         assertEquals(3, cart.totalItemCount)
+    }
+
+    @Test
+    fun `a 21st distinct product is refused and not added`() = runTest {
+        val add = AddToCartUseCase(repository)
+        repeat(CartConstants.MAX_DISTINCT_LINES) { add(CartFixtures.cartItem(productId = "p$it")) }
+
+        val result = add(CartFixtures.cartItem(productId = "extra"))
+
+        assertEquals(AddToCartResult.LineLimitReached, result)
+        assertEquals(20, repository.current.items.size)
+        assertTrue(repository.current.items.none { it.productId == "extra" })
+    }
+
+    @Test
+    fun `a full basket still takes more units of a product already in it`() = runTest {
+        val add = AddToCartUseCase(repository)
+        repeat(CartConstants.MAX_DISTINCT_LINES) { add(CartFixtures.cartItem(productId = "p$it")) }
+
+        val result = add(CartFixtures.cartItem(productId = "p0", quantity = 2))
+
+        assertEquals(AddToCartResult.Added, result)
+        assertEquals(3, repository.current.items.first { it.productId == "p0" }.quantity)
+    }
+
+    @Test
+    fun `a line quantity stays capped at 99`() = runTest {
+        val add = AddToCartUseCase(repository)
+
+        add(CartFixtures.cartItem(productId = "p1", quantity = 98))
+        add(CartFixtures.cartItem(productId = "p1", quantity = 5))
+
+        assertEquals(CartConstants.DEFAULT_MAX_QUANTITY, repository.current.items.single().quantity)
+    }
+
+    @Test
+    fun `a product that is not orderable is not added`() = runTest {
+        val result = AddToCartUseCase(repository)(CartFixtures.cartItem(availability = "LOW_STOCK"))
+
+        assertEquals(AddToCartResult.NotOrderable, result)
+        assertTrue(repository.current.items.isEmpty())
     }
 
     @Test
