@@ -41,8 +41,11 @@ data class CartUiState(
     /** True while a line flagged "No disponible" is still in the basket. */
     val hasUnavailableLines: Boolean get() = items.any { it.productId in unavailableIds }
 
-    /** Whether "Realizar pedido" and "Compartir" may run: valid consumer data and no flagged line. */
-    val canSubmit: Boolean get() = isOrderEnabled && !hasUnavailableLines
+    /**
+     * Whether "Realizar pedido" and "Compartir" may run: products in the basket, valid consumer data
+     * and no flagged line (CAR-020, CAR-031).
+     */
+    val canSubmit: Boolean get() = !isEmpty && isOrderEnabled && !hasUnavailableLines
 
     /** True while an order request is in flight — the dialog blocks all inputs. */
     val isSubmitting: Boolean get() = submission is OrderSubmission.Submitting

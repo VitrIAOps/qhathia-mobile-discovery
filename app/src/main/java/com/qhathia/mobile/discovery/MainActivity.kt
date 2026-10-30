@@ -307,6 +307,13 @@ private fun DiscoveryNavHost(
         }
     }
 
+    // One navigation per tap (wave 2, D1): every tap-driven navigation goes through fromSettledScreen.
+    val goHome: () -> Unit = { navController.fromSettledScreen { popBackStack(HOME_ROUTE, inclusive = false) } }
+    val goBack: () -> Unit = { navController.fromSettledScreen { popBackStack() } }
+    val openDetail: (String) -> Unit = { productId ->
+        navController.fromSettledScreen { navigate(productDetailRoute(productId)) }
+    }
+
     // Kiosk: keep content out of the system-bar areas even while the bars are hidden. Hidden bars report
     // zero insets, which moved the bottom controls (the settings gear) into the navigation-bar strip,
     // where a pinned task does not receive touches.
@@ -338,48 +345,51 @@ private fun DiscoveryNavHost(
                 startDestination = startDestinationRoute,
             ) {
                 onboardingGraph(
-                    onNavigateToInitialConfiguration = { navController.navigate(INITIAL_CONFIG_ROUTE) },
-                    onNavigateBackToWelcome = { navController.popBackStack() },
+                    onNavigateToInitialConfiguration = {
+                        navController.fromSettledScreen { navigate(INITIAL_CONFIG_ROUTE) }
+                    },
+                    onNavigateBackToWelcome = goBack,
                     onNavigateToHome = {
                         // Business rule: only a successful pairing advances to Home; drop the onboarding
-                        // destinations so Back from Home does not re-enter the welcome flow.
+                        // destinations so Back from Home does not re-enter the welcome flow. Not guarded:
+                        // it is the result of a pairing, not a tap.
                         navController.navigate(HOME_ROUTE) {
                             popUpTo(WELCOME_ROUTE) { inclusive = true }
                         }
                     },
                 )
                 homeScreen(
-                    onNavigateToCatalog = { navController.navigate(catalogRoute()) },
+                    onNavigateToCatalog = { navController.fromSettledScreen { navigate(catalogRoute()) } },
                     onNavigateToProductSearch = { query, source ->
-                        navController.navigate(productSearchRoute(query, source))
+                        navController.fromSettledScreen { navigate(productSearchRoute(query, source)) }
                     },
                     onNavigateToSettings = { showSettingsGate = true },
                 )
                 catalogScreen(
-                    onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
-                    onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
+                    onNavigateHomeIdle = goHome,
+                    onNavigateToDetail = openDetail,
                     onNavigateToSearch = { query, source ->
-                        navController.navigate(productSearchRoute(query, source))
+                        navController.fromSettledScreen { navigate(productSearchRoute(query, source)) }
                     },
                     onOpenCart = { showCart = true },
                 )
                 productSearchScreen(
-                    onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
+                    onNavigateHomeIdle = goHome,
+                    onNavigateBack = goBack,
+                    onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
                 )
                 productDetailScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateHomeIdle = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
-                    onNavigateToSearch = { query ->
-                        navController.navigate(productSearchRoute(query, SearchSource.Text))
+                    onNavigateBack = goBack,
+                    onNavigateHomeIdle = goHome,
+                    onNavigateToSearch = { query, source ->
+                        navController.fromSettledScreen { navigate(productSearchRoute(query, source)) }
                     },
-                    onNavigateToDetail = { productId -> navController.navigate(productDetailRoute(productId)) },
+                    onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
                 )
                 networkSettingsScreen(
-                    onNavigateBack = { navController.popBackStack(HOME_ROUTE, inclusive = false) },
+                    onNavigateBack = goHome,
                 )
             }
         }
@@ -388,13 +398,16 @@ private fun DiscoveryNavHost(
     if (showCart) {
         CartDialog(
             onNavigateToDetail = { productId ->
-                showCart = false
-                navController.navigate(productDetailRoute(productId))
+                if (showCart) {
+                    showCart = false
+                    navController.fromSettledScreen { navigate(productDetailRoute(productId)) }
+                }
             },
             onDismiss = { showCart = false },
             onReturnHome = {
                 // Order placed (accepted) or cancelled from the error state: the session was
-                // cleared in the ViewModel; close the overlay and pop back to Home.
+                // cleared in the ViewModel; close the overlay and pop back to Home. Not guarded: it is
+                // a result, not a tap, and popping to Home twice changes nothing.
                 showCart = false
                 navController.popBackStack(HOME_ROUTE, inclusive = false)
             },
@@ -405,7 +418,7 @@ private fun DiscoveryNavHost(
         SettingsPasswordGate(
             onUnlocked = {
                 showSettingsGate = false
-                navController.navigate(NETWORK_SETTINGS_ROUTE)
+                navController.fromSettledScreen { navigate(NETWORK_SETTINGS_ROUTE) }
             },
             onDismiss = { showSettingsGate = false },
         )

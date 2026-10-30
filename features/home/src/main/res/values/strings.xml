@@ -20,7 +20,6 @@
     <string name="home_mic_processing_cd">Procesando, toca para cancelar</string>
 
     <!-- Microphone permission -->
-    <string name="home_mic_permission_required">Necesitamos acceso al micrófono para la búsqueda por voz</string>
 
     <!-- Voice-search error screens (rendered with the same headline + mic + search layout as the
          no-audio retry; the mic re-triggers the search). Shared network-error and generic-error

@@ -210,8 +210,9 @@ private fun SubmissionLineRow(
 
 /**
  * The simplified error-recovery screen shared by the cart order/share and product-detail share flows:
- * a [title], a [message], a higher-priority [primaryLabel] action (filled) and a lower-priority
- * [secondaryLabel] action (text). The caller decides what each action does (retry vs. cancel).
+ * a [title], a [message], a higher-priority [primaryLabel] action (filled) and an optional
+ * lower-priority [secondaryLabel] action (text), left out when `null`. The caller decides what each
+ * action does (retry vs. cancel).
  */
 @Composable
 fun SubmissionErrorContent(
@@ -219,7 +220,7 @@ fun SubmissionErrorContent(
     message: String,
     primaryLabel: String,
     onPrimary: () -> Unit,
-    secondaryLabel: String,
+    secondaryLabel: String?,
     onSecondary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -256,13 +257,15 @@ fun SubmissionErrorContent(
                 contentColor = Color.White,
                 modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
             )
-            PrimaryActionButton(
-                text = secondaryLabel,
-                onClick = onSecondary,
-                containerColor = Color.Transparent,
-                contentColor = DiscoveryColors.CatalogText,
-                modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
-            )
+            if (secondaryLabel != null) {
+                PrimaryActionButton(
+                    text = secondaryLabel,
+                    onClick = onSecondary,
+                    containerColor = Color.Transparent,
+                    contentColor = DiscoveryColors.CatalogText,
+                    modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+                )
+            }
         }
     }
 }

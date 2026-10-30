@@ -303,6 +303,57 @@ class ProductSearchViewModelTest {
         assertTrue(recorder.cancelled)
     }
 
+    @Test
+    fun given_voice_capture_when_back_then_capture_cancelled_and_results_kept() =
+        runTest(mainDispatcher.dispatcher) {
+            val recorder = FakeAudioRecorder()
+            val vm = viewModel(recorder = recorder) // init settles on Results
+
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            vm.onEvent(ProductSearchUiEvent.Back)
+
+            assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+            assertTrue(recorder.cancelled)
+            assertFalse(vm.uiState.value.showCloseConfirmDialog)
+        }
+
+    @Test
+    fun given_listening_when_screen_stopped_then_recorder_released_and_results_restored() =
+        runTest(mainDispatcher.dispatcher) {
+            val recorder = FakeAudioRecorder()
+            val vm = viewModel(recorder = recorder) // init settles on Results
+
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            vm.onEvent(ProductSearchUiEvent.ScreenStopped)
+
+            assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+            assertFalse(recorder.isRecording)
+        }
+
+    @Test
+    fun given_voice_entry_listening_when_screen_stopped_then_leaves_once_resumed() =
+        runTest(mainDispatcher.dispatcher) {
+            val recorder = FakeAudioRecorder()
+            val vm = viewModel(
+                query = "",
+                source = SearchSource.Voice,
+                recorder = recorder,
+                stt = FakeLiveTranscriptionRepository(partials = emptyList()),
+            )
+
+            vm.uiEffect.test {
+                vm.onEvent(ProductSearchUiEvent.ScreenStopped)
+                assertFalse(recorder.isRecording)
+                expectNoEvents()
+
+                vm.onEvent(ProductSearchUiEvent.ScreenResumed)
+                assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
+
+                vm.onEvent(ProductSearchUiEvent.ScreenResumed)
+                expectNoEvents()
+            }
+        }
+
     // --- Catalog microphone: Voice hand-off without a query (CAT-030) ---
 
     @Test

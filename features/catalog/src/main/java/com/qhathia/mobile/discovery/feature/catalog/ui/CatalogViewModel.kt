@@ -4,10 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.CatalogConstants
+import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.CatalogCategory
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
+import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductCatalogUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
@@ -18,6 +20,7 @@ import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiEvent
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiState
 import com.qhathia.mobile.discovery.feature.catalog.navigation.ARG_SOURCE
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -32,7 +35,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Drives the catalog screen: loads the store's products grouped by category, builds the category tab
@@ -204,7 +206,7 @@ class CatalogViewModel @Inject constructor(
     private fun onCartTapped(productId: String) {
         resetIdleTimerIfError()
         val product = currentProducts().firstOrNull { it.id == productId } ?: return
-        viewModelScope.launch { addToCart(product.toCartItem()) }
+        addAndReportLimit(product.toCartItem())
     }
 
     private fun openCart() {
@@ -266,6 +268,14 @@ class CatalogViewModel @Inject constructor(
 
     private fun emit(effect: CatalogUiEffect) {
         viewModelScope.launch { _uiEffect.emit(effect) }
+    }
+
+
+    /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
+    private fun addAndReportLimit(item: CartItem) {
+        viewModelScope.launch {
+            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(CatalogUiEffect.LineLimitReached)
+        }
     }
 
     private companion object {

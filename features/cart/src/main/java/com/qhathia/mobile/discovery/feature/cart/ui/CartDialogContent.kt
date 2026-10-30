@@ -104,14 +104,26 @@ fun CartDialogContent(
                 modifier = modifier,
             )
 
+        // A share that failed keeps the basket: only "Entendido", back to the cart (CAR-033).
         OrderSubmission.QuoteNotDelivered ->
             SubmissionErrorContent(
                 title = stringResource(R.string.cart_share_not_delivered_title),
                 message = stringResource(R.string.cart_share_not_delivered_message),
                 primaryLabel = stringResource(R.string.cart_error_understood),
                 onPrimary = { onEvent(CartUiEvent.DismissError) },
-                secondaryLabel = stringResource(R.string.cart_error_cancel),
-                onSecondary = { onEvent(CartUiEvent.CancelOrder) },
+                secondaryLabel = null,
+                onSecondary = {},
+                modifier = modifier,
+            )
+
+        OrderSubmission.ShareError ->
+            SubmissionErrorContent(
+                title = stringResource(R.string.cart_share_error_title),
+                message = stringResource(R.string.cart_share_error_message),
+                primaryLabel = stringResource(R.string.cart_error_understood),
+                onPrimary = { onEvent(CartUiEvent.DismissError) },
+                secondaryLabel = null,
+                onSecondary = {},
                 modifier = modifier,
             )
 
@@ -340,7 +352,7 @@ private fun FooterPanel(
         }
         ActionButtons(
             isOrderEnabled = uiState.canSubmit,
-            isShareEnabled = !uiState.hasUnavailableLines,
+            isShareEnabled = uiState.canSubmit,
             onEvent = onEvent,
         )
     }
@@ -675,6 +687,30 @@ private fun OrderErrorDarkPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
         CartDialogContent(
             uiState = CartUiState(submission = OrderSubmission.Error),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — error (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareErrorPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.ShareError),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — error (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareErrorDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.ShareError),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )

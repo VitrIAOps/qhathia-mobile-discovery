@@ -47,4 +47,10 @@ sealed interface ProductSearchUiEvent {
 
     /** Select a suggestion [phrase]; re-tapping the active suggestion de-selects it. */
     data class SuggestionSelected(val phrase: String) : ProductSearchUiEvent
+
+    /** The screen is hidden (lifecycle `ON_STOP`): voice capture in progress is cancelled. */
+    data object ScreenStopped : ProductSearchUiEvent
+
+    /** The screen is shown again (lifecycle `ON_RESUME`). */
+    data object ScreenResumed : ProductSearchUiEvent
 }

@@ -6,6 +6,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.feature.productdetail.ui.ProductDetailScreen
 
 /** Navigation argument key read by `ProductDetailViewModel` via `SavedStateHandle`. */
@@ -27,7 +28,7 @@ fun productDetailRoute(productId: String): String =
 fun NavGraphBuilder.productDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateHomeIdle: () -> Unit,
-    onNavigateToSearch: (String) -> Unit,
+    onNavigateToSearch: (String, SearchSource) -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
     modifier: Modifier = Modifier,

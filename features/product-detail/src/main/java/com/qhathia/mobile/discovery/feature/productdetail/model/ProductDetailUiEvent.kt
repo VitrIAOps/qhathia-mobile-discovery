@@ -42,8 +42,14 @@ sealed interface ProductDetailUiEvent {
     /** Tap "Compartir" in the dialog — validate and send the quote PDF for this product. */
     data object ConfirmShare : ProductDetailUiEvent
 
-    /** Dismiss the share dialog without sending (the "X"/"Cancelar" or a scrim/back tap). */
+    /** Dismiss the share dialog without sending (the "X" / "Cancelar"). Ignored while sending. */
     data object DismissShare : ProductDetailUiEvent
+
+    /**
+     * A tap outside the share dialog or the system Back. Ignored while sending; on a result screen it
+     * runs that screen's main action (wave 2, D6).
+     */
+    data object ShareDismissRequest : ProductDetailUiEvent
 
     /** Tap "Aceptar" on the share success screen — close the dialog and reset its form. */
     data object AcceptShareSuccess : ProductDetailUiEvent

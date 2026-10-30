@@ -6,51 +6,57 @@
 
 ## 2. Navigation guard (D1): INI-020, DET-021, DET-022
 
-- [ ] 2.1 `:app`: add a small helper that runs an action only when the given `NavBackStackEntry` is `RESUMED`, and use it in every `NavHost` callback in `MainActivity` that navigates or pops (Home → Catalog / Search, Catalog → Detail / Search, Search → Detail / back / Home, Detail → Detail / Search / back / Home, Settings back).
-- [ ] 2.2 Cart overlay "Ver detalle": close the overlay and navigate once (a second tap after the dialog closed has nothing to act on); check it does not stack two details.
-- [ ] 2.3 Unit test for the helper (resumed runs, created / started do not). Instrumented tests are not set up in the project; the double-tap cases are checked on the emulator in 9.2.
+- [x] 2.1 `:app`: add a small helper that runs an action only when the given `NavBackStackEntry` is `RESUMED`, and use it in every `NavHost` callback in `MainActivity` that navigates or pops (Home → Catalog / Search, Catalog → Detail / Search, Search → Detail / back / Home, Detail → Detail / Search / back / Home, Settings back).
+- [x] 2.2 Cart overlay "Ver detalle": close the overlay and navigate once (a second tap after the dialog closed has nothing to act on); check it does not stack two details.
+- [x] 2.3 Unit test for the helper (resumed runs, created / started do not). Instrumented tests are not set up in the project; the double-tap cases are checked on the emulator in 9.2.
+  - Done 2026-10-30. `NavigationGuard.kt` (`allowsNavigation`, `NavController.fromSettledScreen`); every tap-driven callback in `MainActivity` goes through it (`goHome`, `goBack`, `openDetail`). Not guarded on purpose: the pairing result to Home, the cart's return Home after a result (idempotent pop) and the inactivity timeout.
 
 ## 3. System Back follows "Volver" (D2): CAT-024, CAT-025, BUS-052, BUS-060
 
-- [ ] 3.1 `features:catalog`: `BackHandler` in `CatalogScreen` sending `CatalogUiEvent.Back`; while the close dialog is shown, Back dismisses it (`DismissDialog`).
-- [ ] 3.2 `features:product-search`: `BackHandler` sending `ProductSearchUiEvent.Back` (history step, then the close confirmation); Back dismisses the open dialog. While voice capture is running, Back cancels it (same as the cancel control).
-- [ ] 3.3 `features:product-detail`: `BackHandler` sending `ProductDetailUiEvent.Back`; with the share dialog open, its own dismissal rules apply (group 6).
-- [ ] 3.4 Unit tests: the existing `Back` event tests cover the decisions; add the dialog-open cases (Back dismisses the dialog) where the ViewModel owns that state.
+- [x] 3.1 `features:catalog`: `BackHandler` in `CatalogScreen` sending `CatalogUiEvent.Back`; while the close dialog is shown, Back dismisses it (`DismissDialog`).
+- [x] 3.2 `features:product-search`: `BackHandler` sending `ProductSearchUiEvent.Back` (history step, then the close confirmation); Back dismisses the open dialog. While voice capture is running, Back cancels it (same as the cancel control).
+- [x] 3.3 `features:product-detail`: `BackHandler` sending `ProductDetailUiEvent.Back`; with the share dialog open, its own dismissal rules apply (group 6).
+- [x] 3.4 Unit tests: the existing `Back` event tests cover the decisions; add the dialog-open cases (Back dismisses the dialog) where the ViewModel owns that state.
+  - Done 2026-10-30. Back on Search while the mic is open cancels the capture (`onBack`). The close confirmations are `AlertDialog` windows, so Back reaches them first and dismisses them with no extra code.
 
 ## 4. Voice (D3, D4): INI-051, VOZ-003, VOZ-004, VOZ-008, VOZ-010
 
-- [ ] 4.1 `features:home`: start the `ERROR_IDLE_TIMEOUT_SECONDS` timer on `NoAudioRetry`; cancel it on any mic event. Unit test with the virtual clock: idle after 30 s, no idle after a retry at 20 s.
-- [ ] 4.2 `features:home`: `ScreenStopped` cancels any voice session in progress (listening, transcribing, slow response) and resets to `Idle`; no search effect is emitted from a cancelled session. Unit test.
-- [ ] 4.3 `features:product-search`: `LifecycleEventEffect(ON_STOP)` → new `ProductSearchUiEvent.ScreenStopped`, which cancels voice capture and restores `phaseBeforeVoice`. Unit test.
-- [ ] 4.4 `core:ui`: move the microphone-permission request out of `HomeScreen` into `rememberMicPermissionGate(onGranted, onDenied)` plus the shared "Necesitamos acceso al micrófono…" string; Home uses it with no change in behavior.
-- [ ] 4.5 `features:product-search`: the mic button goes through the permission gate; refusal shows the `Toast`.
-- [ ] 4.6 `features:product-detail`: `ActivateMic` emits a navigation effect to Search with an empty query and `SearchSource.Voice` (same hand-off as Catalog); wire it in `ProductDetailNavigation` / `MainActivity` through the guard of 2.1. Unit test for the effect.
+- [x] 4.1 `features:home`: start the `ERROR_IDLE_TIMEOUT_SECONDS` timer on `NoAudioRetry`; cancel it on any mic event. Unit test with the virtual clock: idle after 30 s, no idle after a retry at 20 s.
+- [x] 4.2 `features:home`: `ScreenStopped` cancels any voice session in progress (listening, transcribing, slow response) and resets to `Idle`; no search effect is emitted from a cancelled session. Unit test.
+- [x] 4.3 `features:product-search`: `LifecycleEventEffect(ON_STOP)` → new `ProductSearchUiEvent.ScreenStopped`, which cancels voice capture and restores `phaseBeforeVoice`. Unit test.
+- [x] 4.4 `core:ui`: move the microphone-permission request out of `HomeScreen` into `rememberMicPermissionGate(onGranted, onDenied)` plus the shared "Necesitamos acceso al micrófono…" string; Home uses it with no change in behavior.
+- [x] 4.5 `features:product-search`: the mic button goes through the permission gate; refusal shows the `Toast`.
+- [x] 4.6 `features:product-detail`: `ActivateMic` emits a navigation effect to Search with an empty query and `SearchSource.Voice` (same hand-off as Catalog); wire it in `ProductDetailNavigation` / `MainActivity` through the guard of 2.1. Unit test for the effect.
+  - Done 2026-10-30. Found while implementing: Search starts listening from `init` when opened by voice, so Catalog and Detail also go through the permission gate before the hand-off. Search stopped while opened by voice (nothing to restore) leaves on the next `ON_RESUME` (a navigation while hidden would be dropped by the guard).
 
 ## 5. Cart: share errors and actions (D5, D7): CAR-033, CAR-031, CAR-020, CAR-021, CAR-024
 
-- [ ] 5.1 `features:cart`: add `OrderSubmission.ShareError`; `share()` maps `Rejected` / `Failed` to it. Render it with the new share-error strings and a single "Entendido" (`DismissError`). `QuoteNotDelivered` loses "Cancelar orden". `OrderSubmission.Error` (order) is unchanged.
-- [ ] 5.2 `features:cart`: `CartUiState.canSubmit` includes `!isEmpty`; both buttons use `canSubmit` (Compartir no longer uses only `!hasUnavailableLines`).
-- [ ] 5.3 `core:domain`: `CartConstants.MAX_DISTINCT_LINES = 20`; `AddToCartUseCase` returns `AddToCartResult` (`Added`, `NotOrderable`, `LineLimitReached`). A product already in the basket is always `Added` (quantity capped by the existing rule). Unit tests: 20 → 21st refused, 20 + existing line added, quantity cap 99 kept (CAR-024).
-- [ ] 5.4 Screens that add (Catalog, Search incl. suggestions, Detail incl. related products): on `LineLimitReached` emit a one-shot effect and show the limit message as a `Toast`. Shared string in `core:ui`.
-- [ ] 5.5 `CartViewModel` tests: share error state and its "Entendido"; not-delivered without cancel; order error unchanged; empty basket disables both actions; empty form disables Compartir.
-- [ ] 5.6 Check the product share dialog (`ShareProductDialog`): its error and not-delivered states offer no action that clears the cart; adjust copy if it still uses the order text.
+- [x] 5.1 `features:cart`: add `OrderSubmission.ShareError`; `share()` maps `Rejected` / `Failed` to it. Render it with the new share-error strings and a single "Entendido" (`DismissError`). `QuoteNotDelivered` loses "Cancelar orden". `OrderSubmission.Error` (order) is unchanged.
+- [x] 5.2 `features:cart`: `CartUiState.canSubmit` includes `!isEmpty`; both buttons use `canSubmit` (Compartir no longer uses only `!hasUnavailableLines`).
+- [x] 5.3 `core:domain`: `CartConstants.MAX_DISTINCT_LINES = 20`; `AddToCartUseCase` returns `AddToCartResult` (`Added`, `NotOrderable`, `LineLimitReached`). A product already in the basket is always `Added` (quantity capped by the existing rule). Unit tests: 20 → 21st refused, 20 + existing line added, quantity cap 99 kept (CAR-024).
+- [x] 5.4 Screens that add (Catalog, Search incl. suggestions, Detail incl. related products): on `LineLimitReached` emit a one-shot effect and show the limit message as a `Toast`. Shared string in `core:ui`.
+- [x] 5.5 `CartViewModel` tests: share error state and its "Entendido"; not-delivered without cancel; order error unchanged; empty basket disables both actions; empty form disables Compartir.
+- [x] 5.6 Check the product share dialog (`ShareProductDialog`): its error and not-delivered states offer no action that clears the cart; adjust copy if it still uses the order text.
+  - Done 2026-10-30, no change: the product share error and not-delivered states already use share copy, and their "Cancelar" only closes the dialog (the cart is untouched). `SubmissionErrorContent` (core:ui) now takes an optional secondary action.
 
 ## 6. Dialog dismissal (D6): CAR-043, CAR-044
 
-- [ ] 6.1 `features:cart`: `CartDialog` maps `onDismissRequest` from the submission state (`Submitting` → ignore, `Success` → `AcceptSuccess`, error states → `DismissError`, `Idle` → dismiss). The close "X" is disabled while `Submitting`. "Seguir buscando" is already disabled with the other inputs.
-- [ ] 6.2 `features:product-detail`: same mapping for `ShareProductDialog` (`Submitting` → ignore, `Success` → `AcceptShareSuccess`, errors → `DismissShareError`).
-- [ ] 6.3 Tests: a dismiss event while `Submitting` changes nothing; dismiss on success behaves as accept (session ended for the cart); reopening after a result shows the summary.
+- [x] 6.1 `features:cart`: `CartDialog` maps `onDismissRequest` from the submission state (`Submitting` → ignore, `Success` → `AcceptSuccess`, error states → `DismissError`, `Idle` → dismiss). The close "X" is disabled while `Submitting`. "Seguir buscando" is already disabled with the other inputs.
+- [x] 6.2 `features:product-detail`: same mapping for `ShareProductDialog` (`Submitting` → ignore, `Success` → `AcceptShareSuccess`, errors → `DismissShareError`).
+- [x] 6.3 Tests: a dismiss event while `Submitting` changes nothing; dismiss on success behaves as accept (session ended for the cart); reopening after a result shows the summary.
+  - Done 2026-10-30. The decision is in the ViewModels (`CartUiEvent.DismissRequest`, `ProductDetailUiEvent.ShareDismissRequest`); an error dismissed this way returns to the cart summary / share form, as "Entendido" does. `FakeCartShareRepository.awaitBeforeAnswer` holds a request in flight for the tests.
 
 ## 7. Pairing and settings (D8): VIN-024, AJU-031, AJU-050
 
-- [ ] 7.1 `features:pairing`: track the code request in `generateJob`; ignore `GenerateCode` while it is active or the phase is `Loading`; `cancelJobs()` cancels it.
-- [ ] 7.2 `features:pairing`: add `PairingError.PairedDeviceLoad` with the connection copy and a `RetryPairedDeviceLoad` event that runs `loadPairedDevice()`. Ignore `GenerateCode` when the session is paired. Update the error content so each error shows its own retry.
-- [ ] 7.3 Unit tests: three fast `GenerateCode` → one request; paired + load failure → `PairedDeviceLoad`; its retry calls `getPairedDevice` again and never `generatePairingCode`.
+- [x] 7.1 `features:pairing`: track the code request in `generateJob`; ignore `GenerateCode` while it is active or the phase is `Loading`; `cancelJobs()` cancels it.
+- [x] 7.2 `features:pairing`: add `PairingError.PairedDeviceLoad` with the connection copy and a `RetryPairedDeviceLoad` event that runs `loadPairedDevice()`. Ignore `GenerateCode` when the session is paired. Update the error content so each error shows its own retry.
+- [x] 7.3 Unit tests: three fast `GenerateCode` → one request; paired + load failure → `PairedDeviceLoad`; its retry calls `getPairedDevice` again and never `generatePairingCode`.
 
 ## 8. Build checks
 
-- [ ] 8.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green.
-- [ ] 8.2 `./gradlew lint assembleDebug assembleProfile` green; previews (light and dark) for every new or changed state (share error, paired-device load error).
+- [x] 8.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green.
+- [x] 8.2 `./gradlew lint assembleDebug assembleProfile` green; previews (light and dark) for every new or changed state (share error, paired-device load error).
+  - Done 2026-10-30: unit tests, `lint assembleDebug assembleProfile` green. Previews added for the cart share error and the paired-device load error (light and dark).
 
 ## 9. Emulator QA and report
 

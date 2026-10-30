@@ -53,4 +53,10 @@ sealed interface OrderSubmission {
      * `STUB`). Shown as an error that sends the consumer to the seller; never as a success.
      */
     data object QuoteNotDelivered : OrderSubmission
+
+    /**
+     * "Compartir por WhatsApp" was rejected or failed after its retries. Shown with share copy and a
+     * single "Entendido" that returns to the cart; a failed quote never empties the basket (CAR-033).
+     */
+    data object ShareError : OrderSubmission
 }
