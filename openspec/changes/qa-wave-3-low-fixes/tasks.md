@@ -1,5 +1,6 @@
 ## 1. QA baseline
 
+- [ ] 1.0 Spike on `Medium_Tablet` (API 26, pinned) and `Tablet_API36`: from the shell (`am start -a …`) and from a throwaway button, (a) while pinned, starting `Settings.Panel.ACTION_INTERNET_CONNECTIVITY` / `ACTION_DATA_ROAMING_SETTINGS` is refused; (b) after `stopLockTask()` the right screen opens (Internet panel on API 36, "Red móvil" or the fallback on API 26), Back returns to the app; (c) going Home pins again. Note the results in `design.md`.
 - [ ] 1.1 Build the `profile` APK from `fix/qa-wave-3` before any change (same code as `main` @ `6c288e6`) and reproduce on `Medium_Tablet` (API 26) and `Tablet_API36` with adb:
   - Labels: a script over `uiautomator dump` that lists clickable nodes with empty `text` and `content-desc` on Home, Catalog, Search, Detail, Cart, Pairing (`Tablet_API36`) and Settings (needs the exit PIN; skip if not available). Save the counts.
   - CAR-080: the cart `EditText`s with no text show no hint or description in the dump.
@@ -52,7 +53,8 @@
 - [ ] 8.3 Pairing details: "Actividad" uses `lastSyncAt ?: lastSeenAt`; "Código usado" shows "No disponible" when missing; previews updated.
 - [ ] 8.4 `NetworkSettingsRepository.rescan()` (`WifiManager.startScan()`); `RefreshNetworks` calls it; `LocationPermissionResult(granted = true)` also calls it. Unit tests in the ViewModel with a fake repository.
 - [ ] 8.5 Location permission missing: message plus "Permitir ubicación" that relaunches the request; the "no longer asked" case shows the device-settings message (`shouldShowRequestPermissionRationale` false after a refusal).
-- [ ] 8.6 "Datos móviles" as a read-only status row; remove the toggle path (`ToggleMobileData`, `SetMobileDataEnabledUseCase`, `actionNotPermitted` if unused elsewhere) and its tests.
+- [ ] 8.6 "Datos móviles" as a status row ("Activos" / "Inactivos" / "Sin SIM"); remove the toggle path (`ToggleMobileData`, `SetMobileDataEnabledUseCase`, `actionNotPermitted` if unused elsewhere) and its tests.
+- [ ] 8.7 "Abrir ajustes de datos" (hidden without SIM): runs `ExitKioskModeUseCase`, then a one-shot effect that starts the intent chosen by API level (panel on 29+, `ACTION_DATA_ROAMING_SETTINGS` on 26–28, `ACTION_WIRELESS_SETTINGS` fallback). The screen re-reads the network state on resume. Unit test: the event exits kiosk mode and emits the effect; no effect without SIM.
 
 ## 9. Build checks and emulator QA
 
