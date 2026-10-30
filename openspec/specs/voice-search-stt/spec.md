@@ -3,26 +3,6 @@
 ## Purpose
 TBD - created by archiving change add-voice-search-stt. Update Purpose after archive.
 ## Requirements
-### Requirement: Microphone permission requested at app open
-
-The app SHALL request the device microphone (record audio) permission when it is opened. Voice search SHALL be gated on this permission: the speech-to-text pipeline SHALL NOT attempt to capture audio unless the permission has been granted.
-
-#### Scenario: Permission requested on launch
-
-- **WHEN** the app is opened and the microphone permission has not yet been granted
-- **THEN** the app requests the microphone permission
-
-#### Scenario: Voice search blocked without permission
-
-- **WHEN** the consumer activates voice search and the microphone permission is not granted
-- **THEN** the app does not start audio capture
-- **AND** the consumer is informed that microphone access is required rather than the app crashing or silently failing
-
-#### Scenario: Permission already granted
-
-- **WHEN** the app is opened and the microphone permission is already granted
-- **THEN** the app does not prompt again and voice search is available
-
 ### Requirement: On-device audio capture with length caps
 
 When voice search is activated, the app SHALL capture the consumer's microphone audio on-device. The app SHALL wait at most **30 seconds** for the consumer to provide audio input. A single recording SHALL last at most **45 seconds**; when the recording reaches 45 seconds it SHALL stop automatically and proceed with the captured audio.
@@ -151,4 +131,23 @@ A voice capture session SHALL stop recording and release the microphone when the
 
 - **WHEN** a capture session is recording and its screen stops being visible
 - **THEN** the recording stops and the microphone is released within the same lifecycle event
+
+### Requirement: Microphone permission requested on Home
+
+The app SHALL request the microphone permission the first time Home is shown in a process when the permission is not granted, and SHALL NOT request it on the onboarding or pairing screens. Voice search SHALL be gated on this permission: no audio is captured without it, and the consumer is told that microphone access is required.
+
+#### Scenario: Fresh install
+
+- **WHEN** the app is opened for the first time and shows the welcome screen
+- **THEN** no microphone permission request is shown
+
+#### Scenario: First Home
+
+- **WHEN** Home is shown for the first time and the permission is not granted
+- **THEN** the app requests the microphone permission
+
+#### Scenario: Voice search blocked without permission
+
+- **WHEN** the consumer activates voice search and the permission is not granted
+- **THEN** the app asks for it, and if it is refused, no audio is captured and the consumer is told that microphone access is required
 
