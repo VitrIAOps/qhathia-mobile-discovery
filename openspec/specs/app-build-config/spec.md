@@ -7,9 +7,7 @@ source of truth for the semantic version, how `versionName`/`versionCode` and th
 are derived from it, and the build variants (debug / release / profile) with their intended uses —
 including the QA/profiling variant's installability and API-logging behavior, and the rule that built
 artifacts are never committed.
-
 ## Requirements
-
 ### Requirement: Semantic versioning with SNAPSHOT prerelease
 
 The app version SHALL follow **semantic versioning** (`MAJOR.MINOR.PATCH`) and SHALL be declared in a single source of truth (the Gradle version catalog, `gradle/libs.versions.toml`). The build SHALL append the prerelease identifier **`SNAPSHOT`** to the `versionName`, producing `<MAJOR>.<MINOR>.<PATCH>-SNAPSHOT`. Initially every build SHALL use the `SNAPSHOT` prerelease identifier.
@@ -53,7 +51,7 @@ The project SHALL provide distinct build variants for distinct uses: **`debug`**
 
 ### Requirement: QA / profiling build variant
 
-The **`profile`** build variant SHALL be **non-debuggable** and **`profileable`** (so the Android Studio profiler attaches with accurate metrics), SHALL be **signed with the debug keystore** so QA can install it without production signing, and SHALL keep **network API request/response logging enabled** even though it is non-debuggable (via a logging flag decoupled from `BuildConfig.DEBUG`). R8/minification SHALL be left off to match `release` behavior without keep-rule risk.
+The **`profile`** build variant SHALL be **non-debuggable** and **`profileable`** (so the Android Studio profiler attaches with accurate metrics), SHALL be **signed with the debug keystore** so QA can install it without production signing, and SHALL keep **network API request/response logging enabled** even though it is non-debuggable (via a logging flag decoupled from `BuildConfig.DEBUG`). Every build that logs network calls SHALL redact personal data and secrets from the logs: the `Authorization` header and the values of `customerName`, `customerPhone`, `phone`, `deviceAccessToken`, `accessToken`, `token`, `key` and `exitPinHash` SHALL be replaced by a mask. R8/minification SHALL be left off to match `release` behavior without keep-rule risk.
 
 #### Scenario: Profiling build is installable and profileable
 
@@ -66,6 +64,16 @@ The **`profile`** build variant SHALL be **non-debuggable** and **`profileable`*
 - **WHEN** the app runs from the `profile` build and performs an API call
 - **THEN** the request/response is logged (Ktor logging), despite the build being non-debuggable
 
+#### Scenario: Customer data is masked in the logs
+
+- **WHEN** the app sends an order or share request with a consumer name and cell-phone from a build that logs network calls
+- **THEN** the logged request shows a mask instead of the name and the cell-phone
+
+#### Scenario: Tokens are masked in the logs
+
+- **WHEN** a logged request carries an `Authorization` header or a response carries a token field
+- **THEN** the log shows a mask instead of the token value
+
 ### Requirement: Built artifacts are not committed
 
 Build output artifacts (APKs and the local `dist/` staging directory used to share builds) SHALL NOT be committed to version control.
@@ -74,3 +82,4 @@ Build output artifacts (APKs and the local `dist/` staging directory used to sha
 
 - **WHEN** a built APK is staged under `dist/`
 - **THEN** Git does not track it
+

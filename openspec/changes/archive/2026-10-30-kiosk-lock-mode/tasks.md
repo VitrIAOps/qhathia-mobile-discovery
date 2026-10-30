@@ -1,6 +1,7 @@
 ## 1. Platform spike (decides D6)
 
-- [ ] 1.1 **(manual — no device connected; pending)** On the target tablet (and an API 26 + API 34 emulator), with a throwaway `startLockTask()` call: note whether the "Pin app?" dialog appears, whether mic/location permission dialogs work while pinned, whether a `WifiNetworkSuggestion` approval is reachable, and whether `Intent.makeRestartActivityTask` + `exitProcess` relaunches while pinned. Record the results in `design.md` → Open Questions.
+- [x] 1.1 **(manual — no device connected; pending)** On the target tablet (and an API 26 + API 34 emulator), with a throwaway `startLockTask()` call: note whether the "Pin app?" dialog appears, whether mic/location permission dialogs work while pinned, whether a `WifiNetworkSuggestion` approval is reachable, and whether `Intent.makeRestartActivityTask` + `exitProcess` relaunches while pinned. Record the results in `design.md` → Open Questions.
+  - Done in `qa-wave-1-critical-fixes` task 1.1 (2026-10-28): spike on API 26 and API 36, results in that change's `qa-report.md` ("Production checks").
 
 ## 2. Domain
 
@@ -20,7 +21,8 @@
 - [x] 4.2 Add `ApplyKioskLock(state)` in `MainActivity`, next to `ApplyWindowBrightness`: on resume and on state change, `startLockTask()` only when `lockTaskModeState == NONE`, `stopLockTask()` only when pinned; hide/show system bars with `WindowInsetsControllerCompat` (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`); add/clear `FLAG_KEEP_SCREEN_ON`.
 - [x] 4.3 `BackHandler(enabled = kioskLock.active)` on the Home destination.
 - [x] 4.4 Call `resumeKioskMode()` whenever the current route becomes Home (covers the side-menu "Volver" and system Back from settings).
-- [ ] 4.5 If task 1.1 shows the relaunch is blocked while pinned: add a pre-restart release signal (`AppRestarter` → shell calls `stopLockTask()` → restart) and a test in `ProcessDeviceCommandsUseCase`; otherwise mark N/A.
+- [x] 4.5 If task 1.1 shows the relaunch is blocked while pinned: add a pre-restart release signal (`AppRestarter` → shell calls `stopLockTask()` → restart) and a test in `ProcessDeviceCommandsUseCase`; otherwise mark N/A.
+  - Done in `qa-wave-1-critical-fixes` (D7, commit `6a3f877`): the restart goes through an opaque trampoline in a separate process and keeps the task pinned; no pre-restart release needed.
 
 ## 5. Settings feature
 
@@ -39,3 +41,4 @@
 
 - [x] 7.1 `./gradlew assembleDebug testDebugUnitTest lint` pass (JDK 21).
 - [ ] 7.2 Manual check on a paired tablet: Home/Recents/shade blocked; bars hidden; screen stays on; Back on Home does nothing; staff toggles kiosk off/on → unpins/pins live; with PIN → Configuración → "Salir del modo kiosko" → can leave the app; Back to Home → pinned again; without PIN → settings open directly and exit works; `RESTART_APP` → relaunches locked; unpaired tablet → onboarding not pinned.
+  - Archived 2026-10-30 with this manual check open. Parts were run in the wave 1 QA (pinning, bars over dialogs, Back on Home, settings ↔ Home while pinned); the live staff toggle stays with the user.

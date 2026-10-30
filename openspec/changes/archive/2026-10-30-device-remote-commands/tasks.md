@@ -38,3 +38,4 @@
 - [x] 7.2 `./gradlew testDebugUnitTest :core:domain:test` passes. (305 tests, 0 failures.)
 - [x] 7.3 `./gradlew lintDebug` passes with no new warnings.
 - [ ] 7.4 Manual check on a paired tablet: "Actualizar catálogo" from staff turns "Listo" within ~1 min and an open catalog shows the change; "Reiniciar" turns "Listo" and the app relaunches on Home.
+  - Archived 2026-10-30 with this manual check open (user-assisted with the staff app). The restart path is covered by `qa-wave-1-critical-fixes` (KIO-041 spike 3/3).
