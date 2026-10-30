@@ -27,7 +27,7 @@ sealed interface ShareOutcome {
 
 /** Why the server rejected a share. */
 enum class ShareRejection {
-    /** `400`: a product is inactive or not `AVAILABLE`. */
+    /** `400` or `409` (`PRODUCT_NOT_SELLABLE`): a product is out of stock, inactive or not `AVAILABLE`. */
     Unavailable,
 
     /** `404`: a product does not exist. */

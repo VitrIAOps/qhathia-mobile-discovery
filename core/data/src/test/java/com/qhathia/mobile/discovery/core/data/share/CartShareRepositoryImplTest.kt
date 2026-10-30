@@ -95,8 +95,14 @@ class CartShareRepositoryImplTest {
     }
 
     @Test
+    fun given_409_product_not_sellable_when_shared_then_rejected_unavailable_sent_once() = runTest {
+        assertEquals(ShareOutcome.Rejected(ShareRejection.Unavailable), shareWith(NetworkResult.HttpError(409, "Conflict")))
+        coVerify(exactly = 1) { cartShareApiService.shareCart(any(), any()) }
+    }
+
+    @Test
     fun given_other_4xx_when_shared_then_rejected_other() = runTest {
-        assertEquals(ShareOutcome.Rejected(ShareRejection.Other), shareWith(NetworkResult.HttpError(409, "Conflict")))
+        assertEquals(ShareOutcome.Rejected(ShareRejection.Other), shareWith(NetworkResult.HttpError(403, "Forbidden")))
     }
 
     @Test

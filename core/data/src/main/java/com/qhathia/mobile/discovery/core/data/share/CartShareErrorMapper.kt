@@ -13,8 +13,12 @@ import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
  */
 internal object CartShareErrorMapper {
 
+    /**
+     * `400` and `409` (`PRODUCT_NOT_SELLABLE`: a product is out of stock, inactive or not `AVAILABLE`)
+     * both mean an unavailable product. The body is not read: the cart recheck finds the lines itself.
+     */
     fun fromHttpError(code: Int): ShareOutcome = when (code) {
-        400 -> ShareOutcome.Rejected(ShareRejection.Unavailable)
+        400, 409 -> ShareOutcome.Rejected(ShareRejection.Unavailable)
         404 -> ShareOutcome.Rejected(ShareRejection.NotFound)
         422 -> ShareOutcome.Rejected(ShareRejection.Invalid)
         in 400..499 -> ShareOutcome.Rejected(ShareRejection.Other)

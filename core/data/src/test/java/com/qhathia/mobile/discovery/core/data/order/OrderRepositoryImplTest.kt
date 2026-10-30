@@ -82,6 +82,16 @@ class OrderRepositoryImplTest {
     }
 
     @Test
+    fun given_409_product_not_sellable_when_created_then_unavailable_category() = runTest {
+        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(409, "Conflict")
+
+        val result = repository().createOrder("Ana", "987654321", items)
+
+        assertEquals(OrderErrorCategory.Unavailable, (result.exceptionOrNull() as OrderException).category)
+    }
+
+    @Test
     fun given_404_when_created_then_not_found_category() = runTest {
         coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(404, "Not Found")
