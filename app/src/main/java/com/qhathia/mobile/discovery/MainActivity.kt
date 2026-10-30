@@ -92,12 +92,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Business rule: request microphone access when the app opens so voice search is ready.
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
-        }
         setContent {
             DiscoveryAppRoot()
+        }
+    }
+
+    /**
+     * Asks for the microphone the first time Home is shown in this process (wave 3, EXP-004): never
+     * over the onboarding and pairing screens. The mic buttons still ask on tap when it is missing.
+     */
+    fun requestMicPermissionOnHome() {
+        if (micPermissionAskedOnHome) return
+        micPermissionAskedOnHome = true
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -292,6 +300,11 @@ private fun DiscoveryNavHost(
     }
     val askPinningOnTouch by rememberUpdatedState(kioskActive && currentRoute == HOME_ROUTE)
 
+    // Microphone permission: asked on the first Home after pairing, not over the welcome screen.
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == HOME_ROUTE) activity?.requestMicPermissionOnHome()
+    }
+
     // Kiosk: Back on Home would finish the root activity, which ends screen pinning; swallow it.
     BackHandler(enabled = kioskActive && currentRoute == HOME_ROUTE) { }
 
@@ -424,3 +437,6 @@ private fun DiscoveryNavHost(
         )
     }
 }
+
+/** Process-wide: the mic permission is asked on Home at most once per process. */
+private var micPermissionAskedOnHome = false

@@ -2,6 +2,7 @@ package com.qhathia.mobile.discovery.feature.productdetail
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
@@ -16,6 +17,7 @@ import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEn
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
+import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCartShareRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
@@ -244,6 +246,49 @@ class ProductDetailViewModelTest {
     }
 
     @Test
+    fun given_three_added_then_stepper_back_to_one_and_next_add_is_one_unit() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val cartRepository = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        repeat(2) { vm.onEvent(ProductDetailUiEvent.IncreaseQuantity) }
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        assertEquals(1, vm.uiState.value.quantity)
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        assertEquals(4, cartRepository.current.items.single().quantity)
+    }
+
+    @Test
+    fun given_basket_full_when_add_refused_then_stepper_keeps_quantity() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "new")))
+        val full = CartFixtures.cart((0 until CartConstants.MAX_DISTINCT_LINES).map { CartFixtures.cartItem(productId = "p$it") })
+        val vm = viewModel(repository = repository, cartRepository = FakeCartRepository(full))
+
+        vm.onEvent(ProductDetailUiEvent.IncreaseQuantity)
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+
+        assertEquals(2, vm.uiState.value.quantity)
+    }
+
+    @Test
+    fun given_related_failed_when_retry_then_related_reloaded() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(
+            result = Result.failure(RuntimeException("offline")),
+            suggestionsResult = Result.failure(RuntimeException("offline")),
+        )
+        val vm = viewModel(repository = repository)
+        assertEquals(ProductDetailUiState.RelatedProducts.Empty, vm.uiState.value.relatedProducts)
+
+        repository.result = Result.success(ProductDetailFixtures.productDetail(id = "p1"))
+        repository.suggestionsResult = Result.success(ProductDetailFixtures.suggestions())
+        vm.onEvent(ProductDetailUiEvent.Retry)
+
+        assertTrue(vm.uiState.value.relatedProducts is ProductDetailUiState.RelatedProducts.Loaded)
+        assertEquals(2, repository.suggestionRequestedIds.size)
+    }
+
+    @Test
     fun given_consult_stock_when_increased_then_quantity_stays_one() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductDetailRepository(
             result = Result.success(ProductDetailFixtures.productDetail(availability = "CONSULT")),
@@ -430,6 +475,16 @@ class ProductDetailViewModelTest {
 
         assertTrue(vm.uiState.value.share.visible)
         assertEquals(ProductDetailUiState.ShareSubmission.Idle, vm.uiState.value.share.submission)
+    }
+
+    @Test
+    fun given_letters_typed_in_share_phone_then_only_digits_kept() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        vm.onEvent(ProductDetailUiEvent.SharePhoneChanged("+51 98x7"))
+
+        assertEquals("+51 987", vm.uiState.value.share.phone)
     }
 
     @Test

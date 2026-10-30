@@ -7,24 +7,26 @@ import com.qhathia.mobile.discovery.core.domain.model.OrderErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.OrderException
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
+import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
+import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RevalidateCartUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
-import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.filterPhoneInput
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiState
 import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
 import com.qhathia.mobile.discovery.feature.cart.model.OrderedLine
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
@@ -37,7 +39,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Drives the cart dialog. Observes the session cart and maps it (with totals) into the UI state,
@@ -265,7 +266,8 @@ class CartViewModel @Inject constructor(
         _uiState.update { it.copy(name = name, nameError = error, isOrderEnabled = error == null && it.phoneError == null) }
     }
 
-    private fun onPhoneChanged(phone: String) {
+    private fun onPhoneChanged(raw: String) {
+        val phone = filterPhoneInput(raw)
         val error = validatePhone(phone)
         _uiState.update { it.copy(phone = phone, phoneError = error, isOrderEnabled = it.nameError == null && error == null) }
     }

@@ -506,6 +506,24 @@ class ProductSearchViewModelTest {
     }
 
     @Test
+    fun given_chip_selected_then_new_search_when_back_then_chip_selected_again() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro", repository = repository)
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.QueryChanged("foco"))
+        vm.onEvent(ProductSearchUiEvent.SubmitSearch)
+        assertEquals(null, vm.uiState.value.selectedSuggestion)
+        val requestsBeforeBack = repository.queries.size
+
+        vm.onEvent(ProductSearchUiEvent.Back)
+
+        assertEquals("Percutor", vm.uiState.value.selectedSuggestion)
+        assertEquals(1, vm.uiState.value.selectedFilters.size)
+        assertEquals(requestsBeforeBack, repository.queries.size) // no search on Back
+    }
+
+    @Test
     fun given_criterion_cleared_then_drops_only_that_criterions_options() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
         val vm = viewModel(query = "taladro 20v", repository = repository)

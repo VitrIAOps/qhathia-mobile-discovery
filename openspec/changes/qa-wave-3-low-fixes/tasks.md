@@ -31,22 +31,22 @@
 
 ## 4. Product detail (D3): DET-004, RED-004
 
-- [ ] 4.1 `ProductDetailViewModel`: after an `Added` result, `quantity` back to 1. Unit test (3 then add → 1; limit refused → quantity kept).
-- [ ] 4.2 `Retry` also runs `loadSuggestions()` when related products are not `Loaded`. Unit test (failed related + retry → loaded).
+- [x] 4.1 `ProductDetailViewModel`: after an `Added` result, `quantity` back to 1. Unit test (3 then add → 1; limit refused → quantity kept).
+- [x] 4.2 `Retry` also runs `loadSuggestions()` when related products are not `Loaded`. Unit test (failed related + retry → loaded).
 
 ## 5. Phone input (D4): CAR-014
 
-- [ ] 5.1 `core:domain`: `filterPhoneInput(raw: String): String` next to the phone validation (digits, spaces, one leading `+`, max length). Unit tests (letters dropped, `+51 987 654 321` kept, second `+` dropped, cap).
-- [ ] 5.2 Cart and product share use it on every phone change (in the ViewModels, so the state never holds letters). Existing ViewModel tests still pass; add one per feature.
+- [x] 5.1 `core:domain`: `filterPhoneInput(raw: String): String` next to the phone validation (digits, spaces, one leading `+`, max length). Unit tests (letters dropped, `+51 987 654 321` kept, second `+` dropped, cap).
+- [x] 5.2 Cart and product share use it on every phone change (in the ViewModels, so the state never holds letters). Existing ViewModel tests still pass; add one per feature.
 
 ## 6. Search history (D5): EXP-005
 
-- [ ] 6.1 `HistoryEntry` keeps the selected filters and suggestion; `showEntry` restores them. Unit test: select a chip, new search, Back → chip selected and no new search request.
+- [x] 6.1 `HistoryEntry` keeps the selected filters and suggestion; `showEntry` restores them. Unit test: select a chip, new search, Back → chip selected and no new search request.
 
 ## 7. Onboarding and pairing (D6): EXP-003, EXP-004
 
-- [ ] 7.1 `PairingScreen`: `keepScreenOn` while the phase is `WaitingForApproval`, cleared when it changes or the screen leaves.
-- [ ] 7.2 `MainActivity`: remove the `onCreate` request; request `RECORD_AUDIO` the first time Home is resumed in the process (shared permission gate from wave 2 or the activity launcher). Mic buttons unchanged.
+- [x] 7.1 `PairingScreen`: `keepScreenOn` while the phase is `WaitingForApproval`, cleared when it changes or the screen leaves.
+- [x] 7.2 `MainActivity`: remove the `onCreate` request; request `RECORD_AUDIO` the first time Home is resumed in the process (shared permission gate from wave 2 or the activity launcher). Mic buttons unchanged.
 
 ## 8. Settings (D7): AJU-022, AJU-030, AJU-032, AJU-040, AJU-041, AJU-043, VIN-003
 
