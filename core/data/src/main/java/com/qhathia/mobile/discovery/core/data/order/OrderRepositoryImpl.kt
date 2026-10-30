@@ -43,7 +43,7 @@ class OrderRepositoryImpl @Inject constructor(
 
         return when (response) {
             is NetworkResult.Success -> Result.success(response.data.toDomain())
-            is NetworkResult.HttpError -> failure(OrderErrorCategory.OrderApi)
+            is NetworkResult.HttpError -> failure(OrderErrorMapper.fromHttpError(response.code))
             is NetworkResult.NetworkError -> failure(OrderErrorMapper.fromNetworkError(response.kind))
         }
     }

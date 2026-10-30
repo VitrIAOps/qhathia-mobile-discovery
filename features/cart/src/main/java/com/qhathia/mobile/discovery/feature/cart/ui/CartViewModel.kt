@@ -3,13 +3,19 @@ package com.qhathia.mobile.discovery.feature.cart.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
-import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
+import com.qhathia.mobile.discovery.core.domain.model.OrderErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.OrderException
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
+import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RevalidateCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerPhoneError
-import com.qhathia.mobile.discovery.core.domain.usecase.ShareCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
@@ -19,7 +25,9 @@ import com.qhathia.mobile.discovery.feature.cart.model.CartUiState
 import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
 import com.qhathia.mobile.discovery.feature.cart.model.OrderedLine
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,15 +44,24 @@ import javax.inject.Inject
  * validates the consumer-data form on input, and adjusts line quantities / removes lines. "Realizar
  * pedido" submits the basket + consumer data to the order API and drives the submission phase
  * ([OrderSubmission]): a blocking loader while in flight, a success summary on `201`, or a simplified
- * error otherwise. Accepting the success or cancelling the error clears the session (basket **and**
- * consumer form) and returns Home; "Entendido" returns to the cart summary. Line taps and the close
- * controls surface as one-shot effects.
+ * error otherwise. Accepting the success or cancelling the error ends the customer session through
+ * [EndCustomerSessionUseCase] (basket **and** consumer form) and returns Home; "Entendido" returns to
+ * the cart summary. Line taps and the close controls surface as one-shot effects.
+ *
+ * This ViewModel is scoped to the Activity (the dialog is hosted outside the NavHost), so it outlives
+ * one customer. It therefore resets its form and submission on every session end, including the
+ * inactivity timeout the app shell runs (CAR-040/041).
+ *
+ * When the server rejects an order or share because a product is no longer available (`400` / `404`),
+ * [RevalidateCartUseCase] rechecks the lines. The unavailable ones are flagged "No disponible" and the
+ * actions stay blocked until they are removed, so the same basket is never resent (CAR-023/025).
  *
  * "Realizar pedido" creates the order and, on success, also shares the quote PDF to the consumer's
- * WhatsApp (retried up to [SHARE_MAX_ATTEMPTS] times); if every share attempt fails the order still
- * succeeds but the confirmation switches to the "go to the seller and give your name" fallback copy.
- * "Compartir por WhatsApp" only shares the quote PDF (same retries) without creating an order, driving
- * the same loading/success/error UX.
+ * WhatsApp through [ShareQuoteUseCase] (which owns the retry policy). The order is confirmed either
+ * way; unless the quote was delivered (`SENT`), the confirmation switches to the "go to the seller and
+ * give your name" fallback copy. "Compartir por WhatsApp" only shares the quote, without creating an
+ * order: a delivered quote shows the quote-sent success, a quote WhatsApp did not receive shows
+ * [OrderSubmission.QuoteNotDelivered], and any other failure shows the generic error.
  */
 @HiltViewModel
 class CartViewModel @Inject constructor(
@@ -54,8 +71,10 @@ class CartViewModel @Inject constructor(
     private val validateName: ValidateConsumerNameUseCase,
     private val validatePhone: ValidateConsumerPhoneUseCase,
     private val createOrder: CreateOrderUseCase,
-    private val shareCart: ShareCartUseCase,
-    private val clearCart: ClearCartUseCase,
+    private val shareQuote: ShareQuoteUseCase,
+    private val endCustomerSession: EndCustomerSessionUseCase,
+    observeSessionEnd: ObserveCustomerSessionEndUseCase,
+    private val revalidateCart: RevalidateCartUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CartUiState())
@@ -75,9 +94,16 @@ class CartViewModel @Inject constructor(
                         items = cart.items.toImmutableList(),
                         totalItemCount = cart.totalItemCount,
                         totalAmount = cart.totalAmount,
+                        // Forget flags of lines that left the basket.
+                        unavailableIds = it.unavailableIds
+                            .filterTo(mutableSetOf()) { id -> cart.items.any { item -> item.productId == id } }
+                            .toImmutableSet(),
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            observeSessionEnd().collect { resetCustomerData() }
         }
     }
 
@@ -98,10 +124,10 @@ class CartViewModel @Inject constructor(
     }
 
     /**
-     * "Realizar pedido": creates the order and, on success, shares the quote PDF too (retried up to
-     * [SHARE_MAX_ATTEMPTS]). An order failure resolves to [OrderSubmission.Error]; an order success
-     * resolves to [OrderSubmission.Success] whose `shareDelivered` reflects whether the quote reached
-     * WhatsApp — so a share that never lands still confirms the order (with the fallback copy).
+     * "Realizar pedido": creates the order and, on success, shares the quote PDF too. An order failure
+     * resolves to [OrderSubmission.Error]; an order success resolves to [OrderSubmission.Success] whose
+     * `shareDelivered` is `true` only for [ShareOutcome.Delivered] — so a quote that never lands still
+     * confirms the order (with the fallback copy).
      */
     private fun placeOrder() {
         val state = beginSubmission() ?: return
@@ -109,31 +135,40 @@ class CartViewModel @Inject constructor(
         viewModelScope.launch {
             createOrder(state.name, state.phone, state.items)
                 .onSuccess {
-                    val delivered = shareWithRetry(state.name, state.phone, state.items)
+                    val delivered = shareQuote(state.name, state.phone, state.items) is ShareOutcome.Delivered
                     _uiState.update {
                         it.copy(submission = OrderSubmission.Success(summary, shareDelivered = delivered))
                     }
                 }
-                .onFailure {
-                    _uiState.update { it.copy(submission = OrderSubmission.Error) }
+                .onFailure { cause ->
+                    when ((cause as? OrderException)?.category) {
+                        OrderErrorCategory.Unavailable, OrderErrorCategory.NotFound -> flagUnavailableLines(state.items)
+                        else -> _uiState.update { it.copy(submission = OrderSubmission.Error) }
+                    }
                 }
         }
     }
 
     /**
-     * "Compartir por WhatsApp": shares the quote PDF only (no order), retried up to [SHARE_MAX_ATTEMPTS].
-     * Success resolves to [OrderSubmission.Success]; exhausting the retries resolves to [OrderSubmission.Error].
+     * "Compartir por WhatsApp": shares the quote PDF only (no order). [ShareOutcome.Delivered] resolves
+     * to the quote-only [OrderSubmission.Success]; [ShareOutcome.NotDelivered] to
+     * [OrderSubmission.QuoteNotDelivered]; a rejection or exhausted retries to [OrderSubmission.Error].
      */
     private fun share() {
         val state = beginSubmission() ?: return
         val summary = state.summary()
         viewModelScope.launch {
-            val delivered = shareWithRetry(state.name, state.phone, state.items)
-            _uiState.update {
-                it.copy(
-                    submission = if (delivered) OrderSubmission.Success(summary) else OrderSubmission.Error,
-                )
+            val outcome = shareQuote(state.name, state.phone, state.items)
+            if (outcome.isUnavailableRejection()) {
+                flagUnavailableLines(state.items)
+                return@launch
             }
+            val submission = when (outcome) {
+                is ShareOutcome.Delivered -> OrderSubmission.Success(summary, isQuoteOnly = true)
+                is ShareOutcome.NotDelivered -> OrderSubmission.QuoteNotDelivered
+                is ShareOutcome.Rejected, is ShareOutcome.Failed -> OrderSubmission.Error
+            }
+            _uiState.update { it.copy(submission = submission) }
         }
     }
 
@@ -144,40 +179,60 @@ class CartViewModel @Inject constructor(
      */
     private fun beginSubmission(): CartUiState? {
         val state = _uiState.value
-        if (!state.isOrderEnabled || state.submission != OrderSubmission.Idle) return null
+        if (!state.canSubmit || state.submission != OrderSubmission.Idle) return null
         _uiState.update { it.copy(submission = OrderSubmission.Submitting) }
         return state
     }
+
+    /**
+     * After a `400` / `404`: rechecks [items] (the loader stays up meanwhile). Flagged lines return the
+     * consumer to the cart with the "No disponible" marks; when nothing can be blamed, the generic
+     * error is shown as before.
+     */
+    private suspend fun flagUnavailableLines(items: List<CartItem>) {
+        val flagged = revalidateCart(items)
+        _uiState.update {
+            if (flagged.isEmpty()) {
+                it.copy(submission = OrderSubmission.Error)
+            } else {
+                it.copy(submission = OrderSubmission.Idle, unavailableIds = flagged.toImmutableSet())
+            }
+        }
+    }
+
+    private fun ShareOutcome.isUnavailableRejection(): Boolean =
+        this is ShareOutcome.Rejected &&
+            (kind == ShareRejection.Unavailable || kind == ShareRejection.NotFound)
 
     /** Snapshots the basket lines for the confirmation summary, so it survives the basket being cleared. */
     private fun CartUiState.summary(): kotlinx.collections.immutable.ImmutableList<OrderedLine> =
         items.map { OrderedLine(imageUrl = it.imageUrl, name = it.name, quantity = it.quantity) }
             .toImmutableList()
 
-    /** Shares the quote PDF, retrying up to [SHARE_MAX_ATTEMPTS] times; `true` once any attempt succeeds. */
-    private suspend fun shareWithRetry(name: String, phone: String, items: List<CartItem>): Boolean {
-        repeat(SHARE_MAX_ATTEMPTS) {
-            if (shareCart(name, phone, items).isSuccess) return true
-        }
-        return false
-    }
-
     private fun finishAndReturnHome() {
         viewModelScope.launch {
-            clearCart()
-            // Reset the phase and clear the consumer form so a reopened cart is fresh — never stuck on
-            // the previous success/error screen nor pre-filled with the last consumer's data.
-            _uiState.update {
-                it.copy(
-                    submission = OrderSubmission.Idle,
-                    name = "",
-                    phone = "",
-                    nameError = ConsumerNameError.Empty,
-                    phoneError = ConsumerPhoneError.Empty,
-                    isOrderEnabled = false,
-                )
-            }
+            endCustomerSession()
+            // The session-end collector resets too; resetting here keeps the order deterministic.
+            resetCustomerData()
             _uiEffect.emit(CartUiEffect.ReturnHome)
+        }
+    }
+
+    /**
+     * Resets the phase and clears the consumer form so a reopened cart is fresh — never stuck on the
+     * previous success/error screen nor pre-filled with the last consumer's data.
+     */
+    private fun resetCustomerData() {
+        _uiState.update {
+            it.copy(
+                submission = OrderSubmission.Idle,
+                name = "",
+                phone = "",
+                nameError = ConsumerNameError.Empty,
+                phoneError = ConsumerPhoneError.Empty,
+                isOrderEnabled = false,
+                unavailableIds = persistentSetOf(),
+            )
         }
     }
 
@@ -198,10 +253,5 @@ class CartViewModel @Inject constructor(
 
     private fun emit(effect: CartUiEffect) {
         viewModelScope.launch { _uiEffect.emit(effect) }
-    }
-
-    private companion object {
-        /** Max attempts for the WhatsApp quote share before giving up (used by both cart actions). */
-        const val SHARE_MAX_ATTEMPTS = 3
     }
 }

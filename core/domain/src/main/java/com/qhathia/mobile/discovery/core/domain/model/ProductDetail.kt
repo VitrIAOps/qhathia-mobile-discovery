@@ -14,6 +14,8 @@ package com.qhathia.mobile.discovery.core.domain.model
  * @property discountedPrice server-computed price with the active discount applied, or `null` when
  *   there is no active discount. Authoritative: never recompute it on the client.
  * @property discountEndsAt ISO-8601 end of the applied discount, or `null`.
+ * @property active whether the product is active, or `null` when the server did not say. An inactive
+ *   product can still be opened from a stale search result, but it cannot be ordered.
  */
 data class ProductDetail(
     val id: String,
@@ -25,4 +27,5 @@ data class ProductDetail(
     val images: List<ProductImage>,
     val discountedPrice: Double? = null,
     val discountEndsAt: String? = null,
+    val active: Boolean? = null,
 )

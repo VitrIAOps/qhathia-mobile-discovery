@@ -1,0 +1,8 @@
+# CAR-023 / CAR-025 after (a7ecf1d), profile build on Medium_Tablet (API 26), 2026-10-29.
+# Cart: "Aplique de pared exterior LED 12W" (set to stock 0 by the user after it was added) + "Reflector LED 100W exterior IP66".
+# Tap "Compartir": 1 share request, 409, then the recheck reads each line once.
+REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
+{"type":"/errors/product-not-sellable","title":"Product Not Sellable","status":409,"detail":"'Aplique de pared exterior LED 12W' se agotó. Quítalo del carrito.","instance":"/api/v1/carts/share-pdf","errorCode":"PRODUCT_NOT_SELLABLE","productId":"9842627f-6140-411c-913d-f3765da0e2a8","productName":"Aplique de pared exterior LED 12W","reason":"OUT_OF_STOCK"}
+REQUEST: http://87.99.156.164/api/v1/products/9842627f-6140-411c-913d-f3765da0e2a8
+REQUEST: http://87.99.156.164/api/v1/products/031e549b-bea6-4426-8232-7dca71132457
+# Tap "Compartir" again while the line is flagged: 0 share requests.

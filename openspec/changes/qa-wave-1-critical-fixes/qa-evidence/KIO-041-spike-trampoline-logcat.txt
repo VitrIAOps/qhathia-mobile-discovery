@@ -1,0 +1,16 @@
+10-28 05:23:29.572  9914  9914 I SpikeRestart: restart mode=trampoline pid=9914 task=128
+10-28 05:23:29.572  1658  1896 I ActivityManager: START u0 {cmp=com.qhathia.mobile.discovery/.SpikeRestartActivity (has extras)} from uid 10088
+10-28 05:23:29.589  1658  1669 I ActivityManager: Start proc 9988:com.qhathia.mobile.discovery:restart/u0a88 for activity com.qhathia.mobile.discovery/.SpikeRestartActivity
+10-28 05:23:29.688  9988  9988 I SpikeRestart: trampoline pid=9988 task=128 killing main pid=9914
+10-28 05:23:29.730  1658  1896 I ActivityManager: Process com.qhathia.mobile.discovery (pid 9914) has died: prcp TOP 
+10-28 05:23:29.932  1658  1679 I ActivityManager: Displayed com.qhathia.mobile.discovery/.SpikeRestartActivity: +353ms
+10-28 05:23:29.993  9988  9988 I SpikeRestart: relaunched MainActivity from task=128
+10-28 05:23:29.993  1658  2250 I ActivityManager: Not finishing task in lock task mode
+10-28 05:23:30.005  1658  1779 I ActivityManager: Start proc 10018:com.qhathia.mobile.discovery/u0a88 for activity com.qhathia.mobile.discovery/.MainActivity
+10-28 05:23:30.133 10018 10018 I SpikeRestart: MainActivity.onCreate pid=10018 task=128
+10-28 05:23:30.248  1658  2266 D ActivityManager: stopLockTaskMode
+10-28 05:23:31.051  1658  1717 W InputDispatcher: channel '564313f com.qhathia.mobile.discovery/com.qhathia.mobile.discovery.SpikeRestartActivity (server)' ~ Consumer closed input channel or an error occurred.  events=0x9
+10-28 05:23:31.051  1658  1717 E InputDispatcher: channel '564313f com.qhathia.mobile.discovery/com.qhathia.mobile.discovery.SpikeRestartActivity (server)' ~ Channel is unrecoverably broken and will be disposed!
+10-28 05:23:31.052  1658  4010 I WindowManager: WIN DEATH: Window{564313f u0 com.qhathia.mobile.discovery/com.qhathia.mobile.discovery.SpikeRestartActivity}
+10-28 05:23:31.052  1658  4010 W InputDispatcher: Attempted to unregister already unregistered input channel '564313f com.qhathia.mobile.discovery/com.qhathia.mobile.discovery.SpikeRestartActivity (server)'
+10-28 05:23:31.052  1658  1896 I ActivityManager: Process com.qhathia.mobile.discovery:restart (pid 9988) has died: cch  CAC 

@@ -1,7 +1,9 @@
 package com.qhathia.mobile.discovery.core.data.di
 
 import com.qhathia.mobile.discovery.core.data.pairing.DevicePairingRepositoryImpl
+import com.qhathia.mobile.discovery.core.data.pairing.HeldPairingCodeRepositoryImpl
 import com.qhathia.mobile.discovery.core.domain.repository.DevicePairingRepository
+import com.qhathia.mobile.discovery.core.domain.repository.HeldPairingCodeRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -18,4 +20,9 @@ abstract class DevicePairingDataModule {
     abstract fun bindDevicePairingRepository(
         impl: DevicePairingRepositoryImpl,
     ): DevicePairingRepository
+
+    @Binds
+    abstract fun bindHeldPairingCodeRepository(
+        impl: HeldPairingCodeRepositoryImpl,
+    ): HeldPairingCodeRepository
 }

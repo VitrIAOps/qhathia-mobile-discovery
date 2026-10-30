@@ -32,6 +32,7 @@ internal fun ProductDetailResponseDto.toDomain(): ProductDetail = ProductDetail(
         .map { it.toDomain() },
     discountedPrice = discountedPrice,
     discountEndsAt = discountEndsAt,
+    active = active,
 )
 
 /**

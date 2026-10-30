@@ -1,18 +1,20 @@
 package com.qhathia.mobile.discovery.core.testing
 
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
-import com.qhathia.mobile.discovery.core.domain.model.CartShare
 import com.qhathia.mobile.discovery.core.domain.model.CartShareErrorCategory
-import com.qhathia.mobile.discovery.core.domain.model.CartShareException
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.repository.CartShareRepository
 
 /**
- * Scriptable [CartShareRepository] for use-case / ViewModel tests. Records the last call and returns a
- * pre-programmed [result]. Defaults to success with a `SENT` share carrying a fake PDF URL.
+ * Scriptable [CartShareRepository] for use-case / ViewModel tests. Records each call. Answers with the
+ * queued outcomes in order ([enqueue]), then with [outcome] for every later call. Defaults to a
+ * delivered (`SENT`) share.
  */
 class FakeCartShareRepository(
-    var result: Result<CartShare>? = null,
+    var outcome: ShareOutcome = ShareOutcome.Delivered(PDF_URL),
 ) : CartShareRepository {
+
+    private val queue = ArrayDeque<ShareOutcome>()
 
     /** The arguments of the last [shareCart] call, or `null` if never called. */
     var lastCall: Call? = null
@@ -28,16 +30,28 @@ class FakeCartShareRepository(
         name: String,
         phone: String,
         items: List<CartItem>,
-    ): Result<CartShare> {
+    ): ShareOutcome {
         callCount++
         lastCall = Call(name, phone, items)
-        return result ?: Result.success(
-            CartShare(status = "SENT", pdfUrl = "https://r2.dev/cotizacion.pdf", messageId = "wamid.1"),
-        )
+        return queue.removeFirstOrNull() ?: outcome
     }
 
-    /** Programs the next call to fail with [category]. */
+    /** Queues one-off answers for the next calls, in order, before falling back to [outcome]. */
+    fun enqueue(vararg outcomes: ShareOutcome) {
+        queue.addAll(outcomes)
+    }
+
+    /** Answers every call with a transient failure of [category]. */
     fun failWith(category: CartShareErrorCategory = CartShareErrorCategory.ShareApi) {
-        result = Result.failure(CartShareException(category))
+        outcome = ShareOutcome.Failed(category)
+    }
+
+    /** Answers every call with a `201` that WhatsApp did not receive. */
+    fun notDelivered(status: String = "FAILED") {
+        outcome = ShareOutcome.NotDelivered(PDF_URL, status)
+    }
+
+    companion object {
+        const val PDF_URL = "https://r2.dev/cotizacion.pdf"
     }
 }

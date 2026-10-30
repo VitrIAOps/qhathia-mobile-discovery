@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.Flow
  * @property connectedSsid the connected Wi-Fi SSID (quotes stripped), or `null`.
  * @property wifiActive whether Wi-Fi is the (or an) active network transport. Unlike [connectedSsid]
  *   it does not need the location permission, so it is the reliable "on Wi-Fi" signal.
+ * @property hasInternet whether the active network (any transport) offers internet. Used to reconnect
+ *   sockets as soon as the device is back online.
  */
 data class ConnectivitySnapshot(
     val wifiEnabled: Boolean,
@@ -19,6 +21,7 @@ data class ConnectivitySnapshot(
     val airplaneModeActive: Boolean,
     val connectedSsid: String?,
     val wifiActive: Boolean = false,
+    val hasInternet: Boolean = false,
 )
 
 /**

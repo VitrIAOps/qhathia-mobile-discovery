@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.domain.CatalogConstants
+import com.qhathia.mobile.discovery.core.domain.usecase.isOrderable
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
@@ -116,6 +117,7 @@ fun CatalogContent(
                             cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                             onCartClick = { onEvent(CatalogUiEvent.CartTapped(product.id)) },
                             onCardClick = { onEvent(CatalogUiEvent.ProductTapped(product.id)) },
+                            cartEnabled = product.isOrderable,
                         )
                     }
                 }

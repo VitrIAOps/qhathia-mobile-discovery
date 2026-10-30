@@ -47,6 +47,7 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import com.qhathia.mobile.discovery.feature.pairing.R
 import com.qhathia.mobile.discovery.core.ui.R as UiR
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingError
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiState
@@ -98,11 +99,18 @@ fun PairingContent(
                 actionLabel = stringResource(R.string.pairing_generate_new),
                 onAction = { onEvent(PairingUiEvent.GenerateCode) },
             )
-            PairingPhase.Error -> MessageState(
-                message = stringResource(R.string.pairing_error),
-                actionLabel = stringResource(UiR.string.discovery_action_retry),
-                onAction = { onEvent(PairingUiEvent.GenerateCode) },
-            )
+            PairingPhase.Error -> when (uiState.error) {
+                PairingError.Linking -> MessageState(
+                    message = stringResource(R.string.pairing_link_error),
+                    actionLabel = stringResource(R.string.pairing_generate_new),
+                    onAction = { onEvent(PairingUiEvent.GenerateCode) },
+                )
+                PairingError.CodeGeneration, null -> MessageState(
+                    message = stringResource(R.string.pairing_error),
+                    actionLabel = stringResource(UiR.string.discovery_action_retry),
+                    onAction = { onEvent(PairingUiEvent.GenerateCode) },
+                )
+            }
             PairingPhase.Paired -> uiState.device?.let { PairedState(device = it, onEvent = onEvent) }
         }
     }
@@ -559,6 +567,30 @@ private fun PairingPairedPreview() {
 private fun PairingErrorPreview() {
     DiscoveryTheme(darkTheme = false) {
         PairingContent(uiState = PairingUiState(phase = PairingPhase.Error), onEvent = {}, title = "TIENDA")
+    }
+}
+
+@Preview(name = "Pairing — link error (light)", showBackground = true, widthDp = 960, heightDp = 800)
+@Composable
+private fun PairingLinkErrorLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        PairingContent(
+            uiState = PairingUiState(phase = PairingPhase.Error, error = PairingError.Linking),
+            onEvent = {},
+            title = "TIENDA",
+        )
+    }
+}
+
+@Preview(name = "Pairing — link error (dark)", showBackground = true, widthDp = 960, heightDp = 800)
+@Composable
+private fun PairingLinkErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        PairingContent(
+            uiState = PairingUiState(phase = PairingPhase.Error, error = PairingError.Linking),
+            onEvent = {},
+            title = "TIENDA",
+        )
     }
 }
 

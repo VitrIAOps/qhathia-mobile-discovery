@@ -1,19 +1,29 @@
 package com.qhathia.mobile.discovery.feature.cart
 
 import app.cash.turbine.test
-import com.qhathia.mobile.discovery.core.domain.usecase.ClearCartUseCase
+import com.qhathia.mobile.discovery.core.domain.model.OrderErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.Product
+import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
+import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.CreateOrderUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
+import com.qhathia.mobile.discovery.core.domain.repository.ProductDetailRepository
 import com.qhathia.mobile.discovery.core.domain.usecase.RemoveCartItemUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.ShareCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.RevalidateCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.UpdateCartItemQuantityUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCartShareRepository
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeOrderRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
+import com.qhathia.mobile.discovery.core.testing.ProductDetailFixtures
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEffect
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
@@ -37,6 +47,8 @@ class CartViewModelTest {
         repository: FakeCartRepository = FakeCartRepository(),
         orderRepository: FakeOrderRepository = FakeOrderRepository(),
         shareRepository: FakeCartShareRepository = FakeCartShareRepository(),
+        sessionRepository: FakeCustomerSessionRepository = FakeCustomerSessionRepository(),
+        details: ProductDetailRepository = ProductDetails(),
     ) = CartViewModel(
         observeCart = ObserveCartUseCase(repository),
         updateQuantity = UpdateCartItemQuantityUseCase(repository),
@@ -44,9 +56,21 @@ class CartViewModelTest {
         validateName = ValidateConsumerNameUseCase(),
         validatePhone = ValidateConsumerPhoneUseCase(),
         createOrder = CreateOrderUseCase(orderRepository),
-        shareCart = ShareCartUseCase(shareRepository),
-        clearCart = ClearCartUseCase(repository),
+        shareQuote = ShareQuoteUseCase(shareRepository),
+        endCustomerSession = EndCustomerSessionUseCase(repository, sessionRepository),
+        observeSessionEnd = ObserveCustomerSessionEndUseCase(sessionRepository),
+        revalidateCart = RevalidateCartUseCase(details),
     )
+
+    /** Product details for the recheck: ids in [inactive] are inactive, every other id is orderable. */
+    private class ProductDetails(private val inactive: Set<String> = emptySet()) : ProductDetailRepository {
+        var requests = 0
+        override suspend fun getProduct(id: String): Result<ProductDetail> {
+            requests++
+            return Result.success(ProductDetailFixtures.productDetail(id = id, active = id !in inactive))
+        }
+        override suspend fun getSuggestions(id: String): Result<List<Product>> = Result.success(emptyList())
+    }
 
     /** Enters valid consumer data so the order can be placed. */
     private fun CartViewModel.enterValidData() {
@@ -141,6 +165,8 @@ class CartViewModelTest {
         val submission = vm.uiState.value.submission
         assertTrue(submission is OrderSubmission.Success)
         assertEquals(2, (submission as OrderSubmission.Success).summary.size)
+        // The share success uses the quote-sent copy, never the order copy (CAR-008).
+        assertTrue(submission.isQuoteOnly)
         assertEquals(1, shareRepository.callCount)
         // The ViewModel forwards the raw form value; the data layer normalizes it before the API.
         assertEquals("987 654 321", shareRepository.lastCall?.phone)
@@ -155,6 +181,56 @@ class CartViewModelTest {
         vm.onEvent(CartUiEvent.ShareWhatsApp)
 
         assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+        assertEquals(3, shareRepository.callCount)
+    }
+
+    @Test
+    fun given_share_answers_failed_when_share_then_not_delivered_and_no_retry() =
+        runTest(mainDispatcher.dispatcher) {
+            val shareRepository = FakeCartShareRepository().apply { notDelivered("FAILED") }
+            val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+            vm.enterValidData()
+
+            vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+            assertEquals(OrderSubmission.QuoteNotDelivered, vm.uiState.value.submission)
+            assertEquals(1, shareRepository.callCount)
+        }
+
+    @Test
+    fun given_share_answers_stub_when_share_then_not_delivered() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository().apply { notDelivered("STUB") }
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        assertEquals(OrderSubmission.QuoteNotDelivered, vm.uiState.value.submission)
+    }
+
+    @Test
+    fun given_share_rejected_when_share_then_error_sent_once() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.Invalid))
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+        assertEquals(1, shareRepository.callCount)
+    }
+
+    @Test
+    fun given_quote_not_delivered_when_dismiss_then_idle_and_cart_kept() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository().apply { notDelivered() }
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        vm.onEvent(CartUiEvent.DismissError)
+
+        assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
+        assertEquals(2, vm.uiState.value.items.size)
     }
 
     @Test
@@ -217,6 +293,22 @@ class CartViewModelTest {
         }
 
     @Test
+    fun given_order_ok_but_share_answers_failed_when_place_order_then_success_with_fallback_copy() =
+        runTest(mainDispatcher.dispatcher) {
+            val orderRepository = FakeOrderRepository()
+            val shareRepository = FakeCartShareRepository().apply { notDelivered("FAILED") }
+            val vm = viewModel(FakeCartRepository(CartFixtures.cart()), orderRepository, shareRepository)
+            vm.enterValidData()
+
+            vm.onEvent(CartUiEvent.PlaceOrder)
+
+            val submission = vm.uiState.value.submission as OrderSubmission.Success
+            assertFalse(submission.isQuoteOnly) // order copy
+            assertFalse(submission.shareDelivered) // seller fallback, not the check-your-phone prompt
+            assertEquals(1, shareRepository.callCount) // FAILED is final, not retried
+        }
+
+    @Test
     fun given_success_when_accept_then_submission_resets_to_idle() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeCartRepository(CartFixtures.cart())
         val vm = viewModel(repository)
@@ -228,6 +320,143 @@ class CartViewModelTest {
 
         // Phase reset so a reopened cart is not stuck on the success screen.
         assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
+    }
+
+    @Test
+    fun given_filled_form_when_session_ends_elsewhere_then_form_and_submission_reset() =
+        runTest(mainDispatcher.dispatcher) {
+            // The inactivity timeout ends the session from the app shell, not from this dialog.
+            val sessionRepository = FakeCustomerSessionRepository()
+            val vm = viewModel(FakeCartRepository(CartFixtures.cart()), sessionRepository = sessionRepository)
+            vm.enterValidData()
+            vm.onEvent(CartUiEvent.ShareWhatsApp) // → Success
+
+            sessionRepository.end()
+
+            val state = vm.uiState.value
+            assertEquals(OrderSubmission.Idle, state.submission)
+            assertEquals("", state.name)
+            assertEquals("", state.phone)
+            assertFalse(state.isOrderEnabled)
+        }
+
+    @Test
+    fun given_success_when_accept_then_ends_the_customer_session_once() = runTest(mainDispatcher.dispatcher) {
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), sessionRepository = sessionRepository)
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        vm.onEvent(CartUiEvent.AcceptSuccess)
+
+        assertEquals(1, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_error_when_cancel_then_ends_the_customer_session() = runTest(mainDispatcher.dispatcher) {
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(
+            FakeCartRepository(CartFixtures.cart()),
+            FakeOrderRepository().apply { failWith() },
+            sessionRepository = sessionRepository,
+        )
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        vm.onEvent(CartUiEvent.CancelOrder)
+
+        assertEquals(1, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_order_400_with_inactive_line_when_placed_then_line_flagged_and_actions_blocked() =
+        runTest(mainDispatcher.dispatcher) {
+            val cart = CartFixtures.cart()
+            val flaggedId = cart.items.first().productId
+            val orderRepository = FakeOrderRepository().apply { failWith(OrderErrorCategory.Unavailable) }
+            val vm = viewModel(FakeCartRepository(cart), orderRepository, details = ProductDetails(setOf(flaggedId)))
+            vm.enterValidData()
+
+            vm.onEvent(CartUiEvent.PlaceOrder)
+
+            val state = vm.uiState.value
+            assertEquals(OrderSubmission.Idle, state.submission) // back to the cart, not the error loop
+            assertEquals(setOf(flaggedId), state.unavailableIds)
+            assertTrue(state.hasUnavailableLines)
+            assertFalse(state.canSubmit)
+
+            vm.onEvent(CartUiEvent.PlaceOrder) // the same basket cannot be resent
+            vm.onEvent(CartUiEvent.ShareWhatsApp)
+            assertEquals(1, orderRepository.callCount)
+        }
+
+    @Test
+    fun given_flagged_line_when_removed_then_actions_enabled_again() = runTest(mainDispatcher.dispatcher) {
+        val cart = CartFixtures.cart()
+        val flaggedId = cart.items.first().productId
+        val vm = viewModel(
+            FakeCartRepository(cart),
+            FakeOrderRepository().apply { failWith(OrderErrorCategory.Unavailable) },
+            details = ProductDetails(setOf(flaggedId)),
+        )
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        vm.onEvent(CartUiEvent.RemoveLine(flaggedId))
+
+        val state = vm.uiState.value
+        assertFalse(state.hasUnavailableLines)
+        assertTrue(state.canSubmit)
+        assertTrue(state.unavailableIds.isEmpty())
+    }
+
+    @Test
+    fun given_order_400_with_nothing_to_blame_when_placed_then_generic_error() = runTest(mainDispatcher.dispatcher) {
+        val details = ProductDetails()
+        val vm = viewModel(
+            FakeCartRepository(CartFixtures.cart()),
+            FakeOrderRepository().apply { failWith(OrderErrorCategory.Unavailable) },
+            details = details,
+        )
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+        assertEquals(2, details.requests) // every line was rechecked
+    }
+
+    @Test
+    fun given_generic_order_failure_when_placed_then_no_recheck() = runTest(mainDispatcher.dispatcher) {
+        val details = ProductDetails()
+        val vm = viewModel(
+            FakeCartRepository(CartFixtures.cart()),
+            FakeOrderRepository().apply { failWith(OrderErrorCategory.OrderApi) },
+            details = details,
+        )
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        assertEquals(OrderSubmission.Error, vm.uiState.value.submission)
+        assertEquals(0, details.requests)
+    }
+
+    @Test
+    fun given_share_404_with_missing_line_when_shared_then_line_flagged() = runTest(mainDispatcher.dispatcher) {
+        val cart = CartFixtures.cart()
+        val flaggedId = cart.items.last().productId
+        val vm = viewModel(
+            FakeCartRepository(cart),
+            shareRepository = FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.NotFound)),
+            details = ProductDetails(setOf(flaggedId)),
+        )
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        assertEquals(OrderSubmission.Idle, vm.uiState.value.submission)
+        assertEquals(setOf(flaggedId), vm.uiState.value.unavailableIds)
     }
 
     @Test

@@ -11,7 +11,7 @@ import javax.inject.Singleton
 
 /**
  * In-memory holder for the session [Cart]. Unlike the DataStore-backed store session, the cart is
- * ephemeral session state (cleared on order placement or off-Home inactivity), so it lives only in a
+ * ephemeral session state (cleared whenever the customer session ends), so it lives only in a
  * process-scoped [MutableStateFlow]. The business rules are applied via the framework-free [Cart]
  * transforms so this layer and the test fake never drift.
  */

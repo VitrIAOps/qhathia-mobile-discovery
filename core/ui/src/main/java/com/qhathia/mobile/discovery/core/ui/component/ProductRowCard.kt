@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -54,6 +55,8 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  *   button keeps its own tap while the card surface stays navigable.
  * @param originalPriceText already-formatted list price before the discount; when non-null it is shown
  *   struck through next to [priceText], which is highlighted.
+ * @param cartEnabled `false` for a product that cannot be ordered: the add button is dimmed and does
+ *   nothing. The card itself stays tappable, so the detail can still be opened.
  */
 @Composable
 fun ProductRowCard(
@@ -66,6 +69,7 @@ fun ProductRowCard(
     onAddToCart: () -> Unit,
     modifier: Modifier = Modifier,
     originalPriceText: String? = null,
+    cartEnabled: Boolean = true,
 ) {
     Box(
         modifier = modifier.width(CARD_WIDTH).height(CARD_HEIGHT).clickable(onClick = onClick)
@@ -131,7 +135,11 @@ fun ProductRowCard(
                             )
                         }
                     }
-                    AddToCartButton(contentDescription = cartContentDescription, onClick = onAddToCart)
+                    AddToCartButton(
+                        contentDescription = cartContentDescription,
+                        onClick = onAddToCart,
+                        enabled = cartEnabled,
+                    )
                 }
             }
         }
@@ -142,13 +150,15 @@ fun ProductRowCard(
 private fun AddToCartButton(
     contentDescription: String,
     onClick: () -> Unit,
+    enabled: Boolean,
 ) {
     Box(
         modifier = Modifier
             .size(32.dp)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(CircleShape)
             .background(DiscoveryColors.CatalogText)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -162,6 +172,7 @@ private fun AddToCartButton(
 
 private val CARD_WIDTH = 300.dp
 private val CARD_HEIGHT = 120.dp
+private const val DISABLED_ALPHA = 0.38f
 
 @Preview(showBackground = true, backgroundColor = 0xFFF8F8F8)
 @Composable
@@ -225,6 +236,40 @@ private fun ProductRowCardDiscountedDarkPreview() {
             cartContentDescription = "Agregar al carrito",
             onClick = {},
             onAddToCart = {},
+        )
+    }
+}
+
+@Preview(name = "ProductRowCard — not orderable (light)", showBackground = true, backgroundColor = 0xFFF8F8F8)
+@Composable
+private fun ProductRowCardNotOrderableLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductRowCard(
+            name = "Set de brocas (5 piezas)",
+            categoryName = "Accesorios",
+            priceText = "S/ 49.90",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onClick = {},
+            onAddToCart = {},
+            cartEnabled = false,
+        )
+    }
+}
+
+@Preview(name = "ProductRowCard — not orderable (dark)", showBackground = true, backgroundColor = 0xFF122842)
+@Composable
+private fun ProductRowCardNotOrderableDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductRowCard(
+            name = "Set de brocas (5 piezas)",
+            categoryName = "Accesorios",
+            priceText = "S/ 49.90",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onClick = {},
+            onAddToCart = {},
+            cartEnabled = false,
         )
     }
 }

@@ -68,14 +68,24 @@ fun CartDialogContent(
     when (val submission = uiState.submission) {
         is OrderSubmission.Success ->
             SubmissionSuccessContent(
-                title = stringResource(R.string.cart_success_title),
+                // A quote-only share never says an order was generated (CAR-008).
+                title = stringResource(
+                    if (submission.isQuoteOnly) R.string.cart_share_success_title else R.string.cart_success_title,
+                ),
                 subtitle = stringResource(
-                    if (submission.shareDelivered) R.string.cart_success_subtitle
-                    else R.string.cart_success_share_failed_subtitle,
+                    when {
+                        submission.isQuoteOnly -> R.string.cart_share_success_subtitle
+                        submission.shareDelivered -> R.string.cart_success_subtitle
+                        else -> R.string.cart_success_share_failed_subtitle
+                    },
                 ),
                 summary = submission.summary.toSubmissionLines(),
                 // The "check your phone" prompt only applies when the quote actually reached WhatsApp.
-                footnote = if (submission.shareDelivered) stringResource(R.string.cart_success_check_phone) else null,
+                footnote = when {
+                    submission.isQuoteOnly -> stringResource(R.string.cart_share_success_check_phone)
+                    submission.shareDelivered -> stringResource(R.string.cart_success_check_phone)
+                    else -> null
+                },
                 actionLabel = stringResource(R.string.cart_success_accept),
                 onAction = { onEvent(CartUiEvent.AcceptSuccess) },
                 quantityLabel = { pluralStringResource(R.plurals.cart_success_qty, it, it) },
@@ -87,6 +97,17 @@ fun CartDialogContent(
                 title = stringResource(R.string.cart_error_title),
                 message = stringResource(R.string.cart_error_message),
                 // "Entendido" carries the higher priority (filled) — it returns to the cart to retry.
+                primaryLabel = stringResource(R.string.cart_error_understood),
+                onPrimary = { onEvent(CartUiEvent.DismissError) },
+                secondaryLabel = stringResource(R.string.cart_error_cancel),
+                onSecondary = { onEvent(CartUiEvent.CancelOrder) },
+                modifier = modifier,
+            )
+
+        OrderSubmission.QuoteNotDelivered ->
+            SubmissionErrorContent(
+                title = stringResource(R.string.cart_share_not_delivered_title),
+                message = stringResource(R.string.cart_share_not_delivered_message),
                 primaryLabel = stringResource(R.string.cart_error_understood),
                 onPrimary = { onEvent(CartUiEvent.DismissError) },
                 secondaryLabel = stringResource(R.string.cart_error_cancel),
@@ -124,7 +145,7 @@ private fun CartContent(
                         if (uiState.isEmpty) {
                             EmptyState(modifier = Modifier.align(Alignment.Center))
                         } else {
-                            ProductList(items = uiState.items, onEvent = onEvent)
+                            ProductList(items = uiState.items, unavailableIds = uiState.unavailableIds, onEvent = onEvent)
                         }
                     }
                     FooterPanel(uiState = uiState, onEvent = onEvent)
@@ -172,6 +193,7 @@ private fun Header(itemCount: Int, onClose: () -> Unit) {
 @Composable
 private fun ProductList(
     items: List<CartItem>,
+    unavailableIds: Set<String>,
     onEvent: (CartUiEvent) -> Unit,
 ) {
     LazyColumn(
@@ -179,7 +201,7 @@ private fun ProductList(
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(items = items, key = { it.productId }) { item ->
-            CartLineCard(item = item, onEvent = onEvent)
+            CartLineCard(item = item, unavailable = item.productId in unavailableIds, onEvent = onEvent)
         }
     }
 }
@@ -187,12 +209,16 @@ private fun ProductList(
 @Composable
 private fun CartLineCard(
     item: CartItem,
+    unavailable: Boolean,
     onEvent: (CartUiEvent) -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, DiscoveryColors.Divider),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (unavailable) MaterialTheme.colorScheme.error else DiscoveryColors.Divider,
+        ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
@@ -227,6 +253,13 @@ private fun CartLineCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (unavailable) {
+                    Text(
+                        text = stringResource(R.string.cart_line_unavailable),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -252,7 +285,7 @@ private fun CartLineCard(
                         onIncrease = { onEvent(CartUiEvent.IncreaseLine(item.productId)) },
                         decreaseContentDescription = stringResource(UiR.string.discovery_cd_qty_decrease),
                         increaseContentDescription = stringResource(UiR.string.discovery_cd_qty_increase),
-                        canIncrease = item.quantity < item.maxQuantity,
+                        canIncrease = !unavailable && item.quantity < item.maxQuantity,
                     )
                 }
             }
@@ -298,7 +331,18 @@ private fun FooterPanel(
     ) {
         ConsumerForm(uiState = uiState, onEvent = onEvent)
         TotalsSection(itemCount = uiState.totalItemCount, total = uiState.totalAmount)
-        ActionButtons(isOrderEnabled = uiState.isOrderEnabled, onEvent = onEvent)
+        if (uiState.hasUnavailableLines) {
+            Text(
+                text = stringResource(R.string.cart_unavailable_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        ActionButtons(
+            isOrderEnabled = uiState.canSubmit,
+            isShareEnabled = !uiState.hasUnavailableLines,
+            onEvent = onEvent,
+        )
     }
 }
 
@@ -378,6 +422,7 @@ private fun TotalsSection(itemCount: Int, total: Double) {
 @Composable
 private fun ActionButtons(
     isOrderEnabled: Boolean,
+    isShareEnabled: Boolean,
     onEvent: (CartUiEvent) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -398,8 +443,10 @@ private fun ActionButtons(
         PrimaryActionButton(
             text = stringResource(UiR.string.discovery_action_share),
             onClick = { onEvent(CartUiEvent.ShareWhatsApp) },
-            containerColor = DiscoveryColors.Green500,
-            contentColor = Color.White,
+            // Blocked while a line is flagged "No disponible" (the server would reject it again).
+            enabled = isShareEnabled,
+            containerColor = if (isShareEnabled) DiscoveryColors.Green500 else DiscoveryColors.Divider,
+            contentColor = if (isShareEnabled) Color.White else DiscoveryColors.TextDisabled,
             leadingIconRes = UiR.drawable.ic_whatsapp,
             iconContentDescription = stringResource(R.string.cart_share_whatsapp_cd),
         )
@@ -533,6 +580,82 @@ private fun OrderShareFailedPreview() {
         )
     }
 }
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — quote sent (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareSuccessPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary(), isQuoteOnly = true)),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — quote sent (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareSuccessDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.Success(sampleSummary(), isQuoteOnly = true)),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — not delivered (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareNotDeliveredPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.QuoteNotDelivered),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — not delivered (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareNotDeliveredDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(
+            uiState = CartUiState(submission = OrderSubmission.QuoteNotDelivered),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — unavailable line (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartUnavailablePreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(uiState = unavailableState(), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — unavailable line (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartUnavailableDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(uiState = unavailableState(), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+private fun unavailableState() = CartUiState(
+    items = sampleItems(),
+    totalItemCount = 6,
+    totalAmount = 438.5,
+    name = "Ana Pérez",
+    phone = "987654321",
+    nameError = null,
+    phoneError = null,
+    isOrderEnabled = true,
+    unavailableIds = kotlinx.collections.immutable.persistentSetOf("p2"),
+)
 
 @androidx.compose.ui.tooling.preview.Preview(name = "Order — error (light)", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable

@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.core.domain
 
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** Business constants for the device heartbeat (handoff BUG-025, api-contract.md §5/§21/§23). */
@@ -33,4 +34,16 @@ object DeviceConstants {
 
     /** Ack detail when `RESTART_APP` cannot be carried out. */
     const val ACK_DETAIL_RESTART_UNAVAILABLE: String = "No se pudo reiniciar la app"
+
+    /**
+     * A stored `RESTART_APP` id older than this is dropped without an ack: the server has already
+     * expired the command.
+     */
+    val PENDING_RESTART_ACK_MAX_AGE: Duration = 10.minutes
+
+    /**
+     * Kiosk: while the task is not pinned (the "Pin app?" confirmation was refused), pinning is asked
+     * again from Home at most this often, so a customer is not shown the dialog in a loop.
+     */
+    val PINNING_REQUEST_MIN_INTERVAL: Duration = 15.seconds
 }

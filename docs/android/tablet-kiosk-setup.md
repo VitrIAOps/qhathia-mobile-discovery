@@ -20,7 +20,29 @@ Android siempre deja quitar la fijación con el gesto del sistema (mantener Atr�
 este ajuste, quien lo intente cae en la pantalla de bloqueo en vez de salir libremente. Además,
 Discovery se vuelve a fijar sola cada vez que vuelve al frente.
 
-## 3. Primer arranque
+## 3. Rotación: solo horizontal
+
+Discovery se usa siempre en horizontal (regla de negocio) y la app ya fija la orientación. Igual se
+fija también en la tablet, por si algún fabricante o una versión futura de Android ignora la app:
+
+- *Ajustes → Pantalla → Girar pantalla automáticamente* (o el ícono de rotación en los ajustes
+  rápidos): **desactivado**, con la tablet en **horizontal**.
+- Por adb, al aprovisionar:
+
+  ```bash
+  adb shell settings put system accelerometer_rotation 0   # sin rotación automática
+  adb shell settings put system user_rotation 1            # horizontal (90°)
+  ```
+
+  Si el soporte monta la tablet al revés, usar `user_rotation 3` (270°).
+
+**Nota para desarrollo (Android 16 y target SDK 37).** En Android 16, en pantallas grandes, el
+sistema ignora la orientación fija de las apps que apuntan a SDK 36. La app lo evita con la propiedad
+`android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY` en el manifiesto. Google la elimina
+con target SDK 37: al subir `targetSdk` a 37, la regla de solo horizontal dependerá de este paso de
+configuración de la tablet.
+
+## 4. Primer arranque
 
 1. Abrir Discovery y emparejar la tablet. Antes del emparejamiento la app **no** se bloquea.
 2. Al emparejar, la app se fija. Si Android pregunta "¿Fijar app?", confirmar.

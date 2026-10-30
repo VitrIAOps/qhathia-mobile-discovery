@@ -5,6 +5,7 @@ import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
@@ -31,7 +32,13 @@ fun ConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = title) },
+        // A dialog is its own window: report its touches to the inactivity timer.
+        modifier = Modifier.reportUserActivity(),
+        title = {
+            // Kiosk: keep the system bars hidden over this dialog window.
+            KioskImmersiveDialogEffect()
+            Text(text = title)
+        },
         text = { Text(text = message) },
         containerColor = containerColor ?: AlertDialogDefaults.containerColor,
         confirmButton = {

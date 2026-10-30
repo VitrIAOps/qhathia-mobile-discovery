@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -50,6 +51,8 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  *   card is not clickable. Kept separate from [onCartClick] so the cart button retains its own tap.
  * @param originalPriceText already-formatted list price before the discount; when non-null it is shown
  *   struck through above [priceText], which is highlighted.
+ * @param cartEnabled `false` for a product that cannot be ordered: the cart button is dimmed and does
+ *   nothing. The card itself stays tappable, so the detail can still be opened.
  */
 @Composable
 fun ProductCard(
@@ -61,6 +64,7 @@ fun ProductCard(
     modifier: Modifier = Modifier,
     onCardClick: (() -> Unit)? = null,
     originalPriceText: String? = null,
+    cartEnabled: Boolean = true,
 ) {
     Surface(
         modifier = modifier
@@ -116,7 +120,7 @@ fun ProductCard(
                         },
                     )
                 }
-                CartButton(contentDescription = cartContentDescription, onClick = onCartClick)
+                CartButton(contentDescription = cartContentDescription, onClick = onCartClick, enabled = cartEnabled)
             }
         }
     }
@@ -126,13 +130,15 @@ fun ProductCard(
 private fun CartButton(
     contentDescription: String,
     onClick: () -> Unit,
+    enabled: Boolean,
 ) {
     Box(
         modifier = Modifier
             .size(32.dp)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(CircleShape)
             .background(DiscoveryColors.CatalogText)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -145,6 +151,7 @@ private fun CartButton(
 }
 
 private val CARD_WIDTH = 156.dp
+private const val DISABLED_ALPHA = 0.38f
 private val IMAGE_HEIGHT = 140.dp
 
 @Preview(name = "ProductCard — light", showBackground = true, backgroundColor = 0xFFF8F8F8)
@@ -216,6 +223,36 @@ private fun ProductCardClickablePreview() {
             cartContentDescription = "Agregar al carrito",
             onCartClick = {},
             onCardClick = {},
+        )
+    }
+}
+
+@Preview(name = "ProductCard — not orderable (light)", showBackground = true, backgroundColor = 0xFFF8F8F8)
+@Composable
+private fun ProductCardNotOrderableLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductCard(
+            name = "Taladro Percutor Bosch GSB 13 RE Professional",
+            priceText = "S/ 380.00",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+            cartEnabled = false,
+        )
+    }
+}
+
+@Preview(name = "ProductCard — not orderable (dark)", showBackground = true, backgroundColor = 0xFF122842)
+@Composable
+private fun ProductCardNotOrderableDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductCard(
+            name = "Taladro Percutor Bosch GSB 13 RE Professional",
+            priceText = "S/ 380.00",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+            cartEnabled = false,
         )
     }
 }

@@ -303,6 +303,90 @@ class ProductSearchViewModelTest {
         assertTrue(recorder.cancelled)
     }
 
+    // --- Catalog microphone: Voice hand-off without a query (CAT-030) ---
+
+    @Test
+    fun given_voice_and_empty_query_then_listens_and_sends_no_search() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository()
+        val recorder = FakeAudioRecorder()
+        val vm = viewModel(
+            query = "",
+            source = SearchSource.Voice,
+            repository = repository,
+            recorder = recorder,
+            stt = FakeLiveTranscriptionRepository(partials = emptyList()),
+        )
+
+        assertEquals(ProductSearchPhase.VoiceListening(liveTranscript = ""), vm.uiState.value.phase)
+        assertTrue(recorder.isRecording)
+        assertEquals(0, repository.callCount)
+        vm.onEvent(ProductSearchUiEvent.CancelVoice)
+    }
+
+    @Test
+    fun given_voice_and_empty_query_when_transcribed_then_searches_the_transcript() =
+        runTest(mainDispatcher.dispatcher) {
+            val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(4))))
+            val vm = viewModel(
+                query = "",
+                source = SearchSource.Voice,
+                repository = repository,
+                stt = FakeLiveTranscriptionRepository(finalText = "martillo"),
+            )
+
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+
+            assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+            assertEquals(listOf("martillo"), repository.queries)
+        }
+
+    @Test
+    fun given_voice_and_query_then_searches_as_before() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(4))))
+        val recorder = FakeAudioRecorder()
+        val vm = viewModel(query = "taladro", source = SearchSource.Voice, repository = repository, recorder = recorder)
+
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+        assertEquals(listOf("taladro"), repository.queries)
+        assertFalse(recorder.isRecording)
+    }
+
+    @Test
+    fun given_voice_entry_when_cancelled_then_navigates_back() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository()
+        val vm = viewModel(
+            query = "",
+            source = SearchSource.Voice,
+            repository = repository,
+            stt = FakeLiveTranscriptionRepository(partials = emptyList()),
+        )
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.CancelVoice)
+            assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(0, repository.callCount)
+    }
+
+    @Test
+    fun given_voice_entry_when_stt_fails_then_navigates_back_without_search() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository()
+        val vm = viewModel(
+            query = "",
+            source = SearchSource.Voice,
+            repository = repository,
+            stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Network)),
+        )
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+            assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(0, repository.callCount)
+    }
+
     @Test
     fun given_cart_tapped_then_product_added_and_count_updates() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))

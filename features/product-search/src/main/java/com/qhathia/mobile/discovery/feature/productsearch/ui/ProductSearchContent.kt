@@ -42,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qhathia.mobile.discovery.core.domain.usecase.isOrderable
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
@@ -316,6 +317,7 @@ private fun ResultsBody(
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
+                cartEnabled = product.isOrderable,
             )
         }
     }
@@ -575,6 +577,7 @@ private fun UnhappyBody(
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                         onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
+                        cartEnabled = product.isOrderable,
                     )
                 }
             }

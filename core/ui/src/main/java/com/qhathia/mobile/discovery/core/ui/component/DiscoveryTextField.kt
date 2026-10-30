@@ -85,9 +85,14 @@ fun DiscoveryTextField(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                // The IME sends no pointer events, so each text change reports activity itself.
+                val reportActivity = LocalUserActivity.current
                 BasicTextField(
                     value = value,
-                    onValueChange = onValueChange,
+                    onValueChange = {
+                        reportActivity()
+                        onValueChange(it)
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                     visualTransformation = visualTransformation,

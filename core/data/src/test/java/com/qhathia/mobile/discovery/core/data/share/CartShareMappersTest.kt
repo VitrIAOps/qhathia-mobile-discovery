@@ -1,9 +1,9 @@
 package com.qhathia.mobile.discovery.core.data.share
 
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.network.dto.ShareCartResponseDto
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class CartShareMappersTest {
@@ -46,28 +46,23 @@ class CartShareMappersTest {
     }
 
     @Test
-    fun given_response_when_mapped_then_domain_share_fields_carried() {
-        val dto = ShareCartResponseDto(
-            status = "SENT",
-            messageId = "wamid.1",
-            pdfUrl = "https://r2.dev/cotizacion.pdf",
-            error = null,
-        )
+    fun given_sent_response_when_mapped_then_delivered() {
+        val dto = ShareCartResponseDto(status = "SENT", messageId = "wamid.1", pdfUrl = "https://r2.dev/c.pdf")
 
-        val share = dto.toDomain()
-
-        assertEquals("SENT", share.status)
-        assertEquals("https://r2.dev/cotizacion.pdf", share.pdfUrl)
-        assertEquals("wamid.1", share.messageId)
+        assertEquals(ShareOutcome.Delivered("https://r2.dev/c.pdf"), dto.toOutcome())
     }
 
     @Test
-    fun given_failed_response_without_message_when_mapped_then_null_message_id() {
+    fun given_lowercase_sent_when_mapped_then_delivered() {
+        val dto = ShareCartResponseDto(status = "sent", messageId = null, pdfUrl = "https://r2.dev/c.pdf")
+
+        assertEquals(ShareOutcome.Delivered("https://r2.dev/c.pdf"), dto.toOutcome())
+    }
+
+    @Test
+    fun given_failed_response_when_mapped_then_not_delivered() {
         val dto = ShareCartResponseDto(status = "FAILED", messageId = null, pdfUrl = "https://r2.dev/c.pdf")
 
-        val share = dto.toDomain()
-
-        assertEquals("FAILED", share.status)
-        assertNull(share.messageId)
+        assertEquals(ShareOutcome.NotDelivered("https://r2.dev/c.pdf", "FAILED"), dto.toOutcome())
     }
 }
