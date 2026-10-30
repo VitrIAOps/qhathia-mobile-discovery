@@ -1,7 +1,8 @@
 ## 1. QA baseline
 
-- [ ] 1.0 Spike on `Medium_Tablet` (API 26, pinned) and `Tablet_API36`: from the shell (`am start -a …`) and from a throwaway button, (a) while pinned, starting `Settings.Panel.ACTION_INTERNET_CONNECTIVITY` / `ACTION_DATA_ROAMING_SETTINGS` is refused; (b) after `stopLockTask()` the right screen opens (Internet panel on API 36, "Red móvil" or the fallback on API 26), Back returns to the app; (c) going Home pins again. Note the results in `design.md`.
-- [ ] 1.1 Build the `profile` APK from `fix/qa-wave-3` before any change (same code as `main` @ `6c288e6`) and reproduce on `Medium_Tablet` (API 26) and `Tablet_API36` with adb:
+- [x] 1.0 Spike on `Medium_Tablet` (API 26, pinned) and `Tablet_API36`: from the shell (`am start -a …`) and from a throwaway button, (a) while pinned, starting `Settings.Panel.ACTION_INTERNET_CONNECTIVITY` / `ACTION_DATA_ROAMING_SETTINGS` is refused; (b) after `stopLockTask()` the right screen opens (Internet panel on API 36, "Red móvil" or the fallback on API 26), Back returns to the app; (c) going Home pins again. Note the results in `design.md`.
+  - Done 2026-10-30: pinned → refused on API 26 and API 36; unpinned → API 36 Internet panel with the switch, API 26 "Mobile network" has no switch, so API 26–28 use "Network & Internet". Re-pin on Home is checked after the implementation (9.3). Evidence `qa-evidence/SPIKE-*`.
+- [x] 1.1 Build the `profile` APK from `fix/qa-wave-3` before any change (same code as `main` @ `6c288e6`) and reproduce on `Medium_Tablet` (API 26) and `Tablet_API36` with adb:
   - Labels: a script over `uiautomator dump` that lists clickable nodes with empty `text` and `content-desc` on Home, Catalog, Search, Detail, Cart, Pairing (`Tablet_API36`) and Settings (needs the exit PIN; skip if not available). Save the counts.
   - CAR-080: the cart `EditText`s with no text show no hint or description in the dump.
   - DET-004: stepper at 3, "Agregar", "Agregar" again → 6 units.
@@ -12,7 +13,8 @@
   - EXP-003: `Tablet_API36` pairing code on screen, wait for the screen timeout (`settings get system screen_off_timeout`, set it to 30 s for the test) → screen off.
   - EXP-004: `pm clear` on `Tablet_API36` (unpaired) → permission request over the welcome screen.
   - AJU-030 / AJU-032 / AJU-022 / AJU-040 / AJU-041 / AJU-043: only if the exit PIN is available; otherwise mark as user-assisted.
-- [ ] 1.2 Create `qa-report.md` with one row per case ID: before, after, evidence, who ran it.
+- [x] 1.2 Create `qa-report.md` with one row per case ID: before, after, evidence, who ran it.
+  - Done 2026-10-30. Reproduced: labels (counts per screen), CAR-080, VIN-070, DET-004, CAR-014, EXP-005, EXP-003, EXP-004. Not reproduced on the emulator: DET-062/063 (no such product in production), RED-004 (the network dropped too late). Settings cases need the exit PIN (user).
 
 ## 2. Labels on touchable controls (D1): INI-070, CAR-080, DET-080, VIN-070
 
@@ -54,7 +56,7 @@
 - [ ] 8.4 `NetworkSettingsRepository.rescan()` (`WifiManager.startScan()`); `RefreshNetworks` calls it; `LocationPermissionResult(granted = true)` also calls it. Unit tests in the ViewModel with a fake repository.
 - [ ] 8.5 Location permission missing: message plus "Permitir ubicación" that relaunches the request; the "no longer asked" case shows the device-settings message (`shouldShowRequestPermissionRationale` false after a refusal).
 - [ ] 8.6 "Datos móviles" as a status row ("Activos" / "Inactivos" / "Sin SIM"); remove the toggle path (`ToggleMobileData`, `SetMobileDataEnabledUseCase`, `actionNotPermitted` if unused elsewhere) and its tests.
-- [ ] 8.7 "Abrir ajustes de datos" (hidden without SIM): runs `ExitKioskModeUseCase`, then a one-shot effect that starts the intent chosen by API level (panel on 29+, `ACTION_DATA_ROAMING_SETTINGS` on 26–28, `ACTION_WIRELESS_SETTINGS` fallback). The screen re-reads the network state on resume. Unit test: the event exits kiosk mode and emits the effect; no effect without SIM.
+- [ ] 8.7 "Abrir ajustes de datos" (hidden without SIM): runs `ExitKioskModeUseCase`, then a one-shot effect that starts the intent chosen by API level (panel on 29+, `ACTION_WIRELESS_SETTINGS` on 26–28; results of 1.0 in `design.md`). The screen re-reads the network state on resume. Unit test: the event exits kiosk mode and emits the effect; no effect without SIM.
 
 ## 9. Build checks and emulator QA
 

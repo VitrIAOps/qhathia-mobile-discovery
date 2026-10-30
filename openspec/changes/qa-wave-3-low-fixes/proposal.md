@@ -29,7 +29,7 @@ Waves 1 and 2 closed every critical, high and medium case of the 2026-10-25 QA r
 - "Actividad" shows the last time the tablet was seen (`lastSeenAt`) when no sync time is known.
 - "Código usado" is saved when the tablet pairs, so it survives a restart. Tablets paired before this change show "No disponible".
 - Wi-Fi: a "Permitir ubicación" action when the permission is missing; "Buscar redes" starts a scan; a scan runs as soon as the permission is granted, so the list is not empty the first time.
-- **BREAKING (behavior):** "Datos móviles" becomes a status row ("Activos" / "Inactivos" / "Sin SIM") with an "Abrir ajustes de datos" button. Android does not let a normal app turn mobile data on or off, so the switch always failed. The button does the same temporary kiosk exit as "Salir del modo kiosko" and opens Android's own mobile-data screen (the Internet panel on Android 10+, "Red móvil" on Android 8–9); the tablet pins again when the merchant goes back to Home.
+- **BREAKING (behavior):** "Datos móviles" becomes a status row ("Activos" / "Inactivos" / "Sin SIM") with an "Abrir ajustes de datos" button. Android does not let a normal app turn mobile data on or off, so the switch always failed. The button does the same temporary kiosk exit as "Salir del modo kiosko" and opens Android's own mobile-data screen (the Internet panel on Android 10+, "Red e Internet" on Android 8–9); the tablet pins again when the merchant goes back to Home.
 
 **Store name, when the backend sends it** (VIN-003, AJU-030 "Comercio")
 - The app reads an optional `storeName` from `GET /devices/me` and shows it on Home and in Settings. Today no endpoint returns it to the tablet, so "TIENDA" and "Pendiente" stay until the backend adds it.

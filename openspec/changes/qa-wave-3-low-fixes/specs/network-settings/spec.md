@@ -8,7 +8,7 @@
 
 ### Requirement: Mobile data status and shortcut
 
-The Network settings screen SHALL show whether mobile data is active ("Activos" / "Inactivos"), or "Sin SIM" when the tablet cannot use mobile data, with no switch. When mobile data can be used, the row SHALL offer "Abrir ajustes de datos", which SHALL exit kiosk mode temporarily (as "Salir del modo kiosko") and open Android's mobile-data screen: the Internet panel on Android 10 or later, the mobile network settings on Android 8 and 9. When the merchant comes back, the row SHALL show the current state.
+The Network settings screen SHALL show whether mobile data is active ("Activos" / "Inactivos"), or "Sin SIM" when the tablet cannot use mobile data, with no switch. When mobile data can be used, the row SHALL offer "Abrir ajustes de datos", which SHALL exit kiosk mode temporarily (as "Salir del modo kiosko") and open Android's mobile-data screen: the Internet panel on Android 10 or later, and Android's "Red e Internet" settings (one step from mobile data) on Android 8 and 9. When the merchant comes back, the row SHALL show the current state.
 
 #### Scenario: Mobile data off
 
