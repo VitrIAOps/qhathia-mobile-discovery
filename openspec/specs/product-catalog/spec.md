@@ -3,9 +3,7 @@
 ## Purpose
 
 The product-catalog capability lets in-store consumers browse everything the store offers — the available products grouped by the merchant's categories — as a general overview, without going through search. It owns loading the catalog from the Qhathia catalog API, the category tab bar (Todo + one tab per category + Descuentos) over a single two-row product grid, navigation to product detail, cart access, the hand-off to product search, and the network-error / idle-timeout behavior.
-
 ## Requirements
-
 ### Requirement: Catalog retrieval grouped by category
 
 The app SHALL load the store's catalog via `GET /api/v1/catalog/by-category`, authenticated with the session Bearer JWT, and present the returned products through a category **tab bar** (following the catalog Figma frame). The tab bar SHALL open with an **"Todo"** tab first, followed by one tab per category returned by the endpoint (the backend already returns only categories that have `AVAILABLE` products), preserving the order in which they are returned, and ending with the **"Descuentos"** tab. Selecting a tab SHALL filter the product grid: **Todo** shows every available product across categories; a **category** tab shows that category's products. The app SHALL impose **no limit** on the number of products shown.
@@ -175,3 +173,13 @@ The catalog screens SHALL be built from the shared design system, use Material 3
 
 - **WHEN** an assistive technology inspects the top-bar controls, the product cart buttons, and the microphone
 - **THEN** each interactive control exposes a localized content description and a touch target of at least 48dp
+
+### Requirement: Catalog system Back follows "Volver"
+
+The system Back on the Catalog screen SHALL run the Catalog "Volver" action: the close confirmation when the cart has products, and the return to Home when the cart is empty.
+
+#### Scenario: Back with products in the cart
+
+- **WHEN** the cart has products and the consumer presses the system Back on Catalog
+- **THEN** the close confirmation dialog is shown and the screen stays on Catalog until the consumer confirms
+

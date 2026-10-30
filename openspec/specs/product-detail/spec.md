@@ -3,9 +3,7 @@
 ## Purpose
 
 The product-detail capability lets in-store consumers open a single product from a search result and read its full detail — name, description and characteristics, price, availability, and its photo gallery — closing the discovery loop from "I found something that might match" to "I can read about it and decide". It owns fetching a product by id from the Qhathia backend, the detail screen layout and load states, the purchase actions (Add-to-cart, and Share via WhatsApp which shares the viewed product as a WhatsApp quote per the cart-whatsapp-share capability), the related-products section sourced from the suggestions API, and the retained microphone animation and top-bar navigation controls.
-
 ## Requirements
-
 ### Requirement: Fetch product detail by id
 
 The app SHALL fetch a single product's full detail from the Qhathia backend via `GET /api/v1/products/{id}`, authenticated with the session Bearer JWT, and present it on the product-detail screen. The fetched detail SHALL include the product name, description, price, availability, and its media (photo) collection. On an authentication failure (`401`) the app SHALL drop the cached session token and retry the request once with a refreshed token, reusing the established session-token seam.
@@ -192,3 +190,27 @@ The product-detail screen SHALL be built from the shared design system, use Mate
 
 - **WHEN** an assistive technology inspects the top-bar controls, the Add-to-cart and Share-via-WhatsApp buttons, and the microphone
 - **THEN** each interactive control exposes a localized content description and a touch target of at least 48dp
+
+### Requirement: Detail microphone opens voice search
+
+The microphone control on the product detail search bar SHALL open the product search screen in voice mode with no query, which starts listening, as the Catalog microphone does.
+
+#### Scenario: Tap the detail microphone
+
+- **WHEN** the consumer taps the microphone on the product detail
+- **THEN** the product search screen opens and starts listening
+
+### Requirement: Share dialog stays open while sending
+
+While a product share request is in flight, the share dialog SHALL NOT be closed by an outside tap, the system Back or its close control. Once a result is shown, closing the dialog SHALL run the result's main action (accept on success, "Entendido" on an error).
+
+#### Scenario: Outside tap while sending
+
+- **WHEN** a product share request is in flight and the consumer taps outside the dialog
+- **THEN** the dialog stays open with its loading indicator
+
+#### Scenario: Back on the success screen
+
+- **WHEN** the share success screen is shown and the consumer presses the system Back
+- **THEN** the dialog closes as if the consumer had accepted the success screen
+

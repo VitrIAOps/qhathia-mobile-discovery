@@ -3,9 +3,7 @@
 ## Purpose
 
 The shopping-cart capability lets in-store consumers collect products discovered through search and detail into a single, session-scoped basket and review them in a cart dialog. It owns the in-memory basket shared across screens, adding products from search results and the product-detail screen, per-product quantity management bounded by stock, the cart control with its item-count badge, the cart dialog presentation (item list, receipt-styled totals, consumer-data form, and order/share actions), the consumer-data form validation, the "Realizar pedido" action (which submits a purchase order per the cart-order-submission capability and then shares the WhatsApp quote per the cart-whatsapp-share capability) and the "Compartir por WhatsApp" action (which shares the WhatsApp quote per the cart-whatsapp-share capability), and the cart session lifecycle (inactivity clearing off the Home screen, plus clearing on successful order placement and on order cancellation).
-
 ## Requirements
-
 ### Requirement: Session-scoped cart basket
 
 The app SHALL maintain a single cart basket as session state that is shared across every screen. The basket SHALL hold the selected products, each with a per-line quantity, and SHALL expose the total item count and the total amount. The basket SHALL be observable so that any screen reflects its current contents and count. The basket SHALL be held in memory for the session (it need not survive process death).
@@ -190,3 +188,37 @@ The cart dialog and the cart controls SHALL support light and dark themes and SH
 
 - **WHEN** an assistive technology inspects the cart control, the steppers, the form fields, and the dialog buttons
 - **THEN** each exposes a content description and a touch target of at least 48dp
+
+### Requirement: Basket limit of 20 distinct products
+
+The basket SHALL hold at most 20 distinct products, the limit the order and share endpoints accept. Adding a product that is not yet in a full basket SHALL be refused and the consumer SHALL be told why ("Tu carrito ya tiene 20 productos distintos. Realiza tu pedido o quita alguno para agregar más."). Adding units of a product already in the basket SHALL still be allowed up to that product's quantity cap.
+
+#### Scenario: 21st distinct product
+
+- **WHEN** the basket has 20 distinct products and the consumer adds a different product from any screen
+- **THEN** the product is not added and the limit message is shown
+
+#### Scenario: More units of a product in a full basket
+
+- **WHEN** the basket has 20 distinct products and the consumer adds a product already in it
+- **THEN** that line's quantity increases, up to its cap
+
+### Requirement: Cart actions need a basket and valid data
+
+"Realizar pedido" and "Compartir" SHALL be enabled only when the basket has at least one product, the consumer name and cell-phone are valid, and no line is flagged as unavailable. When disabled, both SHALL look disabled.
+
+#### Scenario: Empty basket
+
+- **WHEN** the cart dialog is open with no products
+- **THEN** "Realizar pedido" and "Compartir" are disabled
+
+#### Scenario: Empty form
+
+- **WHEN** the basket has products and the name or cell-phone is empty or invalid
+- **THEN** "Realizar pedido" and "Compartir" are disabled
+
+#### Scenario: Ready to submit
+
+- **WHEN** the basket has products, the data is valid and no line is flagged
+- **THEN** "Realizar pedido" and "Compartir" are enabled
+

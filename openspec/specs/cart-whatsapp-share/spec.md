@@ -3,7 +3,6 @@
 ## Purpose
 
 The cart-whatsapp-share capability lets an in-store consumer receive a written quote of their basket on their own phone: tapping "Compartir por WhatsApp" sends the basket and consumer data to the share endpoint, which generates a quote PDF and delivers it to the consumer's WhatsApp. It owns the share request assembly (identical body to the order request, cell-phone normalized to the 9-digit mobile format) and its validation gating, the blocking share/loading state, the success summary with return-to-Home-and-session-clear, the simplified error state with its "Entendido" / "Cancelar orden" recovery, the share-phase reset on session clear, and the automatic quote share that accompanies a successful "Realizar pedido". Sharing never creates a purchase order.
-
 ## Requirements
 ### Requirement: Share the cart as a WhatsApp quote
 
@@ -61,28 +60,27 @@ On a successful share the app SHALL replace the cart dialog with a success scree
 
 ### Requirement: Share error recovery
 
-On any share failure the app SHALL show an error state with a single simplified message ("Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos") regardless of the underlying cause. The error state SHALL present two actions: **"Entendido"**, shown with the higher visual priority, and **"Cancelar orden"**. Tapping "Entendido" SHALL return to the cart summary dialog in its prior state (basket and entered data preserved) so the consumer can retry. Tapping "Cancelar orden" SHALL return to the Home screen, clearing the session.
+On any share failure (rejected or failed after its retries) the app SHALL show a share error state with a single simplified share message ("No pudimos enviar la cotización" / "Hubo un problema enviando la cotización. Inténtalo de nuevo en unos momentos.") regardless of the underlying cause. The share error state, and the not-delivered state, SHALL present a single action, **"Entendido"**, which SHALL return to the cart summary dialog in its prior state (basket and entered data preserved) so the consumer can retry. A share failure SHALL NOT offer "Cancelar orden" and SHALL NOT clear the basket or the consumer data. The order error state keeps its own copy and its "Cancelar orden" action.
 
-#### Scenario: All failures show the same simplified message
+#### Scenario: All failures show the same simplified share message
 
 - **WHEN** the share request fails for any reason (validation, not found, server, PDF generation, or connectivity)
-- **THEN** the app shows the single simplified error message rather than the raw cause
+- **THEN** the app shows the single simplified share error message rather than the raw cause or the order message
 
 #### Scenario: Entendido returns to the cart summary
 
-- **WHEN** the consumer taps "Entendido" on the error state
+- **WHEN** the consumer taps "Entendido" on the share error state
 - **THEN** the app returns to the cart summary dialog with the basket and entered consumer data preserved
 
-#### Scenario: Cancelar orden returns Home clearing the session
+#### Scenario: No cancel action on a share failure
 
-- **WHEN** the consumer taps "Cancelar orden" on the error state
-- **THEN** the app returns to the Home screen
-- **AND** the cart basket and the consumer-data form are cleared
+- **WHEN** the share error state or the not-delivered state is shown
+- **THEN** no "Cancelar orden" action is offered, and the basket and consumer data are kept
 
-#### Scenario: Entendido has the higher priority
+#### Scenario: Order error keeps its cancel action
 
-- **WHEN** the error state is shown
-- **THEN** the "Entendido" action is presented with a higher visual priority than "Cancelar orden"
+- **WHEN** a "Realizar pedido" request fails
+- **THEN** the order error state shows its order message with "Entendido" and "Cancelar orden"
 
 ### Requirement: Share phase reset on session clear
 
@@ -126,3 +124,4 @@ The share loading, success, and error states SHALL support light and dark themes
 
 - **WHEN** an assistive technology inspects the success and error state buttons
 - **THEN** each exposes a content description and a touch target of at least 48dp
+
