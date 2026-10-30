@@ -52,7 +52,8 @@ Evidence lives in `openspec/changes/qa-wave-1-critical-fixes/qa-evidence/` (scre
 
 - **Fixed and checked on the emulators:** CAT-030 / VOZ-009, CAR-007 / CAR-032 / DET-032, CAR-040 / CAR-041, CAR-042, DET-013, CAR-023 / CAR-025, BUS-042 (app side), VIN-030, EXP-002 / EXP-007, EXP-001 / EXP-006 / EXP-010, RED-060.
 - **Fixed, partly checked (◐):** CAR-008 (the share success screen needs a `SENT` answer), DET-034 / CAR-011 (`LOW_STOCK` cannot be produced from stock; CAR-011 not re-run), Landscape (letterboxed on API 36 with auto-rotate on), AJU-011 (clock +24 h by unit tests only).
-- **Waiting on the user with the staff app (11.4):** VIN-031 and VIN-032 approval, KIO-041 / EXP-008 `RESTART_APP`, live `kioskMode` toggle. The order happy path (11.5) creates a real order and is left to the user.
+- **Handed to the QA team (2026-10-29):** VIN-031 and VIN-032 approval with the staff app.
+- **Waiting on the user with the staff app (11.4):** KIO-041 / EXP-008 `RESTART_APP`, live `kioskMode` toggle. The order happy path (11.5) creates a real order and is left to the user.
 
 ## Blocked by backend or infrastructure
 
