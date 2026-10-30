@@ -60,10 +60,12 @@
 
 ## 9. Emulator QA and report
 
-- [ ] 9.1 Install the `profile` APK on `Medium_Tablet` (paired) and `Tablet_API36` (unpaired) and re-run every case of 1.1 for the "after" column.
-- [ ] 9.2 Navigation: double taps (`input tap` twice within 100 ms) on "Ir al catálogo", a related product and a search result, and "Volver" ×3 → `dumpsys activity` / back-stack checks show a single copy; Back from each screen matches "Volver".
-- [ ] 9.3 Voice: no-audio prompt back to idle at about 30 s; Home and Search in the background while listening → no recording client in `dumpsys`; Search mic with the permission revoked → system request, then the message on refusal; Detail mic → Search listening.
-- [ ] 9.4 Cart: share error and not-delivered (Meta `FAILED`) show only "Entendido" and keep the basket; outside tap and Back while sending do nothing; empty basket and empty form disable both actions; 21st distinct product refused with the message.
+- [x] 9.1 Install the `profile` APK on `Medium_Tablet` (paired) and `Tablet_API36` (unpaired) and re-run every case of 1.1 for the "after" column.
+- [x] 9.2 Navigation: double taps (`input tap` twice within 100 ms) on "Ir al catálogo", a related product and a search result, and "Volver" ×3 → `dumpsys activity` / back-stack checks show a single copy; Back from each screen matches "Volver".
+- [x] 9.3 Voice: no-audio prompt back to idle at about 30 s; Home and Search in the background while listening → no recording client in `dumpsys`; Search mic with the permission revoked → system request, then the message on refusal; Detail mic → Search listening.
+- [x] 9.4 Cart: share error and not-delivered (Meta `FAILED`) show only "Entendido" and keep the basket; outside tap and Back while sending do nothing; empty basket and empty form disable both actions; 21st distinct product refused with the message.
 - [ ] 9.5 Pairing: fast taps on "Generar nuevo código" on `Tablet_API36` → one `POST /devices/pairing-token` in logcat, no error; paired tablet with Wi-Fi off → connection error, "Reintentar" with Wi-Fi back → details, no `pairing-token` request.
-- [ ] 9.6 Regression sweep: wave-1 flows still pass (customer session timeout, share outcome, flagged lines, pinning, bars over dialogs).
-- [ ] 9.7 Complete `qa-report.md` and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with an **Ola 2** status in each wave-2 row.
+  - Partial 2026-10-30: VIN-024 ✔ (1 request for 4 fast taps). The paired-tablet check (AJU-031 / AJU-050) needs the staff exit PIN to open Settings on `Medium_Tablet`; pending with the user.
+- [x] 9.6 Regression sweep: wave-1 flows still pass (customer session timeout, share outcome, flagged lines, pinning, bars over dialogs).
+- [x] 9.7 Complete `qa-report.md` and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with an **Ola 2** status in each wave-2 row.
+  - Done 2026-10-30. Every case has its "after" except AJU-031 / AJU-050 (9.5). The handoff has a wave-2 note and an **Ola 2** status in each wave-2 row.

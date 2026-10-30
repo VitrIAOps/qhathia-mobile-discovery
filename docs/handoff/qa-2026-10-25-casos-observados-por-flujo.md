@@ -10,13 +10,15 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 > - **Corregidos, falta la prueba con la app de staff:** VIN-031, VIN-032 (aprobar el código), KIO-041 · EXP-008 (`RESTART_APP`).
 > - **Bloqueados por backend o infraestructura:** entrega real de WhatsApp (Meta #133010, cuenta no registrada), B-14 (inactivos indexados en la búsqueda), RED-061 (log de biz y HTTP plano), VIN-022 (códigos abandonados aprobables). El contrato debe documentar el `409 PRODUCT_NOT_SELLABLE` de `POST /orders` y `POST /carts/share-pdf`.
 
+> **Estado de la ola 2, 2026-10-30** (`qa-wave-2-medium-fixes`, rama `fix/qa-wave-2`; evidencia en `openspec/changes/qa-wave-2-medium-fixes/qa-report.md`). Cada caso de la ola lleva su estado marcado **Ola 2**. Corregidos y probados en emulador: INI-020, DET-021, DET-022, CAT-024 · CAT-025, BUS-052 · BUS-060, INI-051 · VOZ-003, VOZ-004, VOZ-008 · VOZ-010, CAR-020, CAR-021, CAR-031, CAR-033, CAR-043 · CAR-044, VIN-024. Falta probar con el PIN de salida: AJU-031 · AJU-050. Quedan para el backend: BUS-003 · EXP-004 (los filtros los interpreta la IA), DET-012 (B-02), VIN-022 (no hay forma de cancelar un código).
+
 | Flujo | Caso(s) | Sev. | Qué se observó | Lado |
 |---|---|---|---|---|
 | **01 · Vinculación** | VIN-031 | CRÍTICO | El WebSocket de vinculación se cierra siempre a los 61 s; si el comercio aprueba después, la tablet nunca se vincula y no avisa. **Ola 1 (2026-10-29): Corregido en la app: ping cada 20 s y reconexión; con el código en pantalla 2,5 min el socket sigue abierto. Falta la aprobación real desde staff.** | Front + Backend |
 | | VIN-032 | ALTO | Un corte de red de 20 s con el código en pantalla pierde el push APPROVED; no hay reconexión ni polling. **Ola 1 (2026-10-29): Corregido en la app: tras 25 s sin red reconecta 0,8 s después de volver la red, mismo código, sin llamadas a `/token`. Falta la aprobación real desde staff.** | Front |
 | | VIN-030 | ALTO | Rotar (o encender la pantalla con rotación pendiente) regenera el código; el viejo sigue aprobable y la tablet no se vincula. Intermitente. **Ola 1 (2026-10-29): Corregido: la rotación desaparece con la regla de solo horizontal (D12); apagar/encender la pantalla y salir y volver conservan el código.** | Front + Backend |
 | | VIN-022 | MEDIO | Los códigos abandonados (cierre, Volver, rotación) siguen aprobables y crean devices ACTIVE huérfanos. | Front + Backend |
-| | VIN-024 · EXP-002 (vinc.) | MEDIO | Toques rápidos en "Generar nuevo código" terminan en el error falso "No se pudo generar…". | Front |
+| | VIN-024 · EXP-002 (vinc.) | MEDIO | Toques rápidos en "Generar nuevo código" terminan en el error falso "No se pudo generar…". **Ola 2 (2026-10-30): Corregido: un solo pedido de código a la vez; 4 toques rápidos → 1 pedido, sin error.** | Front |
 | | VIN-003 | BAJO | Home muestra "TIENDA" en lugar del nombre del comercio. | Front |
 | | VIN-011 | BAJO | El backend no acepta el código de vinculación en minúsculas (400 INVALID_PAIRING_TOKEN). | Backend |
 | | VIN-052 | BAJO | En vertical el 5.º recuadro del código queda recortado. **Cerrado por la regla de solo horizontal (`qa-wave-1-critical-fixes`, D12); sale de la ola 3.** | Front |
@@ -24,24 +26,24 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | | EXP-003 (vinc.) | BAJO | Antes de vincular, la pantalla se apaga a los 60 s mientras se muestra el código. | Front |
 | | EXP-004 (vinc.) | BAJO | El permiso de micrófono se pide en el primer arranque, sobre Welcome. | Front |
 | | EXP-001 (vinc.) | BAJO | Una ruta inexistente del backend responde 500 en vez de 404 (no se alcanza desde la UI). | Backend |
-| **02 · Inicio (Home)** | INI-020 · DET-021 | MEDIO | El doble toque en "Ir al catálogo" apila pantallas duplicadas. | Front |
-| | INI-051 · VOZ-003 | MEDIO | "No te escuché…" no vuelve nunca a reposo (más de 2 min en pantalla). | Front |
+| **02 · Inicio (Home)** | INI-020 · DET-021 | MEDIO | El doble toque en "Ir al catálogo" apila pantallas duplicadas. **Ola 2 (2026-10-30): Corregido: solo navega la pantalla que está a la vista; el doble toque abre una sola pantalla.** | Front |
+| | INI-051 · VOZ-003 | MEDIO | "No te escuché…" no vuelve nunca a reposo (más de 2 min en pantalla). **Ola 2 (2026-10-30): Corregido: "No te escuché…" vuelve a reposo a los 30 s.** | Front |
 | | INI-015 · BUS-017 | BAJO | "-50 soles" se interpreta como maxPrice 50 y "150,50" como 150.5. | Backend (LLM) |
 | | INI-070 · CAR-080 · DET-080 | BAJO | El engranaje tiene un Button hermano sin etiqueta (ver también Carrito y Detalle). | Front |
 | **03 · Búsqueda por texto** | BUS-042 | ALTO | Un producto recién desactivado sigue en resultados y se deja agregar (grupo disponibilidad, ver CAR-023). **Ola 1 (2026-10-29): Corregido del lado de la app: un producto sin stock o inactivo no se deja agregar desde el detalle. Del lado del backend, con stock 0 ya no sale en la búsqueda; los inactivos indexados siguen en B-14.** | Front + Backend (B-14) |
 | | BUS-003 · EXP-004 | MEDIO | Los chips de filtro no filtran (siguen DeWalt, Bosch y sin marca); "Bosch + Inalámbrico" cae en unhappy y se pierden los filtros. | Backend (LLM) + Front |
-| | BUS-052 · BUS-060 | MEDIO | "Volver" y el Atrás del sistema se comportan distinto (error de red al refinar; Catálogo → Búsqueda → resultado). | Front |
+| | BUS-052 · BUS-060 | MEDIO | "Volver" y el Atrás del sistema se comportan distinto (error de red al refinar; Catálogo → Búsqueda → resultado). **Ola 2 (2026-10-30): Corregido: el Atrás del sistema hace lo mismo que "Volver" (historial y luego confirmación).** | Front |
 | | BUS-017 | BAJO | Interpretación de números (ver INI-015). | Backend (LLM) |
 | | EXP-005 | BAJO | Al volver por el historial, los chips aparecen desmarcados aunque los resultados están filtrados. | Front |
 | **04 · Catálogo** | CAT-030 · VOZ-009 | ALTO | El micrófono del Catálogo manda una búsqueda vacía (422) sin escuchar y a los 30 s vuelve a Home. **Ola 1 (2026-10-29): Corregido: el micrófono del Catálogo muestra "Escuchando...", sin búsqueda vacía ni 422.** | Front |
-| | CAT-024 · CAT-025 | MEDIO | "Volver" y Atrás del sistema con ítems en el carrito no hacen lo mismo. | Front |
+| | CAT-024 · CAT-025 | MEDIO | "Volver" y Atrás del sistema con ítems en el carrito no hacen lo mismo. **Ola 2 (2026-10-30): Corregido: con productos en el carrito, el Atrás del sistema pide confirmar como "Volver".** | Front |
 | | CAT-027 | BAJO | En vertical se recortan las pestañas. **Cerrado por la regla de solo horizontal (D12); sale de la ola 3.** | Front |
 | **05 · Detalle de producto** | DET-032 | CRÍTICO | Compartir con status FAILED (WhatsApp no entregado) se muestra como éxito. **Ola 1 (2026-10-29): Corregido en la app: con `FAILED` muestra "No pudimos enviar la cotización". La entrega real sigue bloqueada por el registro en Meta (#133010).** | Infra + Front + Backend |
 | | DET-031 | ALTO | Compartir un producto con descuento: el PDF usa el precio lleno, no el que vio el cliente. | Backend (B-01) + Front |
 | | DET-013 | ALTO | Un producto inactivo abre igual y se deja agregar. **Ola 1 (2026-10-29): Corregido: con el producto sin stock el detalle dice "No disponible por ahora" y desactiva agregar, compartir y cantidad. `active = false` cubierto por tests.** | Front + Backend (B-14) |
 | | DET-034 | ALTO | Se puede compartir un producto no AVAILABLE (LOW_STOCK); reintenta 3 veces un 400 determinista. **Ola 1 (2026-10-29): Corregido: un producto no vendible no se comparte y un 4xx se envía una sola vez. `LOW_STOCK` no se puede producir con el stock (la sync solo escribe `AVAILABLE` / `OUT_OF_STOCK` / `CONSULT`); cubierto por tests.** | Front + Backend |
 | | DET-012 | MEDIO | Un relacionado con descuento se muestra y se cobra a precio lleno. | Backend (B-02) + Front |
-| | DET-021 · DET-022 | MEDIO | Doble toque en relacionado y "Volver" rápido ×3 apilan/duplican pantallas. | Front |
+| | DET-021 · DET-022 | MEDIO | Doble toque en relacionado y "Volver" rápido ×3 apilan/duplican pantallas. **Ola 2 (2026-10-30): Corregido: doble toque en relacionado abre un solo detalle; "Volver" ×3 cierra solo uno.** | Front |
 | | DET-004 | BAJO | El stepper no vuelve a 1 tras "Agregar"; el segundo toque suma otra vez (3 + 3 = 6) sin aviso. | Front |
 | | DET-024 | BAJO | En vertical se recortan los botones del Detalle. **Cerrado por la regla de solo horizontal (D12); sale de la ola 3.** | Front |
 | | DET-063 · DET-062 | BAJO | Imagen rota o producto sin foto: área en blanco, sin placeholder. | Front |
@@ -51,16 +53,16 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | | CAR-012 · CAR-026 | ALTO | El total que ve el cliente (S/ 119.20) no coincide con el pedido ni el PDF (S/ 149.00); un cambio de precio no se refleja. | Backend (B-01) + Front |
 | | CAR-040 · CAR-041 | ALTO | El siguiente cliente hereda el carrito y el nombre/celular del anterior. **Ola 1 (2026-10-29): Corregido: a los 60 s sin uso vuelve a Home y el siguiente cliente encuentra el carrito y el formulario vacíos.** | Front |
 | | CAR-023 · CAR-025 | ALTO | Productos inactivos o LOW_STOCK se dejan agregar; el pedido da 400 y la app entra en un error genérico en bucle. **Ola 1 (2026-10-29): Corregido: el servidor responde `409 PRODUCT_NOT_SELLABLE` (el contrato aún dice 400); la app marca la línea "No disponible", bloquea pedido y compartir hasta quitarla y no repite el error.** | Front + Backend (B-14) |
-| | CAR-020 · CAR-021 · CAR-024 · CAR-011 | MEDIO | Validaciones que solo hace el servidor (carrito vacío, 21 productos) terminan en error genérico; Compartir reintenta 3 veces un 422. **Ola 1 (2026-10-29): Ola 1 solo CAR-011: un 4xx ya no se reintenta (cubierto por tests; el caso de 21 productos no se repitió en el emulador). Las validaciones locales (CAR-020/021/024) quedan para la ola 2.** | Front |
-| | CAR-033 | MEDIO | El error de Compartir usa el texto del pedido y "Cancelar orden" vacía el carrito. | Front |
+| | CAR-020 · CAR-021 · CAR-024 · CAR-011 | MEDIO | Validaciones que solo hace el servidor (carrito vacío, 21 productos) terminan en error genérico; Compartir reintenta 3 veces un 422. **Ola 1 (2026-10-29): Ola 1 solo CAR-011: un 4xx ya no se reintenta (cubierto por tests; el caso de 21 productos no se repitió en el emulador). Las validaciones locales (CAR-020/021/024) quedan para la ola 2.** **Ola 2 (2026-10-30): carrito vacío o formulario incompleto → acciones desactivadas; máximo 20 productos distintos, el 21.º se rechaza con aviso.** | Front |
+| | CAR-033 | MEDIO | El error de Compartir usa el texto del pedido y "Cancelar orden" vacía el carrito. **Ola 2 (2026-10-30): Corregido: el error de Compartir usa texto de cotización y solo "Entendido"; ya no vacía el carrito.** | Front |
 | | CAR-042 | MEDIO | El carrito se vacía a los 60 s mientras el cliente escribe en el diálogo. **Ola 1 (2026-10-29): Corregido: escribir en el diálogo del carrito mantiene la sesión (105 s escribiendo, carrito intacto).** | Front |
-| | CAR-043 · CAR-044 | MEDIO | Los diálogos se cierran con la petición en curso y la pantalla de éxito queda colgada. | Front |
+| | CAR-043 · CAR-044 | MEDIO | Los diálogos se cierran con la petición en curso y la pantalla de éxito queda colgada. **Ola 2 (2026-10-30): Corregido: el carrito y el diálogo de compartir no se cierran mientras envían; cerrar un resultado ejecuta su acción principal.** | Front |
 | | CAR-014 | BAJO | El celular acepta letras (teclado no numérico, a diferencia del Detalle). | Front |
-| | CAR-031 | BAJO | "Compartir" se ve habilitado con el formulario vacío y no hace nada. | Front |
+| | CAR-031 | BAJO | "Compartir" se ve habilitado con el formulario vacío y no hace nada. **Ola 2 (2026-10-30): Corregido: "Compartir" se desactiva con el formulario incompleto.** | Front |
 | | CAR-048 | BAJO | En vertical se recorta el precio del carrito. **Cerrado por la regla de solo horizontal (D12); sale de la ola 3.** | Front |
 | | CAR-080 | BAJO | Los EditText del carrito y del diálogo Compartir no exponen hint ni etiqueta. | Front |
 | **07 · Ajustes** | AJU-011 | ALTO | El PIN de Ajustes no tiene límite de intentos (50 fallidos seguidos). **Ola 1 (2026-10-29): Corregido: 5 intentos fallidos bloquean 24 h, el bloqueo sobrevive a reinicios y un PIN nuevo desde staff lo levanta. El salto de reloj de 24 h está cubierto por tests.** | Front |
-| | AJU-031 · AJU-050 | MEDIO | Sin red, Vincular muestra un error de código incorrecto y "Reintentar" genera un código en una tablet ya vinculada. | Front |
+| | AJU-031 · AJU-050 | MEDIO | Sin red, Vincular muestra un error de código incorrecto y "Reintentar" genera un código en una tablet ya vinculada. **Ola 2 (2026-10-30): Corregido en el código (error de conexión propio; "Reintentar" recarga los datos y nunca genera código). Falta probarlo con el PIN de salida.** | Front |
 | | AJU-030 · AJU-032 | BAJO | Comercio, actividad y "Código usado" muestran "Pendiente" (usa lastSyncAt, que es null). | Front |
 | | AJU-022 · AJU-040 · AJU-041 · AJU-043 | BAJO | Wi-Fi: sin botón para volver a pedir permiso, "Buscar redes" no hace nada, "Datos móviles" no permitido, 0 redes la primera vez. | Front |
 | **08 · Kiosko y comandos remotos** | KIO-041 · EXP-008 | CRÍTICO | RESTART_APP mata la app y deja la tablet en el escritorio de Android sin fijar; el comando queda ACKED. **Ola 1 (2026-10-29): Corregido en el código (relanzamiento sin salir de la fijación, 3/3 en API 26 y API 36). Falta probar `RESTART_APP` enviado desde staff.** | Front |
@@ -69,6 +71,6 @@ Fuente: *Qhathia Discovery — Reporte de QA, corrida completa del 25/10/2026 (v
 | **09 · Red y resiliencia** | RED-060 · RED-061 | MEDIO | Nombre y celular del cliente en logcat, celular en el log de biz, token STT en la respuesta; todo en HTTP plano. **Ola 1 (2026-10-29): RED-060 corregido en la app: nombre, celular, tokens y hash del PIN salen como `***` en logcat. RED-061 (log de biz, HTTP plano) es backend / infra.** | Front + Backend + Infra |
 | | RED-004 · EXP-011 | BAJO | Tras "Reintentar" en Detalle sin red no se recargan los relacionados. | Front |
 | **10 · Búsqueda por voz** | VOZ-009 | ALTO | Mic del Catálogo (ver CAT-030). **Ola 1 (2026-10-29): Corregido (ver CAT-030).** | Front |
-| | VOZ-003 | MEDIO | "No te escuché…" no vuelve a reposo (ver INI-051). | Front |
-| | VOZ-004 | MEDIO | La grabación sigue en segundo plano al salir de la app. | Front |
-| | VOZ-008 · VOZ-010 | MEDIO | Los micrófonos de Búsqueda (sin permiso) y de Detalle no hacen nada ni avisan. | Front |
+| | VOZ-003 | MEDIO | "No te escuché…" no vuelve a reposo (ver INI-051). **Ola 2 (2026-10-30): Corregido (ver INI-051).** | Front |
+| | VOZ-004 | MEDIO | La grabación sigue en segundo plano al salir de la app. **Ola 2 (2026-10-30): Corregido: Home y Búsqueda dejan de grabar al salir de la pantalla o de la app.** | Front |
+| | VOZ-008 · VOZ-010 | MEDIO | Los micrófonos de Búsqueda (sin permiso) y de Detalle no hacen nada ni avisan. **Ola 2 (2026-10-30): Corregido: los micrófonos de Búsqueda, Catálogo y Detalle piden el permiso; el de Detalle abre la búsqueda por voz.** | Front |
