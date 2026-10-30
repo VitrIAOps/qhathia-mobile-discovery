@@ -36,6 +36,9 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  * @param containerColor background color; defaults to the primary `Blue700` fill.
  * @param contentColor label / icon / spinner color; defaults to white.
  * @param leadingIconRes optional icon drawn after the label (e.g. the WhatsApp glyph on "Compartir").
+ * @param fillMaxWidth `false` to size the button to its label (e.g. a "Reintentar" under a message).
+ * @param iconContentDescription when set, read as the button's label instead of [text] (e.g.
+ *   "Compartir por WhatsApp"), so the icon's meaning is not lost.
  */
 @Composable
 fun PrimaryActionButton(
@@ -48,14 +51,16 @@ fun PrimaryActionButton(
     contentColor: Color = Color.White,
     leadingIconRes: Int? = null,
     iconContentDescription: String? = null,
+    fillMaxWidth: Boolean = true,
 ) {
     Row(
         modifier = modifier
-            .fillMaxWidth()
+            .then(if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier)
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(containerColor)
             .clickable(enabled = enabled && !isLoading, onClick = onClick)
+            .labeled(iconContentDescription ?: text)
             .padding(horizontal = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -68,7 +73,7 @@ fun PrimaryActionButton(
                 Spacer(modifier = Modifier.width(Spacing.sm))
                 Icon(
                     painter = painterResource(leadingIconRes),
-                    contentDescription = iconContentDescription,
+                    contentDescription = null, // the label is on the button itself
                     tint = contentColor,
                     modifier = Modifier.size(16.dp),
                 )

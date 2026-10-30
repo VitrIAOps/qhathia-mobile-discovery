@@ -390,7 +390,7 @@ class ProductSearchViewModel @Inject constructor(
     }
 
     private fun settle(source: SearchSource, phase: ProductSearchPhase, query: String) {
-        history += HistoryEntry(source, phase, query)
+        history += HistoryEntry(source, phase, query, selectedFilters.toList(), selectedSuggestion)
         _uiState.update {
             it.copy(
                 source = source,
@@ -423,16 +423,19 @@ class ProductSearchViewModel @Inject constructor(
 
     private fun showEntry(entry: HistoryEntry) {
         cancelTimers()
-        // History entries are settled snapshots — restore their base query and drop the live selection.
+        // History entries are settled snapshots: restore their base query and the chips that were
+        // selected for that result (EXP-005). The result itself is not searched again.
         clearSelection()
+        selectedFilters.addAll(entry.filters)
+        selectedSuggestion = entry.suggestion
         baseQuery = entry.query
         _uiState.update {
             it.copy(
                 source = entry.source,
                 phase = entry.phase,
                 canGoBack = history.size > 1,
-                selectedFilters = persistentSetOf(),
-                selectedSuggestion = null,
+                selectedFilters = selectedFilters.toImmutableSet(),
+                selectedSuggestion = selectedSuggestion,
             )
         }
         if (entry.phase is ProductSearchPhase.Unhappy) startIdleTimer()
@@ -503,6 +506,8 @@ class ProductSearchViewModel @Inject constructor(
         val source: SearchSource,
         val phase: ProductSearchPhase,
         val query: String,
+        val filters: List<SearchFilterOption> = emptyList(),
+        val suggestion: String? = null,
     )
 
 

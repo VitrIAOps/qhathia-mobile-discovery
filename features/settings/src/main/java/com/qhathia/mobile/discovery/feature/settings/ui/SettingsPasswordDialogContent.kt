@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.settings.ui
 
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -219,7 +220,7 @@ private fun KeyRow(content: @Composable RowScope.() -> Unit) {
 
 @Composable
 private fun RowScope.DigitKey(digit: String, onDigit: (String) -> Unit, enabled: Boolean = true) {
-    KeyCell(onClick = { onDigit(digit) }, enabled = enabled) {
+    KeyCell(label = digit, onClick = { onDigit(digit) }, enabled = enabled) {
         Text(
             text = digit,
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -230,10 +231,10 @@ private fun RowScope.DigitKey(digit: String, onDigit: (String) -> Unit, enabled:
 
 @Composable
 private fun RowScope.BackspaceKey(onBackspace: () -> Unit, enabled: Boolean = true) {
-    KeyCell(onClick = onBackspace, enabled = enabled) {
+    KeyCell(label = stringResource(R.string.settings_pin_backspace_cd), onClick = onBackspace, enabled = enabled) {
         Icon(
             painter = painterResource(R.drawable.ic_backspace),
-            contentDescription = stringResource(R.string.settings_pin_backspace_cd),
+            contentDescription = null, // the label is on the key itself
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else DISABLED_ALPHA),
             modifier = Modifier.size(28.dp),
         )
@@ -242,10 +243,10 @@ private fun RowScope.BackspaceKey(onBackspace: () -> Unit, enabled: Boolean = tr
 
 @Composable
 private fun RowScope.ConfirmKey(enabled: Boolean, onSubmit: () -> Unit) {
-    KeyCell(onClick = onSubmit, enabled = enabled) {
+    KeyCell(label = stringResource(R.string.settings_pin_confirm_cd), onClick = onSubmit, enabled = enabled) {
         Icon(
             painter = painterResource(R.drawable.ic_check),
-            contentDescription = stringResource(R.string.settings_pin_confirm_cd),
+            contentDescription = null, // the label is on the key itself
             tint = if (enabled) DiscoveryColors.Teal400 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA),
             modifier = Modifier.size(28.dp),
         )
@@ -253,7 +254,12 @@ private fun RowScope.ConfirmKey(enabled: Boolean, onSubmit: () -> Unit) {
 }
 
 @Composable
-private fun RowScope.KeyCell(onClick: () -> Unit, enabled: Boolean = true, content: @Composable () -> Unit) {
+private fun RowScope.KeyCell(
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     Surface(
         modifier = Modifier
             .weight(1f)
@@ -264,7 +270,7 @@ private fun RowScope.KeyCell(onClick: () -> Unit, enabled: Boolean = true, conte
         shadowElevation = 2.dp,
     ) {
         Box(
-            modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
+            modifier = Modifier.clickable(enabled = enabled, onClick = onClick).labeled(label),
             contentAlignment = Alignment.Center,
             content = { content() },
         )

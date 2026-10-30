@@ -8,19 +8,23 @@ import kotlinx.collections.immutable.persistentListOf
  * Immutable snapshot of the Network settings screen.
  *
  * @property wifiEnabled whether Wi-Fi is on (when off, the network list is hidden).
- * @property mobileDataEnabled whether mobile data is active.
+ * @property mobileDataEnabled whether the mobile-data setting is on (shown as a status, read-only).
+ * @property simAvailable whether the tablet can use mobile data; without it the row shows "Sin SIM".
  * @property airplaneModeActive whether airplane mode is on (blocks selecting/changing a network).
  * @property networks the accessible Wi-Fi networks.
  * @property selectedSecuredNetwork the secured network awaiting a password (drives the Wi-Fi dialog).
  * @property wifiPasswordInput the password typed into the Wi-Fi dialog.
  * @property isConnecting whether a connection attempt is in progress.
  * @property connectionError whether the last connection attempt failed.
- * @property actionNotPermitted whether the last toggle was rejected by the OS.
+ * @property actionNotPermitted whether the last Wi-Fi toggle was rejected by the OS.
  * @property locationPermissionGranted whether location access (required for scans) was granted.
+ * @property locationPermissionBlocked whether Android no longer shows the location request, so it must
+ *   be allowed from the device settings.
  */
 data class NetworkSettingsUiState(
     val wifiEnabled: Boolean = false,
     val mobileDataEnabled: Boolean = false,
+    val simAvailable: Boolean = false,
     val airplaneModeActive: Boolean = false,
     val networks: ImmutableList<WifiNetwork> = persistentListOf(),
     val selectedSecuredNetwork: WifiNetwork? = null,
@@ -29,6 +33,7 @@ data class NetworkSettingsUiState(
     val connectionError: Boolean = false,
     val actionNotPermitted: Boolean = false,
     val locationPermissionGranted: Boolean = false,
+    val locationPermissionBlocked: Boolean = false,
 ) {
     /** A network can be selected/changed only when airplane mode is off (business rule). */
     val selectionEnabled: Boolean get() = !airplaneModeActive

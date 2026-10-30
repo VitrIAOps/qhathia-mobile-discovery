@@ -25,18 +25,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.ui.component.CloseIconButton
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryTextField
 import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
+import com.qhathia.mobile.discovery.core.ui.component.ProductImage
 import com.qhathia.mobile.discovery.core.ui.component.QuantityStepper
 import com.qhathia.mobile.discovery.core.ui.component.SubmissionErrorContent
 import com.qhathia.mobile.discovery.core.ui.component.SubmissionLine
@@ -236,14 +235,12 @@ private fun CartLineCard(
             modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            AsyncImage(
-                model = item.imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
+            ProductImage(
+                url = item.imageUrl,
+                contentDescription = null, // the name next to it is the accessible label
                 modifier = Modifier
                     .size(60.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DiscoveryColors.Neutral50),
+                    .clip(RoundedCornerShape(8.dp)),
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Row(verticalAlignment = Alignment.Top) {

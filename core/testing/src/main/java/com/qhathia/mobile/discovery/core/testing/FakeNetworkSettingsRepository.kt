@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * In-memory [NetworkSettingsRepository] for ViewModel tests. The connectivity and network flows are
  * mutable so tests can drive state changes; the toggle/connect actions record their last argument and
  * (for the Wi-Fi toggle) reflect the change back into the connectivity flow, mimicking the platform.
+ * [rescanCount] counts the scans requested.
  */
 class FakeNetworkSettingsRepository(
     initialState: NetworkConnectivityState = NetworkConnectivityState.EMPTY,
@@ -21,9 +22,10 @@ class FakeNetworkSettingsRepository(
     val networks = MutableStateFlow(initialNetworks)
 
     var setWifiResult: Result<Unit> = Result.success(Unit)
-    var setMobileDataResult: Result<Unit> =
-        Result.failure(UnsupportedOperationException("not permitted"))
     var connectResult: Result<Unit> = Result.success(Unit)
+
+    var rescanCount: Int = 0
+        private set
 
     var lastConnectedSsid: String? = null
         private set
@@ -41,11 +43,8 @@ class FakeNetworkSettingsRepository(
         return setWifiResult
     }
 
-    override suspend fun setMobileDataEnabled(enabled: Boolean): Result<Unit> {
-        if (setMobileDataResult.isSuccess) {
-            connectivity.value = connectivity.value.copy(mobileDataEnabled = enabled)
-        }
-        return setMobileDataResult
+    override fun rescan() {
+        rescanCount++
     }
 
     override suspend fun connect(ssid: String, password: String?): Result<Unit> {

@@ -312,6 +312,15 @@ class CartViewModelTest {
         }
 
     @Test
+    fun given_letters_typed_in_phone_then_only_digits_kept() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()))
+
+        vm.onEvent(CartUiEvent.PhoneChanged("98a7b"))
+
+        assertEquals("987", vm.uiState.value.phone)
+    }
+
+    @Test
     fun given_empty_basket_with_valid_data_then_actions_disabled() = runTest(mainDispatcher.dispatcher) {
         val vm = viewModel(FakeCartRepository())
         vm.enterValidData()

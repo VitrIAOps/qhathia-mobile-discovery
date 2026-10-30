@@ -11,8 +11,8 @@ import javax.inject.Inject
 /**
  * [NetworkSettingsRepository] mapping the Android data sources to domain models. The accessible-network
  * list is the Wi-Fi scan combined with the live connectivity snapshot so each entry can be flagged as
- * connected. Mobile-data toggling has no supported API for non-privileged apps, so it always returns a
- * clear [Result.failure]; Wi-Fi enable/connect delegate to the supported [WifiDataSource] paths.
+ * connected. Mobile data is read-only (a non-system app cannot change it); Wi-Fi enable/connect and the
+ * rescan delegate to the supported [WifiDataSource] paths.
  */
 class NetworkSettingsRepositoryImpl @Inject constructor(
     private val wifiDataSource: WifiDataSource,
@@ -33,17 +33,15 @@ class NetworkSettingsRepositoryImpl @Inject constructor(
     override suspend fun setWifiEnabled(enabled: Boolean): Result<Unit> =
         wifiDataSource.setWifiEnabled(enabled)
 
-    override suspend fun setMobileDataEnabled(enabled: Boolean): Result<Unit> =
-        Result.failure(
-            UnsupportedOperationException("Toggling mobile data is not permitted for non-privileged apps"),
-        )
+    override fun rescan() = wifiDataSource.rescan()
 
     override suspend fun connect(ssid: String, password: String?): Result<Unit> =
         wifiDataSource.connect(ssid, password)
 
     private fun ConnectivitySnapshot.toDomain(): NetworkConnectivityState = NetworkConnectivityState(
         wifiEnabled = wifiEnabled,
-        mobileDataEnabled = mobileDataActive,
+        mobileDataEnabled = mobileDataEnabled,
+        simAvailable = simAvailable,
         airplaneModeActive = airplaneModeActive,
         connectedSsid = connectedSsid,
     )

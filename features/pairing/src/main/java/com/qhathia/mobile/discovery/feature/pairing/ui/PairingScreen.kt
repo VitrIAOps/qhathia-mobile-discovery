@@ -8,9 +8,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qhathia.mobile.discovery.feature.pairing.R
+import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEffect
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
 
@@ -45,6 +47,14 @@ fun PairingScreen(
     DisposableEffect(viewModel) {
         viewModel.start()
         onDispose { viewModel.stop() }
+    }
+
+    // The screen stays on while a code is shown, before kiosk mode exists (EXP-003).
+    val view = LocalView.current
+    val showingCode = uiState.phase == PairingPhase.WaitingForApproval
+    DisposableEffect(view, showingCode) {
+        view.keepScreenOn = showingCode
+        onDispose { view.keepScreenOn = false }
     }
 
     LaunchedEffect(viewModel) {

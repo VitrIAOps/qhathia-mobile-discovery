@@ -19,7 +19,6 @@
 
     <!-- Content descriptions (feature-specific; shared CDs live in core:ui). -->
     <string name="pd_back_cd">Volver a los resultados</string>
-    <string name="pd_product_image_cd">Foto del producto</string>
     <string name="pd_loading_cd">Cargando detalle del producto</string>
 
     <!-- Close-current-search confirmation dialog (feature-specific title/message). -->

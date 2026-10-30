@@ -2,8 +2,6 @@ package com.qhathia.mobile.discovery.core.ui.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,18 +20,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import kotlinx.collections.immutable.ImmutableList
@@ -71,8 +67,13 @@ fun SubmittingOverlay(
             .fillMaxSize()
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.scrim.copy(alpha = SCRIM_ALPHA))
-            // Consume all taps so no input below the overlay is reachable during submission.
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+            // Consume every pointer event so nothing below the overlay is reachable during submission.
+            // Not a clickable: it is not a control, so accessibility services do not list it.
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(
@@ -181,14 +182,12 @@ private fun SubmissionLineRow(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = line.imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
+            ProductImage(
+                url = line.imageUrl,
+                contentDescription = null, // the name next to it is the accessible label
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DiscoveryColors.Neutral50),
+                    .clip(RoundedCornerShape(8.dp)),
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Text(

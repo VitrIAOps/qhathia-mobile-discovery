@@ -36,7 +36,7 @@ internal fun DeviceTokenResponseDto.toPairedDevice(pairingCode: String?): Paired
     pairingCode = pairingCode,
 )
 
-internal fun DeviceInfoResponseDto.toPairedDevice(pairingCode: String?): PairedDevice = PairedDevice(
+internal fun DeviceInfoResponseDto.toPairedDevice(pairingCode: String?, storeName: String?): PairedDevice = PairedDevice(
     deviceId = deviceId,
     storeId = storeId,
     deviceName = deviceName,
@@ -44,7 +44,9 @@ internal fun DeviceInfoResponseDto.toPairedDevice(pairingCode: String?): PairedD
     status = status,
     appVersion = appVersion,
     lastSyncAt = lastSyncAt?.let(::parseInstantOrNull),
+    lastSeenAt = lastSeenAt?.let(::parseInstantOrNull),
     pairingCode = pairingCode,
+    storeName = storeName,
 )
 
 /** Maps a raw socket status to the domain enum; returns `null` for unrecognized values. */

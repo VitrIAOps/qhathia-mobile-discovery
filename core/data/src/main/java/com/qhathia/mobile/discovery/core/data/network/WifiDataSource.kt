@@ -26,6 +26,12 @@ interface WifiDataSource {
     /** Emits the currently discovered access points and re-emits as new scan results arrive. */
     fun observeScanResults(): Flow<List<WifiScanResult>>
 
+    /**
+     * Asks the platform for a new scan and re-emits the latest results right away, so a throttled
+     * scan (4 per 2 minutes on API 28+) or a permission granted just now still refreshes the list.
+     */
+    fun rescan()
+
     /** Turns Wi-Fi on/off where the OS still permits it (API < 29); otherwise a [Result.failure]. */
     suspend fun setWifiEnabled(enabled: Boolean): Result<Unit>
 

@@ -20,8 +20,8 @@ class StoreSessionRepositoryImpl @Inject constructor(
 
     override suspend fun deviceAccessToken(): String? = localDataSource.deviceAccessToken()
 
-    override suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?) =
-        localDataSource.saveDeviceSession(deviceAccessToken, deviceName)
+    override suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?, pairingCode: String?) =
+        localDataSource.saveDeviceSession(deviceAccessToken, deviceName, pairingCode)
 
     override suspend fun clearDeviceSession() = localDataSource.clearDeviceSession()
 }

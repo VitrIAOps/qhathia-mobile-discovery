@@ -29,7 +29,10 @@ data class DeviceTokenResponseDto(
     val status: String,
 )
 
-/** Response of `GET /api/v1/devices/me`. */
+/**
+ * Response of `GET /api/v1/devices/me`. [storeName] is not sent by the backend yet; the app reads it
+ * when it arrives and keeps its placeholder while it is absent.
+ */
 @Serializable
 data class DeviceInfoResponseDto(
     val deviceId: String,
@@ -41,6 +44,7 @@ data class DeviceInfoResponseDto(
     val pairedAt: String? = null,
     val lastSeenAt: String? = null,
     val lastSyncAt: String? = null,
+    val storeName: String? = null,
 )
 
 /** Status message pushed over the pairing-session WebSocket (`server → tablet`). */

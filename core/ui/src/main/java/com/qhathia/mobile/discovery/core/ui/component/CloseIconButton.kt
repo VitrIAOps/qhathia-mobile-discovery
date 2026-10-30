@@ -46,12 +46,13 @@ fun CloseIconButton(
             .size(size)
             .clip(shape)
             .then(if (bordered) Modifier.border(1.dp, DiscoveryColors.Divider, shape) else Modifier)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .then(if (contentDescription != null) Modifier.labeled(contentDescription) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_close),
-            contentDescription = contentDescription,
+            contentDescription = null, // the label is on the button itself
             tint = tint,
             modifier = Modifier.size(iconSize),
         )

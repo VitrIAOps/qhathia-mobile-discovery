@@ -21,6 +21,7 @@ import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEn
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.filterPhoneInput
 import com.qhathia.mobile.discovery.core.ui.component.SubmissionLine
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEffect
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiEvent
@@ -91,7 +92,7 @@ class ProductDetailViewModel @Inject constructor(
 
     fun onEvent(event: ProductDetailUiEvent) {
         when (event) {
-            ProductDetailUiEvent.Retry -> load()
+            ProductDetailUiEvent.Retry -> retry()
             ProductDetailUiEvent.Back -> emit(ProductDetailUiEffect.NavigateBack)
             ProductDetailUiEvent.NewSearch -> _uiState.update { it.copy(showCloseConfirmDialog = true) }
             ProductDetailUiEvent.ConfirmCloseSearch -> confirmCloseSearch()
@@ -152,7 +153,8 @@ class ProductDetailViewModel @Inject constructor(
         updateShare { it.copy(name = name, nameError = error, isShareEnabled = error == null && it.phoneError == null) }
     }
 
-    private fun onSharePhoneChanged(phone: String) {
+    private fun onSharePhoneChanged(raw: String) {
+        val phone = filterPhoneInput(raw)
         val error = validatePhone(phone)
         updateShare { it.copy(phone = phone, phoneError = error, isShareEnabled = it.nameError == null && error == null) }
     }
@@ -190,7 +192,8 @@ class ProductDetailViewModel @Inject constructor(
     private fun onAddToCart() {
         val detail = orderableDetail() ?: return
         val quantity = _uiState.value.quantity
-        addAndReportLimit(detail.toCartItem(quantity))
+        // The stepper goes back to 1 once the units are in the cart, so a second tap adds one (DET-004).
+        addAndReportLimit(detail.toCartItem(quantity)) { _uiState.update { it.copy(quantity = 1) } }
     }
 
     private fun onAddRelatedToCart(productId: String) {
@@ -237,6 +240,12 @@ class ProductDetailViewModel @Inject constructor(
      * success or any failure collapses to the empty state, so a suggestions error never breaks the
      * detail screen.
      */
+    /** "Reintentar": reloads the product and, unless they are already shown, its related products (RED-004). */
+    private fun retry() {
+        load()
+        if (_uiState.value.relatedProducts !is ProductDetailUiState.RelatedProducts.Loaded) loadSuggestions()
+    }
+
     private fun loadSuggestions() {
         _uiState.update { it.copy(relatedProducts = ProductDetailUiState.RelatedProducts.Loading) }
         viewModelScope.launch {
@@ -267,9 +276,13 @@ class ProductDetailViewModel @Inject constructor(
         }
 
     /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
-    private fun addAndReportLimit(item: CartItem) {
+    private fun addAndReportLimit(item: CartItem, onAdded: () -> Unit = {}) {
         viewModelScope.launch {
-            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(ProductDetailUiEffect.LineLimitReached)
+            when (addToCart(item)) {
+                AddToCartResult.Added -> onAdded()
+                AddToCartResult.LineLimitReached -> emit(ProductDetailUiEffect.LineLimitReached)
+                AddToCartResult.NotOrderable -> Unit
+            }
         }
     }
 }

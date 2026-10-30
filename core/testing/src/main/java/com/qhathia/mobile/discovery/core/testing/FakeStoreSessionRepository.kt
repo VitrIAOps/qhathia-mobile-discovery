@@ -24,11 +24,15 @@ class FakeStoreSessionRepository(
 
     override suspend fun deviceAccessToken(): String? = state.value.deviceAccessToken
 
-    override suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?) {
-        state.value = state.value.copy(deviceAccessToken = deviceAccessToken, deviceName = deviceName)
+    override suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?, pairingCode: String?) {
+        state.value = state.value.copy(
+            deviceAccessToken = deviceAccessToken,
+            deviceName = deviceName,
+            pairingCode = pairingCode,
+        )
     }
 
     override suspend fun clearDeviceSession() {
-        state.value = state.value.copy(deviceAccessToken = null, deviceName = null)
+        state.value = state.value.copy(deviceAccessToken = null, deviceName = null, pairingCode = null)
     }
 }

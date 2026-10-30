@@ -26,13 +26,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.qhathia.mobile.discovery.core.ui.R
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
@@ -71,17 +71,21 @@ fun ProductRowCard(
     originalPriceText: String? = null,
     cartEnabled: Boolean = true,
 ) {
-    Box(
-        modifier = modifier.width(CARD_WIDTH).height(CARD_HEIGHT).clickable(onClick = onClick)
-    ) {
+    Box(modifier = modifier.width(CARD_WIDTH).height(CARD_HEIGHT)) {
+        // The card's own tap lives on a background layer labelled with the name and price, so the
+        // touchable node carries the label and the add button stays a separate control.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(onClick = onClick)
+                .labeled(cardLabel(name, priceText)),
+        )
         Row {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null, // the name below is the accessible label
+            ProductImage(
+                url = imageUrl,
+                contentDescription = null, // the card label names the product
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(CARD_HEIGHT)
-                    .background(DiscoveryColors.Neutral50),
+                modifier = Modifier.size(CARD_HEIGHT),
             )
             Column(
                 modifier = Modifier
@@ -91,6 +95,7 @@ fun ProductRowCard(
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 Text(
+                    modifier = Modifier.clearAndSetSemantics {},
                     text = categoryName.uppercase(),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, letterSpacing = 0.8.sp),
                     color = DiscoveryColors.AccentOrange,
@@ -98,6 +103,7 @@ fun ProductRowCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
+                    modifier = Modifier.clearAndSetSemantics {},
                     text = name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -111,7 +117,7 @@ fun ProductRowCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f, fill = false).clearAndSetSemantics {},
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -158,12 +164,13 @@ private fun AddToCartButton(
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(CircleShape)
             .background(DiscoveryColors.CatalogText)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick)
+            .labeled(contentDescription),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_cart),
-            contentDescription = contentDescription,
+            contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(18.dp),
         )
