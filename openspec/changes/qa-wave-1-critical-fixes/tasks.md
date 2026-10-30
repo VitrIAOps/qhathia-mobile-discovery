@@ -110,7 +110,7 @@
 
 - [x] 11.1 `./gradlew testDebugUnitTest` (JDK 21 JBR) green; fix any regression in existing tests.
 - [x] 11.2 `./gradlew lint assembleDebug assembleProfile` green.
-- [ ] 11.3 Emulator QA (`profile` APK on `Medium_Tablet` API 26 and the API 36 tablet AVD), automated with adb (uiautomator dump, screenshots, logcat). Per case:
+- [x] 11.3 Emulator QA (`profile` APK on `Medium_Tablet` API 26 and the API 36 tablet AVD), automated with adb (uiautomator dump, screenshots, logcat). Per case:
   - Landscape: on both AVDs, on every screen (onboarding, pairing, Home, catalog, search, detail, cart, settings), set `user_rotation 0` / `2` with auto-rotate off and on → still landscape (`dumpsys window | grep -i rotation` + screenshot), and the activity is not recreated (no new `onCreate` in logcat).
   - Pairing (no approval needed): a code on screen for more than 90 s → the socket is still open or reconnected (logcat), zero calls to `/token` while waiting; `svc wifi disable` / `enable` → immediate reconnect, same code.
   - CAT-030: Catalog mic shows the listening state; no `422` in logcat.
@@ -124,6 +124,7 @@
   - EXP-001 / 006 / 010: with kiosk active, open the cart, the share dialog and the keyboard → `dumpsys window` shows the bars hidden; screenshot.
   - EXP-002 / 007: refuse the pinning dialog, go back to Home → asked again; not again within 15 s.
   - RED-060: `logcat | grep` for the test name and phone → no matches; `***` present.
+  - Done 2026-10-29, results in `qa-report.md`. Found and fixed during the run: the pairing code after "Volver" (`b51522c`), the navigation bar after the keyboard on API 26 (`efe9df7`), and the server's `409 PRODUCT_NOT_SELLABLE` not flagging cart lines (`a7ecf1d`). Partial: `LOW_STOCK` cannot be produced from stock (DET-034); the AJU-011 clock jump needs a debuggable image (unit tests cover it); `RESTART_APP` from staff is in 11.4.
 - [ ] 11.4 User-assisted QA (needs the staff app or an OWNER token):
   - VIN-031: approve after 70 s → pairs.
   - VIN-032: `svc wifi disable` for 20 s while approving → pairs when the network comes back, with a single `/token` call.
@@ -131,4 +132,5 @@
   - KIO-041: `RESTART_APP` while pinned → `pidof` changes, still pinned, command ACKED only after the relaunch.
   - Live `kioskMode` toggle regression.
 - [ ] 11.5 Regression sweep of the wave-1 flows: order happy path, catalog → detail → cart, voice from Home, settings ↔ Home 10 times while pinned.
-- [ ] 11.6 Complete `qa-report.md` (before / after / evidence for each case ID), note what stays blocked by backend, and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with the status of each wave-1 case.
+- [x] 11.6 Complete `qa-report.md` (before / after / evidence for each case ID), note what stays blocked by backend, and update `docs/handoff/qa-2026-10-25-casos-observados-por-flujo.md` with the status of each wave-1 case.
+  - Done 2026-10-29. `qa-report.md` has a summary and a "Blocked by backend or infrastructure" table; the handoff has a wave-1 status note above the table and an **Ola 1** status in each wave-1 row. Cases that still need the staff app (VIN-031/032 approval, KIO-041) are marked as pending 11.4.
