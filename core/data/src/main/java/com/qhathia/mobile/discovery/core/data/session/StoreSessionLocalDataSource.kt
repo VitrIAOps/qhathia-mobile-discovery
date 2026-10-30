@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.core.data.session
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -32,15 +33,12 @@ class StoreSessionLocalDataSource @Inject constructor(
     /** Reads the persisted DEVICE access token, or `null` when not paired. */
     suspend fun deviceAccessToken(): String? = dataStore.data.first()[KEY_DEVICE_TOKEN]
 
-    /** Persists the DEVICE access token and device name produced by pairing. */
-    suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?) {
+    /** Persists the DEVICE access token, device name and pairing code produced by pairing. */
+    suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?, pairingCode: String?) {
         dataStore.edit { preferences ->
             preferences[KEY_DEVICE_TOKEN] = deviceAccessToken
-            if (deviceName.isNullOrBlank()) {
-                preferences.remove(KEY_DEVICE_NAME)
-            } else {
-                preferences[KEY_DEVICE_NAME] = deviceName
-            }
+            preferences.putOrRemove(KEY_DEVICE_NAME, deviceName)
+            preferences.putOrRemove(KEY_PAIRING_CODE, pairingCode)
         }
     }
 
@@ -49,18 +47,25 @@ class StoreSessionLocalDataSource @Inject constructor(
         dataStore.edit { preferences ->
             preferences.remove(KEY_DEVICE_TOKEN)
             preferences.remove(KEY_DEVICE_NAME)
+            preferences.remove(KEY_PAIRING_CODE)
         }
+    }
+
+    private fun MutablePreferences.putOrRemove(key: Preferences.Key<String>, value: String?) {
+        if (value.isNullOrBlank()) remove(key) else this[key] = value
     }
 
     private fun Preferences.toStoreSession(): StoreSession = StoreSession(
         storeName = this[KEY_STORE_NAME],
         deviceAccessToken = this[KEY_DEVICE_TOKEN],
         deviceName = this[KEY_DEVICE_NAME],
+        pairingCode = this[KEY_PAIRING_CODE],
     )
 
     private companion object {
         val KEY_STORE_NAME = stringPreferencesKey("store_name")
         val KEY_DEVICE_TOKEN = stringPreferencesKey("device_access_token")
         val KEY_DEVICE_NAME = stringPreferencesKey("device_name")
+        val KEY_PAIRING_CODE = stringPreferencesKey("pairing_code")
     }
 }

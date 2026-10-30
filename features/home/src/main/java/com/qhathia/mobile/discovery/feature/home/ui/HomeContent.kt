@@ -36,9 +36,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
@@ -98,10 +101,15 @@ fun HomeContent(
                 .align(Alignment.BottomStart)
                 .padding(start = Spacing.lg, bottom = Spacing.lg),
         ) {
-            IconButton(onClick = { onEvent(HomeUiEvent.OpenSettings) }) {
+            val settingsLabel = stringResource(R.string.home_settings_cd)
+            IconButton(
+                onClick = { onEvent(HomeUiEvent.OpenSettings) },
+                // Plain semantics: the icon adds no node, so the label stays on the button itself.
+                modifier = Modifier.semantics { contentDescription = settingsLabel },
+            ) {
                 Icon(
                     imageVector = Icons.Filled.Settings,
-                    contentDescription = stringResource(R.string.home_settings_cd),
+                    contentDescription = null, // the label is on the button itself
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(32.dp),
                 )
@@ -144,16 +152,18 @@ private fun TopBar(
 
 @Composable
 private fun CatalogLink(onClick: () -> Unit) {
+    val label = stringResource(R.string.home_catalog)
     Row(
         modifier = Modifier
             .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
+            .labeled(label)
             .padding(horizontal = Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(R.string.home_catalog),
+            text = label,
             style = MaterialTheme.typography.labelLarge,
             color = DiscoveryColors.CatalogText,
         )

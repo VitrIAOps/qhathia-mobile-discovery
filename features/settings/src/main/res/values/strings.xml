@@ -29,12 +29,14 @@
     <string name="network_row_secured">Red protegida · WPA/WPA2</string>
     <string name="network_row_open">Red abierta</string>
     <string name="network_mobile_data">Datos móviles</string>
+    <string name="network_mobile_data_active">Activos</string>
+    <string name="network_mobile_data_inactive">Inactivos</string>
+    <string name="network_mobile_data_no_sim">Sin SIM</string>
+    <string name="network_mobile_data_open">Abrir ajustes de datos</string>
     <string name="network_wifi">Wi-Fi</string>
     <string name="network_available_networks">Redes disponibles</string>
     <string name="network_connected">Conectado</string>
-    <string name="network_secured_cd">Red protegida</string>
     <string name="network_open_cd">Red abierta</string>
-    <string name="network_signal_cd">Intensidad de señal</string>
     <string name="network_wifi_icon_cd">Red Wi-Fi</string>
 
     <!-- States. -->
@@ -44,6 +46,8 @@
     <string name="network_airplane_mode_active">El modo avión está activado</string>
     <string name="network_wifi_off">Activa el Wi-Fi para ver las redes disponibles</string>
     <string name="network_location_required">Permite el acceso a la ubicación para buscar redes Wi-Fi</string>
+    <string name="network_location_allow">Permitir ubicación</string>
+    <string name="network_location_blocked">Android ya no muestra la solicitud. Permite la ubicación desde los ajustes del dispositivo, fuera del modo kiosko.</string>
 
     <!-- Wi-Fi password dialog. -->
     <string name="wifi_password_label">Contraseña</string>

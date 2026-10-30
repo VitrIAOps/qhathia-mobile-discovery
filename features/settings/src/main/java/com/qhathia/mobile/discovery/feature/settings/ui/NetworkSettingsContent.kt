@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -32,11 +33,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.domain.model.WifiNetwork
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -98,12 +101,12 @@ private fun MainPanel(
             )
         }
 
-        // Kept controls (not in the Figma but required): mobile data above Wi-Fi.
-        ToggleRow(
-            iconRes = R.drawable.ic_signal,
-            label = stringResource(R.string.network_mobile_data),
-            checked = uiState.mobileDataEnabled,
-            onCheckedChange = { onEvent(NetworkSettingsUiEvent.ToggleMobileData(it)) },
+        // Kept controls (not in the Figma but required): mobile data above Wi-Fi. Mobile data is a
+        // status only: Android does not let the app change it, the button opens Android's screen.
+        MobileDataRow(
+            enabled = uiState.mobileDataEnabled,
+            simAvailable = uiState.simAvailable,
+            onOpenSettings = { onEvent(NetworkSettingsUiEvent.OpenMobileDataSettings) },
         )
         ToggleRow(
             iconRes = R.drawable.ic_wifi,
@@ -121,7 +124,10 @@ private fun MainPanel(
 
         when {
             !uiState.wifiEnabled -> InfoBanner(text = stringResource(R.string.network_wifi_off))
-            uiState.showLocationRequired -> InfoBanner(text = stringResource(R.string.network_location_required))
+            uiState.showLocationRequired -> LocationRequired(
+                blocked = uiState.locationPermissionBlocked,
+                onAllow = { onEvent(NetworkSettingsUiEvent.RequestLocationPermission) },
+            )
             else -> AvailableNetworks(uiState = uiState, onEvent = onEvent)
         }
     }
@@ -144,6 +150,7 @@ private fun Toolbar(onSearch: () -> Unit) {
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onSearch)
+                    .labeled(stringResource(R.string.network_search))
                     .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -177,10 +184,13 @@ private fun ToggleRow(
         color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, DiscoveryColors.Divider),
     ) {
+        // The whole row is the switch, so the touchable element carries the label.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
+                .toggleable(value = checked, onValueChange = onCheckedChange, role = Role.Switch)
+                .labeled(label, role = null)
                 .padding(horizontal = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -197,9 +207,97 @@ private fun ToggleRow(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Switch(checked = checked, onCheckedChange = null)
         }
     }
+}
+
+/**
+ * "Datos móviles" as a status ("Activos" / "Inactivos", or "Sin SIM") plus "Abrir ajustes de datos",
+ * which opens Android's own mobile-data screen. No button without a SIM.
+ */
+@Composable
+private fun MobileDataRow(
+    enabled: Boolean,
+    simAvailable: Boolean,
+    onOpenSettings: () -> Unit,
+) {
+    val status = stringResource(
+        when {
+            !simAvailable -> R.string.network_mobile_data_no_sim
+            enabled -> R.string.network_mobile_data_active
+            else -> R.string.network_mobile_data_inactive
+        },
+    )
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, DiscoveryColors.Divider),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .padding(horizontal = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_signal),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(24.dp),
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(
+                    text = stringResource(R.string.network_mobile_data),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DiscoveryColors.TextMuted,
+                )
+            }
+            if (simAvailable) {
+                LinkButton(text = stringResource(R.string.network_mobile_data_open), onClick = onOpenSettings)
+            }
+        }
+    }
+}
+
+/**
+ * Location is needed to list networks: a message plus "Permitir ubicación", or, when Android no longer
+ * shows the request, how to allow it from the device settings.
+ */
+@Composable
+private fun LocationRequired(blocked: Boolean, onAllow: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        InfoBanner(text = stringResource(R.string.network_location_required))
+        if (blocked) {
+            InfoBanner(text = stringResource(R.string.network_location_blocked))
+        } else {
+            LinkButton(text = stringResource(R.string.network_location_allow), onClick = onAllow)
+        }
+    }
+}
+
+/** A text action in the "Buscar redes" style. */
+@Composable
+private fun LinkButton(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = DiscoveryColors.CatalogText,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, DiscoveryColors.Blue200, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .labeled(text)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+    )
 }
 
 @Composable
@@ -262,11 +360,23 @@ private fun NetworkRow(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val securityText = if (network.isSecured) {
+        stringResource(R.string.network_row_secured)
+    } else {
+        stringResource(R.string.network_row_open)
+    }
+    // One label for the whole row: name, security and, when it applies, the connected state.
+    val rowLabel = listOfNotNull(
+        network.ssid,
+        securityText,
+        if (network.isConnected) stringResource(R.string.network_connected) else null,
+    ).joinToString(", ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (network.isConnected) DiscoveryColors.Blue50 else MaterialTheme.colorScheme.surfaceVariant)
             .clickable(enabled = enabled, onClick = onClick)
+            .labeled(rowLabel)
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -283,11 +393,7 @@ private fun NetworkRow(
                     color = if (enabled) MaterialTheme.colorScheme.onSurface else DiscoveryColors.TextDisabled,
                 )
                 Text(
-                    text = if (network.isSecured) {
-                        stringResource(R.string.network_row_secured)
-                    } else {
-                        stringResource(R.string.network_row_open)
-                    },
+                    text = securityText,
                     style = MaterialTheme.typography.bodySmall,
                     color = DiscoveryColors.TextMuted,
                 )
@@ -303,14 +409,14 @@ private fun NetworkRow(
             if (network.isSecured) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lock),
-                    contentDescription = stringResource(R.string.network_secured_cd),
+                    contentDescription = null, // part of the row label
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
             }
             Icon(
                 painter = painterResource(R.drawable.ic_signal),
-                contentDescription = stringResource(R.string.network_signal_cd),
+                contentDescription = null, // decorative; the row label names the network
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -407,8 +513,39 @@ private fun NetworkSettingsLightPreview() {
             uiState = NetworkSettingsUiState(
                 wifiEnabled = true,
                 mobileDataEnabled = false,
+                simAvailable = true,
                 networks = sampleNetworks(),
                 locationPermissionGranted = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Network settings — data on, location missing (dark)", showBackground = true, widthDp = 1280, heightDp = 800)
+@Composable
+private fun NetworkSettingsLocationMissingPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        NetworkSettingsContent(
+            uiState = NetworkSettingsUiState(
+                wifiEnabled = true,
+                mobileDataEnabled = true,
+                simAvailable = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Network settings — no SIM, location blocked (light)", showBackground = true, widthDp = 1280, heightDp = 800)
+@Composable
+private fun NetworkSettingsLocationBlockedPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        NetworkSettingsContent(
+            uiState = NetworkSettingsUiState(
+                wifiEnabled = true,
+                simAvailable = false,
+                locationPermissionBlocked = true,
             ),
             onEvent = {},
         )

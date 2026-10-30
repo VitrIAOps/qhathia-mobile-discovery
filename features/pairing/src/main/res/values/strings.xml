@@ -27,6 +27,7 @@
     <string name="pairing_catalog_section">HISTORIAL DE CATÁLOGO</string>
     <string name="pairing_catalog_pending">El historial de catálogo estará disponible próximamente.</string>
     <string name="pairing_pending">Pendiente</string>
+    <string name="pairing_not_available">No disponible</string>
     <string name="pairing_synced_recently">Sincronizado hace un momento</string>
     <plurals name="pairing_synced_minutes">
         <item quantity="one">Sincronizado hace %d minuto</item>
@@ -39,4 +40,6 @@
     <string name="pairing_unpair_message">Se desvinculará la tablet de este comercio y dejará de sincronizar el catálogo.</string>
     <string name="pairing_unpair_confirm">Desvincular</string>
     <string name="pairing_unpair_unavailable">La desvinculación del comercio aún no está disponible.</string>
+    <!-- Pairing code read as one value; %1$s = the characters separated by spaces ("2 Y 5 6 7") -->
+    <string name="pairing_code_cd">Código de vinculación: %1$s</string>
 </resources>

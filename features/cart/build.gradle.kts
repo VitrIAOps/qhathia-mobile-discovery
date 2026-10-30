@@ -34,7 +34,6 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.lifecycle.runtime)
-    implementation(libs.coil.compose)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.kotlinx.immutable)

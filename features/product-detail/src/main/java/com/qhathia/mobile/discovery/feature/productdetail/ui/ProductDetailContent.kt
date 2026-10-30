@@ -20,8 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,9 +49,11 @@ import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
 import com.qhathia.mobile.discovery.core.ui.component.ProductImageGallery
 import com.qhathia.mobile.discovery.core.ui.component.ProductRowCard
 import com.qhathia.mobile.discovery.core.ui.component.QuantityStepper
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -170,7 +170,7 @@ private fun IconTextButton(
     val icon = @Composable {
         Icon(
             painter = painterResource(iconRes),
-            contentDescription = contentDescription,
+            contentDescription = null, // the label is on the button itself
             tint = DiscoveryColors.Blue800,
             modifier = Modifier.size(20.dp),
         )
@@ -183,6 +183,7 @@ private fun IconTextButton(
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
+            .labeled(contentDescription)
             .padding(horizontal = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -224,7 +225,7 @@ private fun LoadedBody(
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xl)) {
             ProductImageGallery(
                 imageUrls = detail.images.map { it.url },
-                mainContentDescription = stringResource(R.string.pd_product_image_cd),
+                productName = detail.name,
             )
             ProductInfo(detail = detail, quantity = quantity, onEvent = onEvent, modifier = Modifier.weight(1f))
         }
@@ -350,22 +351,15 @@ private fun ActionButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Button(
+    PrimaryActionButton(
+        text = text,
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(8.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = container,
-            contentColor = Color.White,
-            disabledContainerColor = DiscoveryColors.Divider,
-            disabledContentColor = DiscoveryColors.TextDisabled,
-        ),
-    ) {
-        Text(text = text, style = MaterialTheme.typography.labelLarge)
-        Spacer(modifier = Modifier.width(Spacing.sm))
-        Icon(painter = painterResource(iconRes), contentDescription = null, modifier = Modifier.size(16.dp))
-    }
+        containerColor = if (enabled) container else DiscoveryColors.Divider,
+        contentColor = if (enabled) Color.White else DiscoveryColors.TextDisabled,
+        leadingIconRes = iconRes,
+        fillMaxWidth = false,
+    )
 }
 
 @Composable
@@ -464,12 +458,11 @@ private fun ErrorBody(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 480.dp),
         )
-        Button(
+        PrimaryActionButton(
+            text = stringResource(UiR.string.discovery_action_retry),
             onClick = { onEvent(ProductDetailUiEvent.Retry) },
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) {
-            Text(text = stringResource(UiR.string.discovery_action_retry))
-        }
+            fillMaxWidth = false,
+        )
     }
 }
 

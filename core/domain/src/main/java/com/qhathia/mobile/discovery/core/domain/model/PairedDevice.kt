@@ -7,8 +7,11 @@ import java.time.Instant
  * exchange and `GET /api/v1/devices/me`. Fields with no API source (e.g. [storeName]) are nullable and
  * surfaced as "pending" by the presentation layer rather than left blank.
  *
- * @property pairingCode the code used to pair, carried from generation (not returned by `/devices/me`).
- * @property storeName the merchant (store) display name — not provided by any API yet (pending).
+ * @property lastSeenAt the last time the server saw the device (heartbeat); the "Actividad" fallback
+ *   while [lastSyncAt] is unknown.
+ * @property pairingCode the code used to pair, saved on the device when pairing succeeds (not returned
+ *   by `/devices/me`); `null` for devices paired before it was saved.
+ * @property storeName the merchant (store) display name, when `/devices/me` sends it.
  */
 data class PairedDevice(
     val deviceId: String,
@@ -18,6 +21,7 @@ data class PairedDevice(
     val status: String,
     val appVersion: String? = null,
     val lastSyncAt: Instant? = null,
+    val lastSeenAt: Instant? = null,
     val pairingCode: String? = null,
     val storeName: String? = null,
 )

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transformWhile
@@ -45,8 +46,9 @@ import javax.inject.Singleton
  *   one-shot): later calls get the cached device. Connectivity errors are retried; 410
  *   `ALREADY_USED` is not.
  *
- * On a successful exchange the DEVICE token is persisted in the store session. The last generated
- * code is remembered so the paired view can show "Código usado" (`/devices/me` does not return it).
+ * On a successful exchange the DEVICE token is persisted in the store session, with the code that was
+ * used, so the paired view can show "Código usado" after a restart (`/devices/me` does not return it).
+ * When `/devices/me` sends the store name, it is saved in the session for Home and Settings.
  */
 @Singleton
 class DevicePairingRepositoryImpl @Inject constructor(
@@ -176,6 +178,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
                     storeSessionRepository.saveDeviceSession(
                         deviceAccessToken = dto.deviceAccessToken,
                         deviceName = dto.deviceName,
+                        pairingCode = lastGeneratedCode,
                     )
                     return Result.success(dto.toPairedDevice(lastGeneratedCode))
                 }
@@ -196,7 +199,15 @@ class DevicePairingRepositoryImpl @Inject constructor(
         val token = storeSessionRepository.deviceAccessToken()
             ?: return Result.failure(IllegalStateException("Device is not paired"))
         return when (val result = apiService.getPairedDevice(token)) {
-            is NetworkResult.Success -> Result.success(result.data.toPairedDevice(lastGeneratedCode))
+            is NetworkResult.Success -> {
+                val dto = result.data
+                val sentStoreName = dto.storeName?.takeIf { it.isNotBlank() }
+                if (sentStoreName != null) storeSessionRepository.updateStoreName(sentStoreName)
+                val session = storeSessionRepository.observe().first()
+                Result.success(
+                    dto.toPairedDevice(pairingCode = session.pairingCode, storeName = session.storeName),
+                )
+            }
             is NetworkResult.HttpError -> Result.failure(httpError(result))
             is NetworkResult.NetworkError -> Result.failure(result.cause)
         }

@@ -5,11 +5,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.provider.Settings
+import android.telephony.TelephonyManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +35,9 @@ class ConnectivityDataSourceImpl @Inject constructor(
 
     private val wifiManager: WifiManager
         get() = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+    private val telephonyManager: TelephonyManager?
+        get() = context.applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
 
     // ACCESS_NETWORK_STATE is declared in :app; this library is only consumed there.
     @SuppressLint("MissingPermission")
@@ -72,6 +77,7 @@ class ConnectivityDataSourceImpl @Inject constructor(
         }.getOrNull()
         val onCellular = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
         val onWifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        val simAvailable = isSimAvailable()
         return ConnectivitySnapshot(
             wifiEnabled = runCatching { wifiManager.isWifiEnabled }.getOrDefault(false),
             mobileDataActive = onCellular,
@@ -79,8 +85,20 @@ class ConnectivityDataSourceImpl @Inject constructor(
             connectedSsid = if (onWifi) connectedSsid() else null,
             wifiActive = onWifi,
             hasInternet = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true,
+            simAvailable = simAvailable,
+            mobileDataEnabled = simAvailable && (onCellular || isMobileDataSettingOn()),
         )
     }
+
+    private fun isSimAvailable(): Boolean =
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) &&
+            runCatching { telephonyManager?.simState == TelephonyManager.SIM_STATE_READY }.getOrDefault(false)
+
+    // `isDataEnabled` (API 26+) is allowed with ACCESS_NETWORK_STATE, declared in :app. A vendor that
+    // refuses it falls back to "data is on only while it carries the traffic".
+    @SuppressLint("MissingPermission")
+    private fun isMobileDataSettingOn(): Boolean =
+        runCatching { telephonyManager?.isDataEnabled == true }.getOrDefault(false)
 
     private fun isAirplaneModeOn(): Boolean =
         Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0

@@ -10,11 +10,14 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.launch
 
 /**
  * [WifiDataSource] backed by the Android `WifiManager`.
@@ -32,6 +35,9 @@ class WifiDataSourceImpl @Inject constructor(
     private val wifiManager: WifiManager
         get() = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
+    // Asks the open scan-result flows to re-read the cached results.
+    private val refreshRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
     @SuppressLint("MissingPermission") // ACCESS_FINE_LOCATION is requested at point of use in the UI.
     override fun observeScanResults(): Flow<List<WifiScanResult>> = callbackFlow {
         fun pushCurrent() {
@@ -46,9 +52,22 @@ class WifiDataSourceImpl @Inject constructor(
 
         // Emit whatever is already cached, then ask the platform for a fresh scan.
         pushCurrent()
-        runCatching { @Suppress("DEPRECATION") wifiManager.startScan() }
+        startScan()
+        val refresher = launch { refreshRequests.collect { pushCurrent() } }
 
-        awaitClose { runCatching { context.unregisterReceiver(receiver) } }
+        awaitClose {
+            refresher.cancel()
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
+
+    override fun rescan() {
+        startScan()
+        refreshRequests.tryEmit(Unit)
+    }
+
+    private fun startScan() {
+        runCatching { @Suppress("DEPRECATION") wifiManager.startScan() }
     }
 
     override suspend fun setWifiEnabled(enabled: Boolean): Result<Unit> =

@@ -25,6 +25,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -338,6 +339,85 @@ class DevicePairingRepositoryImplTest {
 
         assertTrue(result.isSuccess)
         assertEquals("dev-1", result.getOrNull()?.deviceId)
+    }
+
+    private fun deviceInfo(storeName: String? = null) = DeviceInfoResponseDto(
+        deviceId = "dev-1",
+        storeId = "store-1",
+        deviceName = "Tablet Mostrador 1",
+        platform = "ANDROID",
+        status = "ACTIVE",
+        lastSeenAt = "2026-10-30T15:00:00Z",
+        storeName = storeName,
+    )
+
+    @Test
+    fun given_exchange_succeeds_then_code_survives_a_restart() = runTest {
+        coEvery { api.generatePairingToken() } returns NetworkResult.Success(
+            PairingTokenResponseDto("2Y567", "sess-1", "2026-06-09T18:40:00Z", expiresInSeconds = 300),
+        )
+        coEvery { api.exchangeToken("sess-1") } returns PairingExchangeResponse.Success(tokenDto)
+        coEvery { api.getPairedDevice("device-jwt") } returns NetworkResult.Success(deviceInfo())
+        val pairing = repository()
+        pairing.generateCode()
+        pairing.exchangeForDeviceToken("sess-1")
+
+        // A new repository instance stands for the app restarted: nothing is left in memory.
+        val device = repository().getPairedDevice().getOrNull()
+
+        assertEquals("2Y567", device?.pairingCode)
+    }
+
+    @Test
+    fun given_device_paired_before_the_code_was_saved_then_code_is_null() = runTest {
+        session.saveDeviceSession("device-jwt", "Tablet Mostrador 1")
+        coEvery { api.getPairedDevice("device-jwt") } returns NetworkResult.Success(deviceInfo())
+
+        assertEquals(null, repository().getPairedDevice().getOrNull()?.pairingCode)
+    }
+
+    @Test
+    fun given_clear_session_then_code_is_removed() = runTest {
+        session.saveDeviceSession("device-jwt", "Tablet Mostrador 1", pairingCode = "2Y567")
+
+        session.clearDeviceSession()
+
+        assertEquals(null, session.observe().first().pairingCode)
+    }
+
+    @Test
+    fun given_last_seen_then_it_is_mapped() = runTest {
+        session.saveDeviceSession("device-jwt", "Tablet Mostrador 1")
+        coEvery { api.getPairedDevice("device-jwt") } returns NetworkResult.Success(deviceInfo())
+
+        val device = repository().getPairedDevice().getOrNull()
+
+        assertEquals(Instant.parse("2026-10-30T15:00:00Z"), device?.lastSeenAt)
+        assertEquals(null, device?.lastSyncAt)
+    }
+
+    @Test
+    fun given_store_name_sent_then_it_is_saved_and_returned() = runTest {
+        session.saveDeviceSession("device-jwt", "Tablet Mostrador 1")
+        coEvery { api.getPairedDevice("device-jwt") } returns
+            NetworkResult.Success(deviceInfo(storeName = "Ferretería Central"))
+
+        val device = repository().getPairedDevice().getOrNull()
+
+        assertEquals("Ferretería Central", device?.storeName)
+        assertEquals("Ferretería Central", session.observe().first().storeName)
+    }
+
+    @Test
+    fun given_blank_store_name_then_saved_name_is_kept() = runTest {
+        session.saveDeviceSession("device-jwt", "Tablet Mostrador 1")
+        session.updateStoreName("Ferretería Central")
+        coEvery { api.getPairedDevice("device-jwt") } returns NetworkResult.Success(deviceInfo(storeName = " "))
+
+        val device = repository().getPairedDevice().getOrNull()
+
+        assertEquals("Ferretería Central", device?.storeName)
+        assertEquals("Ferretería Central", session.observe().first().storeName)
     }
 
     @Test

@@ -16,14 +16,27 @@ class NetworkSettingsRepositoryImplTest {
         mobileDataActive: Boolean = false,
         airplaneModeActive: Boolean = false,
         connectedSsid: String? = null,
-    ) = ConnectivitySnapshot(wifiEnabled, mobileDataActive, airplaneModeActive, connectedSsid)
+        simAvailable: Boolean = false,
+        mobileDataEnabled: Boolean = false,
+    ) = ConnectivitySnapshot(
+        wifiEnabled = wifiEnabled,
+        mobileDataActive = mobileDataActive,
+        airplaneModeActive = airplaneModeActive,
+        connectedSsid = connectedSsid,
+        simAvailable = simAvailable,
+        mobileDataEnabled = mobileDataEnabled,
+    )
 
     private class FakeWifiDataSource(
         private val scans: List<WifiScanResult>,
         var setWifiResult: Result<Unit> = Result.success(Unit),
         var connectResult: Result<Unit> = Result.success(Unit),
     ) : WifiDataSource {
+        var rescans = 0
         override fun observeScanResults(): Flow<List<WifiScanResult>> = flowOf(scans)
+        override fun rescan() {
+            rescans++
+        }
         override suspend fun setWifiEnabled(enabled: Boolean): Result<Unit> = setWifiResult
         override suspend fun connect(ssid: String, password: String?): Result<Unit> = connectResult
     }
@@ -39,7 +52,13 @@ class NetworkSettingsRepositoryImplTest {
         val repository = NetworkSettingsRepositoryImpl(
             wifiDataSource = FakeWifiDataSource(emptyList()),
             connectivityDataSource = FakeConnectivityDataSource(
-                snapshot(wifiEnabled = true, mobileDataActive = true, airplaneModeActive = true, connectedSsid = "Home"),
+                snapshot(
+                    wifiEnabled = true,
+                    airplaneModeActive = true,
+                    connectedSsid = "Home",
+                    simAvailable = true,
+                    mobileDataEnabled = true,
+                ),
             ),
         )
 
@@ -47,6 +66,7 @@ class NetworkSettingsRepositoryImplTest {
             val state = awaitItem()
             assertTrue(state.wifiEnabled)
             assertTrue(state.mobileDataEnabled)
+            assertTrue(state.simAvailable)
             assertTrue(state.airplaneModeActive)
             assertEquals("Home", state.connectedSsid)
             awaitComplete()
@@ -79,13 +99,29 @@ class NetworkSettingsRepositoryImplTest {
     }
 
     @Test
-    fun given_mobile_data_toggle_when_requested_then_returns_failure() = runTest {
+    fun given_data_setting_off_while_on_wifi_then_mobile_data_is_inactive() = runTest {
+        // Wi-Fi carries the traffic; only the data setting says whether mobile data is on.
         val repository = NetworkSettingsRepositoryImpl(
             wifiDataSource = FakeWifiDataSource(emptyList()),
-            connectivityDataSource = FakeConnectivityDataSource(snapshot()),
+            connectivityDataSource = FakeConnectivityDataSource(snapshot(simAvailable = true, mobileDataEnabled = false)),
         )
 
-        assertTrue(repository.setMobileDataEnabled(true).isFailure)
+        repository.observeConnectivity().test {
+            val state = awaitItem()
+            assertFalse(state.mobileDataEnabled)
+            assertTrue(state.simAvailable)
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun given_rescan_when_requested_then_delegates_to_data_source() {
+        val wifi = FakeWifiDataSource(emptyList())
+        val repository = NetworkSettingsRepositoryImpl(wifi, FakeConnectivityDataSource(snapshot()))
+
+        repository.rescan()
+
+        assertEquals(1, wifi.rescans)
     }
 
     @Test

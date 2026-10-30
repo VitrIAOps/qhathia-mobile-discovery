@@ -24,13 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.qhathia.mobile.discovery.core.ui.R
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
@@ -67,60 +66,71 @@ fun ProductCard(
     cartEnabled: Boolean = true,
 ) {
     Surface(
-        modifier = modifier
-            .width(CARD_WIDTH)
-            .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier),
+        modifier = modifier.width(CARD_WIDTH),
         shape = RoundedCornerShape(12.dp),
         color = Color.White,
         shadowElevation = 0.dp,
     ) {
-        Column(
-            modifier = Modifier.padding(Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null, // name below is the accessible label
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IMAGE_HEIGHT)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DiscoveryColors.Neutral50),
-            )
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                minLines = 2,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+        Box {
+            // The card's own tap lives on a background layer labelled with the name and price, so the
+            // touchable node carries the label and the cart button stays a separate control.
+            if (onCardClick != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(onClick = onCardClick)
+                        .labeled(cardLabel(name, priceText)),
+                )
+            }
+            Column(
+                modifier = Modifier.padding(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Column {
-                    if (originalPriceText != null) {
+                ProductImage(
+                    url = imageUrl,
+                    contentDescription = null, // the name below is the accessible label
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IMAGE_HEIGHT)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = if (onCardClick != null) Modifier.clearAndSetSemantics {} else Modifier,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = if (onCardClick != null) Modifier.clearAndSetSemantics {} else Modifier,
+                    ) {
+                        if (originalPriceText != null) {
+                            Text(
+                                text = originalPriceText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = DiscoveryColors.Neutral500,
+                                textDecoration = TextDecoration.LineThrough,
+                            )
+                        }
                         Text(
-                            text = originalPriceText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = DiscoveryColors.Neutral500,
-                            textDecoration = TextDecoration.LineThrough,
+                            text = priceText,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (originalPriceText != null) {
+                                DiscoveryColors.AccentOrange
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
                         )
                     }
-                    Text(
-                        text = priceText,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (originalPriceText != null) {
-                            DiscoveryColors.AccentOrange
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
+                    CartButton(contentDescription = cartContentDescription, onClick = onCartClick, enabled = cartEnabled)
                 }
-                CartButton(contentDescription = cartContentDescription, onClick = onCartClick, enabled = cartEnabled)
             }
         }
     }
@@ -138,12 +148,13 @@ private fun CartButton(
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(CircleShape)
             .background(DiscoveryColors.CatalogText)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick)
+            .labeled(contentDescription),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_cart),
-            contentDescription = contentDescription,
+            contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(18.dp),
         )

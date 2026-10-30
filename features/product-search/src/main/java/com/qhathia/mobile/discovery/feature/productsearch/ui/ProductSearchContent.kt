@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -33,8 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +56,7 @@ import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
 import com.qhathia.mobile.discovery.core.ui.component.ProductCard
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -211,7 +213,7 @@ private fun IconTextButton(
     val icon = @Composable {
         Icon(
             painter = painterResource(iconRes),
-            contentDescription = contentDescription,
+            contentDescription = null, // the label is on the button itself
             tint = DiscoveryColors.Blue800,
             modifier = Modifier.size(20.dp),
         )
@@ -224,6 +226,7 @@ private fun IconTextButton(
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
+            .labeled(contentDescription)
             .padding(horizontal = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -520,11 +523,8 @@ private fun RefineChip(
             .clip(shape)
             .background(background)
             .then(if (selected) Modifier else Modifier.border(1.dp, DiscoveryColors.Blue100, shape))
-            .clickable(onClick = onClick)
-            .semantics {
-                this.contentDescription = contentDescription
-                this.selected = selected
-            }
+            .toggleable(value = selected, onValueChange = { onClick() }, role = Role.Checkbox)
+            .labeled(contentDescription, role = null)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         contentAlignment = Alignment.Center,
     ) {

@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -43,7 +45,7 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  * @param onQueryChange invoked as the user types.
  * @param onSearch invoked when the user submits the query (IME action).
  * @param placeholder placeholder text shown when [query] is empty.
- * @param searchIconContentDescription localized description for the leading search icon.
+ * @param searchIconContentDescription localized label of the search field (read on the field itself).
  */
 @Composable
 fun DiscoverySearchBar(
@@ -83,7 +85,11 @@ fun DiscoverySearchBar(
                 .fillMaxWidth()
                 .heightIn(min = 49.dp)
                 .background(color = Color.White, shape = shape)
-                .border(width = 1.dp, color = DiscoveryColors.SearchBorder, shape = shape),
+                .border(width = 1.dp, color = DiscoveryColors.SearchBorder, shape = shape)
+                // Label of the field. Compose shows it in a label node right inside the field (every
+                // text field has an inner scroll node), which TalkBack reads as the field's label.
+                // Not `clearAndSetSemantics`: it would also drop the field's editing semantics.
+                .semantics { contentDescription = searchIconContentDescription },
             singleLine = true,
             textStyle = LocalTextStyle.current.merge(
                 MaterialTheme.typography.bodyMedium.copy(color = DiscoveryColors.Blue800),
@@ -99,7 +105,7 @@ fun DiscoverySearchBar(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Search,
-                        contentDescription = searchIconContentDescription,
+                        contentDescription = null,
                         tint = DiscoveryColors.Neutral500,
                         modifier = Modifier.size(24.dp),
                     )

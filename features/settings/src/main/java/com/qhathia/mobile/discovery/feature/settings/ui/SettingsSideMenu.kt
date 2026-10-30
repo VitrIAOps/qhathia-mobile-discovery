@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -67,13 +68,14 @@ fun SettingsSideMenu(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onBack)
+                    .labeled(stringResource(UiR.string.discovery_cd_back))
                     .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_arrow_back),
-                    contentDescription = stringResource(UiR.string.discovery_cd_back),
+                    contentDescription = null, // the label is on the button itself
                     tint = DiscoveryColors.Blue50,
                     modifier = Modifier.size(16.dp),
                 )
@@ -154,6 +156,7 @@ private fun SideMenuItem(
             .clip(RoundedCornerShape(8.dp))
             .background(background)
             .clickable(onClick = onClick)
+            .labeled(label)
             .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

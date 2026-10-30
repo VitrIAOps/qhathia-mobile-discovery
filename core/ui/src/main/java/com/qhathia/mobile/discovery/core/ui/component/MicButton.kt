@@ -23,8 +23,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
@@ -145,21 +143,17 @@ fun MicButton(
                         end = Offset.Infinite,
                     ),
                 )
-                .clickable(onClick = onClick),
+                .clickable(onClick = onClick)
+                .labeled(contentDescription),
             contentAlignment = Alignment.Center,
         ) {
+            // The label is on the disc itself (it changes with the listening state).
             if (isListening) {
-                val waveformDescription = contentDescription
-                VoiceWaveform(
-                    barColor = Color.White,
-                    modifier = Modifier
-                        .size(waveformSize)
-                        .semantics { this.contentDescription = waveformDescription },
-                )
+                VoiceWaveform(barColor = Color.White, modifier = Modifier.size(waveformSize))
             } else {
                 Icon(
                     painter = painterResource(R.drawable.ic_mic),
-                    contentDescription = contentDescription,
+                    contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(iconSize),
                 )

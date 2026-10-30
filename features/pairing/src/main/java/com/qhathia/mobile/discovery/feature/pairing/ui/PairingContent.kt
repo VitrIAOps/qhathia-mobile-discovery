@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +31,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import com.qhathia.mobile.discovery.core.domain.PairingConstants
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
+import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
@@ -133,10 +137,15 @@ private fun PairingTopBar(
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (showBackButton) {
-                IconButton(onClick = onBack) {
+                val backLabel = stringResource(UiR.string.discovery_action_back)
+                IconButton(
+                    onClick = onBack,
+                    // Plain semantics: the icon adds no node, so the label stays on the button itself.
+                    modifier = Modifier.semantics { contentDescription = backLabel },
+                ) {
                     Icon(
                         painter = painterResource(UiR.drawable.ic_arrow_back),
-                        contentDescription = stringResource(UiR.string.discovery_action_back),
+                        contentDescription = null, // the label is on the button itself
                         tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
@@ -190,7 +199,7 @@ private fun LoadingState() {
 private fun MessageState(message: String, actionLabel: String, onAction: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         InfoBanner(text = message)
-        Button(onClick = onAction) { Text(text = actionLabel) }
+        PrimaryActionButton(text = actionLabel, onClick = onAction, fillMaxWidth = false)
     }
 }
 
@@ -239,8 +248,12 @@ private fun CodeCard(modifier: Modifier = Modifier, code: String, remainingSecon
                 .padding(horizontal = 48.dp, vertical = SectionGap),
             verticalArrangement = Arrangement.spacedBy(SectionGap),
         ) {
+            // Read as one value ("Código de vinculación: 2 Y 5 6 7"), not as five loose characters.
+            val codeDescription = stringResource(R.string.pairing_code_cd, code.toList().joinToString(" "))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clearAndSetSemantics { contentDescription = codeDescription },
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterHorizontally),
             ) {
                 code.forEachIndexed { index, char -> CodeCell(char = char, index = index) }
@@ -384,7 +397,8 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
             Column {
                 DetailRow(
                     label = stringResource(R.string.pairing_activity_label),
-                    value = syncedLabel(device.lastSyncAt),
+                    // The server leaves the sync time empty for now; the last heartbeat stands in.
+                    value = syncedLabel(device.lastSyncAt ?: device.lastSeenAt),
                 )
                 RowDivider()
                 DetailRow(
@@ -394,7 +408,8 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
                 RowDivider()
                 DetailRow(
                     label = stringResource(R.string.pairing_code_used_label),
-                    value = device.pairingCode ?: stringResource(R.string.pairing_pending),
+                    // Devices paired before the code was saved have none.
+                    value = device.pairingCode ?: stringResource(R.string.pairing_not_available),
                 )
             }
         }
@@ -402,10 +417,12 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
         SectionLabel(stringResource(R.string.pairing_catalog_section))
         InfoBanner(text = stringResource(R.string.pairing_catalog_pending))
 
+        val unpairLabel = stringResource(R.string.pairing_unpair)
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .clickable { onEvent(PairingUiEvent.UnpairClicked) }
+                .labeled(unpairLabel)
                 .padding(vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -417,7 +434,7 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
                 modifier = Modifier.size(20.dp),
             )
             Text(
-                text = stringResource(R.string.pairing_unpair),
+                text = unpairLabel,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -561,6 +578,26 @@ private fun PairingPairedPreview() {
     DiscoveryTheme(darkTheme = true) {
         PairingContent(
             uiState = PairingUiState(phase = PairingPhase.Paired, device = samplePairedDevice()),
+            onEvent = {},
+            title = "TIENDA",
+        )
+    }
+}
+
+@Preview(name = "Pairing — paired, last seen only, no code (light)", showBackground = true, widthDp = 960, heightDp = 800)
+@Composable
+private fun PairingPairedFallbacksPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        PairingContent(
+            uiState = PairingUiState(
+                phase = PairingPhase.Paired,
+                device = samplePairedDevice().copy(
+                    lastSyncAt = null,
+                    lastSeenAt = Instant.now().minus(5, ChronoUnit.MINUTES),
+                    pairingCode = null,
+                    storeName = null,
+                ),
+            ),
             onEvent = {},
             title = "TIENDA",
         )

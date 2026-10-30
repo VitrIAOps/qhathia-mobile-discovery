@@ -21,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
@@ -54,7 +57,14 @@ fun DiscoveryTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Text(text = label, style = MaterialTheme.typography.bodySmall, color = DiscoveryColors.TextMuted)
+        // The field itself carries the label (read even while it is empty), so the visible label and
+        // the placeholder are hidden from accessibility to avoid reading it twice.
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = DiscoveryColors.TextMuted,
+            modifier = Modifier.clearAndSetSemantics {},
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -83,6 +93,7 @@ fun DiscoveryTextField(
                         text = placeholder,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clearAndSetSemantics {},
                     )
                 }
                 // The IME sends no pointer events, so each text change reports activity itself.
@@ -98,7 +109,10 @@ fun DiscoveryTextField(
                     visualTransformation = visualTransformation,
                     textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth(),
+                    // Label of the field, read also while it is empty (see DiscoverySearchBar).
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = label },
                 )
             }
         }

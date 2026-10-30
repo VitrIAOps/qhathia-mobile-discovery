@@ -9,11 +9,14 @@ package com.qhathia.mobile.discovery.core.domain.model
  *   present, it is the source of the app's authenticated access token (replaces the dev-credential
  *   login).
  * @property deviceName the paired device's display name, or `null` when not paired.
+ * @property pairingCode the code used to pair this device, or `null` when unknown (not paired, or
+ *   paired before the code was saved).
  */
 data class StoreSession(
     val storeName: String? = null,
     val deviceAccessToken: String? = null,
     val deviceName: String? = null,
+    val pairingCode: String? = null,
 ) {
     /** Whether the device has completed pairing (a device token is persisted). */
     val isPaired: Boolean
