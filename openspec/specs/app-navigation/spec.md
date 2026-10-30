@@ -1,7 +1,8 @@
 # app-navigation Specification
 
 ## Purpose
-TBD - created by archiving change qa-wave-2-medium-fixes. Update Purpose after archive.
+The app-navigation capability keeps the screen stack predictable on a shared kiosk: one tap produces at most one navigation (a repeated tap during a transition is dropped), and the system Back runs the same action as each screen's on-screen "Volver", including its confirmations and history steps.
+
 ## Requirements
 ### Requirement: One navigation per tap
 
