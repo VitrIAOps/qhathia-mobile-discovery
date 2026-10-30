@@ -23,22 +23,6 @@ The Network settings screen SHALL follow the Figma "Red Wifi" structure and pres
 - **THEN** a Wi-Fi on/off control is displayed
 - **AND** the list of accessible Wi-Fi networks is displayed beneath it
 
-### Requirement: Toggle mobile data
-
-The app SHALL let the merchant turn mobile data on or off from the Network settings screen. The control SHALL reflect the current mobile-data state and SHALL update when the merchant changes it.
-
-#### Scenario: Turn mobile data on
-
-- **WHEN** mobile data is off and the merchant turns the mobile data switch on
-- **THEN** the app requests mobile data to be enabled
-- **AND** the switch reflects the on state
-
-#### Scenario: Turn mobile data off
-
-- **WHEN** mobile data is on and the merchant turns the mobile data switch off
-- **THEN** the app requests mobile data to be disabled
-- **AND** the switch reflects the off state
-
 ### Requirement: Toggle Wi-Fi
 
 The app SHALL let the merchant turn Wi-Fi on or off from the Network settings screen. When Wi-Fi is off, the accessible-networks list SHALL be empty or hidden. When Wi-Fi is turned on, the app SHALL begin discovering accessible networks.
@@ -117,4 +101,52 @@ A network connection SHALL only be selectable when the device is not in airplane
 
 - **WHEN** the device is not in airplane mode
 - **THEN** the merchant can select a network connection
+
+### Requirement: Mobile data status and shortcut
+
+The Network settings screen SHALL show whether mobile data is active ("Activos" / "Inactivos"), or "Sin SIM" when the tablet cannot use mobile data, with no switch. When mobile data can be used, the row SHALL offer "Abrir ajustes de datos", which SHALL exit kiosk mode temporarily (as "Salir del modo kiosko") and open Android's mobile-data screen: the Internet panel on Android 10 or later, and Android's "Red e Internet" settings (one step from mobile data) on Android 8 and 9. When the merchant comes back, the row SHALL show the current state.
+
+#### Scenario: Mobile data off
+
+- **WHEN** mobile data is off on a tablet with a SIM
+- **THEN** the row shows "Inactivos" and the "Abrir ajustes de datos" button
+
+#### Scenario: Open Android's mobile-data screen
+
+- **WHEN** the merchant taps "Abrir ajustes de datos" while kiosk mode is active
+- **THEN** the app leaves kiosk mode for the moment and Android's mobile-data screen opens
+
+#### Scenario: Back after turning data on
+
+- **WHEN** the merchant turns mobile data on in Android's screen and goes back
+- **THEN** the Network settings row shows "Activos"
+- **AND** the tablet pins again once the merchant goes back to Home
+
+#### Scenario: Tablet without SIM
+
+- **WHEN** the tablet has no SIM
+- **THEN** the row shows "Sin SIM" and no button
+
+### Requirement: Wi-Fi scan on demand and after the permission
+
+"Buscar redes" SHALL start a Wi-Fi scan and refresh the list with the results. When the location permission becomes granted while the screen is open, the app SHALL start a scan right away.
+
+#### Scenario: Buscar redes
+
+- **WHEN** Wi-Fi is on and the merchant taps "Buscar redes"
+- **THEN** a scan starts and the list shows the latest results
+
+#### Scenario: First visit
+
+- **WHEN** the merchant opens the screen for the first time and grants the location permission
+- **THEN** the list shows the nearby networks without leaving the screen
+
+### Requirement: Location permission can be requested again
+
+When the location permission is missing, the networks area SHALL say that it is needed to list networks and SHALL offer "Permitir ubicación", which requests it again. When Android no longer shows the request, the message SHALL say to allow it from the device settings.
+
+#### Scenario: Permission refused before
+
+- **WHEN** the location permission was refused and the merchant taps "Permitir ubicación"
+- **THEN** the permission is requested again
 
