@@ -75,6 +75,10 @@ class PairingViewModel @Inject constructor(
     private var countdownJob: Job? = null
     private var statusJob: Job? = null
     private var exchangeJob: Job? = null
+    private var generateJob: Job? = null
+
+    /** Set when [start] finds a paired session: this section then never requests a pairing code. */
+    private var pairedSession = false
 
     /**
      * Enter the pairing section: load the paired device when already paired, resume the held code
@@ -84,21 +88,26 @@ class PairingViewModel @Inject constructor(
     fun start() {
         viewModelScope.launch {
             when {
-                observeStoreSession().first().isPaired -> loadPairedDevice()
+                observeStoreSession().first().isPaired -> {
+                    pairedSession = true
+                    loadPairedDevice()
+                }
                 exchangeJob?.isActive == true -> Unit // pairing is completing
                 else -> resumeOrStartPairing()
             }
         }
     }
 
-    /** Leave the pairing section: tear down the status subscription and countdown, keep the code. */
+    /** Leave the pairing section: tear down the status subscription, countdown and code request. */
     fun stop() {
         cancelJobs()
+        generateJob?.cancel()
     }
 
     fun onEvent(event: PairingUiEvent) {
         when (event) {
-            PairingUiEvent.GenerateCode -> startPairing()
+            PairingUiEvent.GenerateCode -> onGenerateCode()
+            PairingUiEvent.RetryPairedDeviceLoad -> if (pairedSession) loadPairedDevice()
             PairingUiEvent.UnpairClicked ->
                 _uiState.update { it.copy(showUnpairConfirmation = true) }
             PairingUiEvent.UnpairDismissed ->
@@ -114,8 +123,17 @@ class PairingViewModel @Inject constructor(
                 .onSuccess { device ->
                     _uiState.update { it.copy(phase = PairingPhase.Paired, device = device) }
                 }
-                .onFailure { showError(PairingError.CodeGeneration) }
+                .onFailure { showError(PairingError.PairedDeviceLoad) }
         }
+    }
+
+    /**
+     * "Generar nuevo código" / "Reintentar" (wave 2, D8). Fast taps are dropped while a code request is
+     * running (VIN-024), and a paired tablet never requests a code from this section (AJU-050).
+     */
+    private fun onGenerateCode() {
+        if (pairedSession || generateJob?.isActive == true) return
+        startPairing()
     }
 
     private fun resumeOrStartPairing() {
@@ -144,7 +162,8 @@ class PairingViewModel @Inject constructor(
         _uiState.update {
             it.copy(phase = PairingPhase.Loading, code = null, remainingSeconds = 0L, error = null)
         }
-        viewModelScope.launch {
+        generateJob?.cancel()
+        generateJob = viewModelScope.launch {
             generatePairingCode()
                 .onSuccess(::onCodeGenerated)
                 .onFailure { showError(PairingError.CodeGeneration) }

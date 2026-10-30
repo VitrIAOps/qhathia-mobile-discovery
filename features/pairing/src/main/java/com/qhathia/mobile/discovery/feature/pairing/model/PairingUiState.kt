@@ -31,6 +31,9 @@ enum class PairingError {
 
     /** The approved code could not be exchanged for the device token; a new code is needed. */
     Linking,
+
+    /** A paired tablet could not load its device details (usually no network); retry the load. */
+    PairedDeviceLoad,
 }
 
 /** Mutually exclusive phases of the pairing section. */

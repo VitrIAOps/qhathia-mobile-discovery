@@ -4,6 +4,7 @@ import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus
 import com.qhathia.mobile.discovery.core.domain.repository.DevicePairingRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
@@ -27,6 +28,13 @@ class FakeDevicePairingRepository(
 
     var generateCount: Int = 0
         private set
+
+    /** Virtual time each [generateCode] call takes, to observe a request in flight. */
+    var generateDelayMillis: Long = 0
+
+    /** Number of [getPairedDevice] calls. */
+    var pairedCount: Int = 0
+        private set
     var lastObservedSession: String? = null
         private set
     var exchangeCount: Int = 0
@@ -34,6 +42,7 @@ class FakeDevicePairingRepository(
 
     override suspend fun generateCode(): Result<PairingCode> {
         generateCount++
+        if (generateDelayMillis > 0) delay(generateDelayMillis)
         return generateResult
     }
 
@@ -50,7 +59,10 @@ class FakeDevicePairingRepository(
         return exchangeResult
     }
 
-    override suspend fun getPairedDevice(): Result<PairedDevice> = pairedResult
+    override suspend fun getPairedDevice(): Result<PairedDevice> {
+        pairedCount++
+        return pairedResult
+    }
 
     override suspend fun unpair(): Result<Unit> = unpairResult
 
