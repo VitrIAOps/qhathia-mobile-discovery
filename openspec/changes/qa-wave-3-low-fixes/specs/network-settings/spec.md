@@ -2,18 +2,34 @@
 
 ### Requirement: Toggle mobile data
 **Reason**: Android does not let a non-system app turn mobile data on or off, so the switch always failed with "no permitido" (AJU-041).
-**Migration**: Replaced by "Mobile data status", a read-only row.
+**Migration**: Replaced by "Mobile data status and shortcut": a status row with a button to Android's mobile-data screen.
 
 ## ADDED Requirements
 
-### Requirement: Mobile data status
+### Requirement: Mobile data status and shortcut
 
-The Network settings screen SHALL show whether mobile data is active as a read-only row ("Activos" / "Inactivos"), with no switch.
+The Network settings screen SHALL show whether mobile data is active ("Activos" / "Inactivos"), or "Sin SIM" when the tablet cannot use mobile data, with no switch. When mobile data can be used, the row SHALL offer "Abrir ajustes de datos", which SHALL exit kiosk mode temporarily (as "Salir del modo kiosko") and open Android's mobile-data screen: the Internet panel on Android 10 or later, the mobile network settings on Android 8 and 9. When the merchant comes back, the row SHALL show the current state.
 
-#### Scenario: Mobile data active
+#### Scenario: Mobile data off
 
-- **WHEN** mobile data is active
-- **THEN** the row shows "Activos" and offers no control to change it
+- **WHEN** mobile data is off on a tablet with a SIM
+- **THEN** the row shows "Inactivos" and the "Abrir ajustes de datos" button
+
+#### Scenario: Open Android's mobile-data screen
+
+- **WHEN** the merchant taps "Abrir ajustes de datos" while kiosk mode is active
+- **THEN** the app leaves kiosk mode for the moment and Android's mobile-data screen opens
+
+#### Scenario: Back after turning data on
+
+- **WHEN** the merchant turns mobile data on in Android's screen and goes back
+- **THEN** the Network settings row shows "Activos"
+- **AND** the tablet pins again once the merchant goes back to Home
+
+#### Scenario: Tablet without SIM
+
+- **WHEN** the tablet has no SIM
+- **THEN** the row shows "Sin SIM" and no button
 
 ### Requirement: Wi-Fi scan on demand and after the permission
 

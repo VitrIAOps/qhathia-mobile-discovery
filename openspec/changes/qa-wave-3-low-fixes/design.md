@@ -76,13 +76,16 @@ The phone fields (cart and product share) keep `KeyboardType.Phone` and filter t
 - `DevicePairingDto` accepts an optional `storeName`; when present, `getPairedDevice` saves it through `UpdateStoreNameUseCase`, and Home and Settings show it.
 - `NetworkSettingsRepository.rescan()` calls `WifiManager.startScan()`; "Buscar redes" uses it, and the screen calls it when the location permission becomes granted. Android throttles scans (4 per 2 minutes on API 28+); a throttled scan still returns the latest results.
 - When the location permission is missing, the list area shows a message and a "Permitir ubicación" button that requests it again. If Android no longer shows the dialog, the message says to allow it from the device settings outside kiosk mode.
-- "Datos móviles" becomes a read-only row ("Activos" / "Inactivos") with no switch.
+- "Datos móviles" becomes a status row ("Activos" / "Inactivos", or "Sin SIM" when the tablet has no telephony / no SIM) with an "Abrir ajustes de datos" button (hidden without SIM). The button runs the existing temporary kiosk exit (`ExitKioskModeUseCase`, the same as "Salir del modo kiosko": unpin, show the bars, not persisted) and then starts Android's screen: `Settings.Panel.ACTION_INTERNET_CONNECTIVITY` on API 29+, `Settings.ACTION_DATA_ROAMING_SETTINGS` on API 26–28, falling back to `Settings.ACTION_WIRELESS_SETTINGS` when no activity resolves. Back returns to the Network settings, which re-read the state on resume. The tablet pins again when the merchant goes back to Home (existing "Temporary exit and re-lock" rule).
+- Why the exit is needed: while the task is pinned, starting another package's activity is refused by the system ("Attempt to violate Lock Task Mode", seen in wave 1, KIO-041). Task 1.0 confirms the intents and the re-pin on API 26 and API 36 before implementing.
+- Alternatives: a read-only row (the merchant must exit kiosk mode by hand and find the setting), or keeping the switch (always fails).
 
 ## Risks / Trade-offs
 
 - [Moving the mic request to Home asks the customer instead of the installer] → It happens once, on the first Home after pairing, which is usually the installer's own test. Before, it was asked on the welcome screen, which is also the installer.
 - [`startScan()` is throttled] → The button still refreshes the list from the latest results; the UI does not promise a new scan.
 - [`storeName` may never come] → The field is optional and the current placeholders stay.
+- [The merchant leaves the tablet on Android's settings] → Same exposure as "Salir del modo kiosko" today, behind the exit PIN; the tablet pins again on the next Home, a restart, or the system gesture rule.
 - [Labels duplicated between the icon and the button] → The helper sets the icon's description to `null`, so there is a single label.
 
 ## Migration Plan
