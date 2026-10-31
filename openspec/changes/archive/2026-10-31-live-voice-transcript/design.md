@@ -162,6 +162,6 @@ Client-only change on a feature branch; no backend change. Rollback = revert the
 
 ## Open Questions
 
-- Does Deepgram keep the socket open after the ephemeral key's 60 s TTL expires? (Impacts nothing under 45 s sessions, but must be confirmed.)
-- `nova-3` vs. `nova-2` for live Spanish: the contract example uses `nova-2`; the batch client uses `nova-3`. Default to `nova-3` for parity and validate quality during apply.
-- Final `SILENCE_FLOOR` value for PCM peak on the kiosk hardware.
+- ~~Does Deepgram keep the socket open after the ephemeral key's 60 s TTL expires?~~ **Resolved 2026-10-31: yes.** The backend issues a project key (`POST /v1/projects/{id}/keys`, `time_to_live_in_seconds: 60`, `usage:write`; `SttTokenService` / `DeepgramSttTokenProvider` in auth-api). Deepgram validates the key only when the WebSocket opens; an open stream stays up after it expires (Deepgram blog "Protecting your API key", GitHub discussion deepgram#673, confirmed again in 2025). A session is at most 45 s (`MAX_RECORDING_SECONDS`), and each capture asks for a fresh token, so expiry never affects a session in progress. Deepgram does close a stream that receives no audio for about 10 s; the recorder sends audio continuously while listening, so this does not apply.
+- ~~`nova-3` vs. `nova-2` for live Spanish~~ **Resolved 2026-10-31: keep `nova-3`.** Deepgram lists Spanish (`es`, `es-419`) as a monolingual Nova-3 language for batch and streaming, and reports a 21.4 % relative WER improvement over Nova-2 for Spanish streaming. The QA of 2026-10-25 opened the `nova-3` live socket in production with a valid token. Quality with real customer voices is still a field check (task 8.2). Option to try then: `language=es-419` (Latin American Spanish) instead of `es`.
+- Final `SILENCE_FLOOR` value for PCM peak on the kiosk hardware. **Still open:** needs the kiosk tablet and a person speaking (task 8.2).

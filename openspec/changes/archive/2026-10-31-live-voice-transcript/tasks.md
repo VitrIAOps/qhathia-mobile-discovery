@@ -55,7 +55,9 @@ No new Gradle module is needed: every change lands in existing modules (`core:do
 
 - [x] 8.1 Run unit tests for all touched modules and a debug build with JDK 21 (`./gradlew testDebugUnitTest assembleDebug`)
 - [ ] 8.2 On the kiosk tablet: calibrate `SILENCE_FLOOR` for PCM, confirm the first words are not lost, transcript appears within ~1 s of speaking, end-of-speech still triggers at 1 s, and cancel closes the socket
-- [ ] 8.3 Confirm open questions from design.md (token TTL vs. open socket, `nova-3` live quality in Spanish) and record the outcome in design.md
+  - **Pending field check (decision 2026-10-31):** the change is archived without it. It needs the kiosk tablet (or the same model) by USB and someone speaking; the emulator cannot calibrate the threshold for the real microphone. Run it before rolling out to stores and record the `SILENCE_FLOOR` value and the measured latency here.
+- [x] 8.3 Confirm open questions from design.md (token TTL vs. open socket, `nova-3` live quality in Spanish) and record the outcome in design.md
+  - Done 2026-10-31 from the Deepgram docs and the backend code (see design.md, Open Questions): the socket survives the 60 s key expiry; `nova-3` supports Spanish streaming. Live quality with real voices moves to the field check in 8.2.
 - [x] 8.4 Update `docs/android/api-contract.md` §6 client notes if the final query params or auth scheme differ from the documented example
 
 ## 9. Keep the heard text while finalizing (design D7)
