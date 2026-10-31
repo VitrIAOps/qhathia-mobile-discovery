@@ -103,4 +103,4 @@ Additive, client-only. On upgrade the first heartbeat fills `model`, telemetry a
 
 ## Open Questions
 
-- `networkStatus` vocabulary: §5 shows `ONLINE | LIMITED`, §18 shows `WIFI`. Proposed `WIFI | MOBILE | OFFLINE`; confirm with the staff app's mapping (staff `Device.kt`) before release. Decision does not block implementation — it is one mapping function.
+- ~~`networkStatus` vocabulary~~ — **Resolved 2026-10-31:** `WIFI | MOBILE | OFFLINE` kept. The staff card (`DeviceCard.networkLabel`) already labels `WIFI` and `MOBILE`; `OFFLINE` never reaches the server because no heartbeat goes out without a network.
