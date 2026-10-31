@@ -13,6 +13,7 @@ import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.IsOrderableUseCase
@@ -64,6 +65,7 @@ class ProductDetailViewModel @Inject constructor(
     private val validatePhone: ValidateConsumerPhoneUseCase,
     observeSessionEnd: ObserveCustomerSessionEndUseCase,
     private val isOrderable: IsOrderableUseCase,
+    private val endCustomerSession: EndCustomerSessionUseCase,
 ) : ViewModel() {
 
     private val productId: String = savedStateHandle.get<String>(ARG_PRODUCT_ID).orEmpty()
@@ -259,9 +261,13 @@ class ProductDetailViewModel @Inject constructor(
         }
     }
 
+    /** Confirmed close: end the customer session (basket + customer data, CAR-040), then go Home. */
     private fun confirmCloseSearch() {
         _uiState.update { it.copy(showCloseConfirmDialog = false) }
-        emit(ProductDetailUiEffect.NavigateHomeIdle)
+        viewModelScope.launch {
+            endCustomerSession()
+            _uiEffect.emit(ProductDetailUiEffect.NavigateHomeIdle)
+        }
     }
 
     private fun emit(effect: ProductDetailUiEffect) {

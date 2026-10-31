@@ -29,6 +29,7 @@ fun productSearchRoute(query: String, source: SearchSource): String =
 fun NavGraphBuilder.productSearchScreen(
     onNavigateHomeIdle: () -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToCatalog: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
     modifier: Modifier = Modifier,
@@ -43,6 +44,7 @@ fun NavGraphBuilder.productSearchScreen(
         ProductSearchScreen(
             onNavigateHomeIdle = onNavigateHomeIdle,
             onNavigateBack = onNavigateBack,
+            onNavigateToCatalog = onNavigateToCatalog,
             onNavigateToDetail = onNavigateToDetail,
             onOpenCart = onOpenCart,
             modifier = modifier,

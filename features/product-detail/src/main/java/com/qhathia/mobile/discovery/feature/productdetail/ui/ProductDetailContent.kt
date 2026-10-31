@@ -46,6 +46,7 @@ import com.qhathia.mobile.discovery.core.domain.model.ProductImage
 import com.qhathia.mobile.discovery.core.domain.usecase.isOrderable
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
+import com.qhathia.mobile.discovery.core.ui.component.closeDialogMessage
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
@@ -108,6 +109,7 @@ fun ProductDetailContent(
 
         if (uiState.showCloseConfirmDialog) {
             CloseConfirmDialog(
+                cartItemCount = uiState.cartItemCount,
                 onConfirm = { onEvent(ProductDetailUiEvent.ConfirmCloseSearch) },
                 onDismiss = { onEvent(ProductDetailUiEvent.DismissDialog) },
             )
@@ -523,12 +525,13 @@ private fun BrandDot(size: Dp = 16.dp) {
 
 @Composable
 private fun CloseConfirmDialog(
+    cartItemCount: Int,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ConfirmationDialog(
         title = stringResource(R.string.pd_close_dialog_title),
-        message = stringResource(R.string.pd_close_dialog_message),
+        message = closeDialogMessage(cartItemCount, R.string.pd_close_dialog_message),
         confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
         dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
         onConfirm = onConfirm,
@@ -611,10 +614,12 @@ private fun loadedState(
     showCloseConfirmDialog: Boolean = false,
     discountedPrice: Double? = null,
     active: Boolean? = true,
+    cartItemCount: Int = 0,
 ): ProductDetailUiState = ProductDetailUiState(
     status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice, active = active)),
     relatedProducts = related,
     showCloseConfirmDialog = showCloseConfirmDialog,
+    cartItemCount = cartItemCount,
 )
 
 @Preview(name = "Detail loaded (related) — light", showBackground = true, widthDp = 1024, heightDp = 720)
@@ -720,6 +725,28 @@ private fun DetailCloseDialogPreview() {
     DiscoveryTheme(darkTheme = false) {
         ProductDetailContent(
             uiState = loadedState(imageCount = 2, showCloseConfirmDialog = true),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Detail close dialog, 1 in cart — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailCloseDialogWithCartLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductDetailContent(
+            uiState = loadedState(imageCount = 2, showCloseConfirmDialog = true, cartItemCount = 1),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Detail close dialog, 1 in cart — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailCloseDialogWithCartDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(
+            uiState = loadedState(imageCount = 2, showCloseConfirmDialog = true, cartItemCount = 1),
             onEvent = {},
         )
     }

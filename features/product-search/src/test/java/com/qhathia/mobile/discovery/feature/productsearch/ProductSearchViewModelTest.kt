@@ -11,11 +11,14 @@ import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
+import com.qhathia.mobile.discovery.core.testing.CartFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
 import com.qhathia.mobile.discovery.core.testing.FakeLiveTranscriptionRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
@@ -50,6 +53,7 @@ class ProductSearchViewModelTest {
         recorder: FakeAudioRecorder = FakeAudioRecorder(),
         stt: FakeLiveTranscriptionRepository = FakeLiveTranscriptionRepository(),
         cartRepository: FakeCartRepository = FakeCartRepository(),
+        sessionRepository: FakeCustomerSessionRepository = FakeCustomerSessionRepository(),
     ) = ProductSearchViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_QUERY to query, ARG_SOURCE to source.name)),
         searchProducts = SearchProductsUseCase(repository),
@@ -57,6 +61,7 @@ class ProductSearchViewModelTest {
         runVoiceSearchSession = RunVoiceSearchSessionUseCase(recorder, stt),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
+        endCustomerSession = EndCustomerSessionUseCase(cartRepository, sessionRepository),
     )
 
     @Test
@@ -588,5 +593,83 @@ class ProductSearchViewModelTest {
 
         assertTrue(vm.uiState.value.selectedFilters.isEmpty())
         assertNull(vm.uiState.value.selectedSuggestion)
+    }
+
+    @Test
+    fun given_items_in_cart_when_close_confirmed_then_session_ends_before_going_home() =
+        runTest(mainDispatcher.dispatcher) {
+            val cartRepository = FakeCartRepository(CartFixtures.cart(listOf(CartFixtures.cartItem(quantity = 2))))
+            val sessionRepository = FakeCustomerSessionRepository()
+            val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+
+            vm.uiEffect.test {
+                vm.onEvent(ProductSearchUiEvent.NewSearch)
+                vm.onEvent(ProductSearchUiEvent.ConfirmCloseSearch)
+                assertEquals(ProductSearchUiEffect.NavigateHomeIdle, awaitItem())
+                // Already cleared when the navigation effect arrives (CAR-040).
+                assertTrue(cartRepository.current.items.isEmpty())
+                assertEquals(1, sessionRepository.endCount)
+            }
+        }
+
+    @Test
+    fun given_no_history_when_back_confirmed_then_session_ends() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository(CartFixtures.cart(listOf(CartFixtures.cartItem())))
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.Back)
+            assertTrue(vm.uiState.value.showCloseConfirmDialog)
+            vm.onEvent(ProductSearchUiEvent.ConfirmCloseSearch)
+            assertEquals(ProductSearchUiEffect.NavigateHomeIdle, awaitItem())
+        }
+        assertTrue(cartRepository.current.items.isEmpty())
+        assertEquals(1, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_close_dialog_when_dismissed_then_session_kept() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository(CartFixtures.cart(listOf(CartFixtures.cartItem(quantity = 2))))
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+
+        vm.onEvent(ProductSearchUiEvent.NewSearch)
+        vm.onEvent(ProductSearchUiEvent.DismissDialog)
+
+        assertFalse(vm.uiState.value.showCloseConfirmDialog)
+        assertEquals(2, vm.uiState.value.cartItemCount)
+        assertEquals(0, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_items_in_cart_when_go_to_catalog_then_navigates_and_keeps_session() =
+        runTest(mainDispatcher.dispatcher) {
+            val cartRepository = FakeCartRepository(CartFixtures.cart(listOf(CartFixtures.cartItem(quantity = 2))))
+            val sessionRepository = FakeCustomerSessionRepository()
+            val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+
+            vm.uiEffect.test {
+                vm.onEvent(ProductSearchUiEvent.GoToCatalog)
+                assertEquals(ProductSearchUiEffect.NavigateToCatalog, awaitItem())
+            }
+            assertFalse(vm.uiState.value.showCloseConfirmDialog)
+            assertEquals(2, cartRepository.current.totalItemCount)
+            assertEquals(0, sessionRepository.endCount)
+        }
+
+    @Test
+    fun given_no_results_when_go_to_catalog_then_navigates() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.noResults()))
+        val vm = viewModel(repository = repository)
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Unhappy)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.GoToCatalog)
+            assertEquals(ProductSearchUiEffect.NavigateToCatalog, awaitItem())
+            // The unhappy idle timeout was cancelled: no late return to Home.
+            advanceTimeBy(ProductSearchConstants.UNHAPPY_IDLE_TIMEOUT_SECONDS * 1_000 + 1)
+            expectNoEvents()
+        }
     }
 }

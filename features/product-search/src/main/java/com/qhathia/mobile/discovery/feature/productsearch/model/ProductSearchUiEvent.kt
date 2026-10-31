@@ -9,7 +9,10 @@ sealed interface ProductSearchUiEvent {
     /** Tap "Nueva búsqueda" — opens the close-confirmation dialog. */
     data object NewSearch : ProductSearchUiEvent
 
-    /** Confirm closing the current search — clears history and returns to Home idle. */
+    /** Tap "Ir al catálogo" — opens the catalog directly, keeping the cart (no dialog). */
+    data object GoToCatalog : ProductSearchUiEvent
+
+    /** Confirm closing the current search — ends the customer session, clears history and returns Home. */
     data object ConfirmCloseSearch : ProductSearchUiEvent
 
     /** Dismiss the confirmation dialog, keeping the current search. */

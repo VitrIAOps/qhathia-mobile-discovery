@@ -49,6 +49,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
+import com.qhathia.mobile.discovery.core.ui.component.closeDialogMessage
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
@@ -107,6 +108,7 @@ fun ProductSearchContent(
                 TopBar(
                     cartItemCount = uiState.cartItemCount,
                     onBack = { onEvent(ProductSearchUiEvent.Back) },
+                    onGoToCatalog = { onEvent(ProductSearchUiEvent.GoToCatalog) },
                     onNewSearch = { onEvent(ProductSearchUiEvent.NewSearch) },
                     onCart = { onEvent(ProductSearchUiEvent.OpenCart) },
                 )
@@ -147,6 +149,7 @@ fun ProductSearchContent(
 
         if (uiState.showCloseConfirmDialog) {
             CloseConfirmDialog(
+                cartItemCount = uiState.cartItemCount,
                 onConfirm = { onEvent(ProductSearchUiEvent.ConfirmCloseSearch) },
                 onDismiss = { onEvent(ProductSearchUiEvent.DismissDialog) },
             )
@@ -158,6 +161,7 @@ fun ProductSearchContent(
 private fun TopBar(
     cartItemCount: Int,
     onBack: () -> Unit,
+    onGoToCatalog: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
 ) {
@@ -176,6 +180,13 @@ private fun TopBar(
                 leadingIcon = true,
             )
             Spacer(modifier = Modifier.weight(1f))
+            IconTextButton(
+                iconRes = UiR.drawable.ic_catalog,
+                text = stringResource(UiR.string.discovery_action_go_to_catalog),
+                contentDescription = stringResource(UiR.string.discovery_cd_go_to_catalog),
+                onClick = onGoToCatalog,
+            )
+            Spacer(modifier = Modifier.width(Spacing.md))
             IconTextButton(
                 iconRes = UiR.drawable.ic_refresh,
                 text = stringResource(UiR.string.discovery_action_new_search),
@@ -666,12 +677,13 @@ private fun BrandDot(size: Dp = 16.dp) {
 
 @Composable
 private fun CloseConfirmDialog(
+    cartItemCount: Int,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ConfirmationDialog(
         title = stringResource(R.string.ps_close_dialog_title),
-        message = stringResource(R.string.ps_close_dialog_message),
+        message = closeDialogMessage(cartItemCount, R.string.ps_close_dialog_message),
         confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
         dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
         onConfirm = onConfirm,
@@ -888,6 +900,38 @@ private fun CloseDialogPreview() {
             uiState = ProductSearchUiState(
                 source = SearchSource.Text,
                 phase = ProductSearchPhase.Results(sampleProducts(4).toImmutableList(), "Encontré 4 taladros para ti"),
+                showCloseConfirmDialog = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Close dialog, 2 in cart — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CloseDialogWithCartLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Results(sampleProducts(4).toImmutableList(), "Encontré 4 taladros para ti"),
+                cartItemCount = 2,
+                showCloseConfirmDialog = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Close dialog, 2 in cart — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CloseDialogWithCartDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Results(sampleProducts(4).toImmutableList(), "Encontré 4 taladros para ti"),
+                cartItemCount = 2,
                 showCloseConfirmDialog = true,
             ),
             onEvent = {},

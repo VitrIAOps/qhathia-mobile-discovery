@@ -17,6 +17,7 @@
 
     <!-- Shared action labels -->
     <string name="discovery_action_back">Volver</string>
+    <string name="discovery_action_go_to_catalog">Ir al catálogo</string>
     <string name="discovery_action_new_search">Nueva búsqueda</string>
     <string name="discovery_action_go_to_cart">Ir al carrito</string>
     <string name="discovery_action_add_to_cart">Agregar al carrito</string>
@@ -24,6 +25,7 @@
 
     <!-- Shared content descriptions -->
     <string name="discovery_cd_back">Volver</string>
+    <string name="discovery_cd_go_to_catalog">Ir al catálogo</string>
     <string name="discovery_cd_new_search">Nueva búsqueda</string>
     <string name="discovery_cd_voice_search">Buscar por voz</string>
     <string name="discovery_cd_search">Buscar</string>
@@ -35,6 +37,11 @@
 
     <!-- Close-confirmation dialog -->
     <string name="discovery_dialog_confirm_close">Sí, cerrar</string>
+    <!-- Close-dialog message when the basket has products: confirming empties it (CAR-040). -->
+    <plurals name="discovery_close_dialog_message_with_cart">
+        <item quantity="one">Se vaciará el carrito (%1$d producto) y volverás al inicio.</item>
+        <item quantity="other">Se vaciará el carrito (%1$d productos) y volverás al inicio.</item>
+    </plurals>
     <string name="discovery_dialog_cancel">Cancelar</string>
 
     <!-- Shared search prompt + placeholder -->

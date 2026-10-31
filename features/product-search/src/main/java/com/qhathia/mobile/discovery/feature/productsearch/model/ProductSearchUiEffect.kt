@@ -12,6 +12,9 @@ sealed interface ProductSearchUiEffect {
      */
     data object NavigateBack : ProductSearchUiEffect
 
+    /** Open the catalog ("Ir al catálogo"); the cart and the customer session are kept. */
+    data object NavigateToCatalog : ProductSearchUiEffect
+
     /** Open the product-detail screen for the tapped product. */
     data class NavigateToDetail(val productId: String) : ProductSearchUiEffect
 
