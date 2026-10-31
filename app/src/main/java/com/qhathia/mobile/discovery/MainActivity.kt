@@ -389,6 +389,13 @@ private fun DiscoveryNavHost(
                 productSearchScreen(
                     onNavigateHomeIdle = goHome,
                     onNavigateBack = goBack,
+                    onNavigateToCatalog = {
+                        // "Ir al catálogo": always a single fresh Catalog right above Home, whatever the
+                        // path that led to this search (keeps "Volver" on the Catalog predictable).
+                        navController.fromSettledScreen {
+                            navigate(catalogRoute()) { popUpTo(HOME_ROUTE) { inclusive = false } }
+                        }
+                    },
                     onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
                 )

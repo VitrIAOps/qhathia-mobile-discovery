@@ -7,12 +7,14 @@ import com.qhathia.mobile.discovery.core.domain.model.CatalogErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.CatalogException
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductCatalogUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCatalogRefreshUseCase
 import com.qhathia.mobile.discovery.core.testing.CatalogFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCatalogRefreshSignal
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import com.qhathia.mobile.discovery.core.testing.FakeProductCatalogRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.core.testing.ProductFixtures
@@ -42,12 +44,14 @@ class CatalogViewModelTest {
         repository: FakeProductCatalogRepository = FakeProductCatalogRepository(),
         cartRepository: FakeCartRepository = FakeCartRepository(),
         refreshSignal: FakeCatalogRefreshSignal = FakeCatalogRefreshSignal(),
+        sessionRepository: FakeCustomerSessionRepository = FakeCustomerSessionRepository(),
     ) = CatalogViewModel(
         savedStateHandle = SavedStateHandle(mapOf(ARG_SOURCE to source.name)),
         getProductCatalog = GetProductCatalogUseCase(repository),
         observeCart = ObserveCartUseCase(cartRepository),
         addToCart = AddToCartUseCase(cartRepository),
         observeCatalogRefresh = ObserveCatalogRefreshUseCase(refreshSignal),
+        endCustomerSession = EndCustomerSessionUseCase(cartRepository, sessionRepository),
     )
 
     @Test
@@ -292,5 +296,87 @@ class CatalogViewModelTest {
         val state = vm.uiState.value
         assertFalse(state.isNetworkError)
         assertTrue(state.showContent)
+    }
+
+    @Test
+    fun given_items_in_cart_when_close_confirmed_then_session_ends_before_going_home() =
+        runTest(mainDispatcher.dispatcher) {
+            val cartRepository = FakeCartRepository()
+            val sessionRepository = FakeCustomerSessionRepository()
+            val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+            vm.onEvent(CatalogUiEvent.CartTapped("l1"))
+            assertEquals(1, vm.uiState.value.cartItemCount)
+
+            vm.uiEffect.test {
+                vm.onEvent(CatalogUiEvent.NewSearch)
+                vm.onEvent(CatalogUiEvent.ConfirmCloseSearch)
+                assertEquals(CatalogUiEffect.NavigateHomeIdle, awaitItem())
+                // Already cleared when the navigation effect arrives (CAR-040).
+                assertTrue(cartRepository.current.items.isEmpty())
+                assertEquals(1, sessionRepository.endCount)
+            }
+        }
+
+    @Test
+    fun given_empty_cart_when_back_then_session_ends_without_dialog() = runTest(mainDispatcher.dispatcher) {
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(sessionRepository = sessionRepository)
+
+        vm.uiEffect.test {
+            vm.onEvent(CatalogUiEvent.Back)
+            assertEquals(CatalogUiEffect.NavigateHomeIdle, awaitItem())
+        }
+        assertFalse(vm.uiState.value.showCloseConfirmDialog)
+        assertEquals(1, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_close_dialog_when_dismissed_then_session_kept() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository()
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+        vm.onEvent(CatalogUiEvent.CartTapped("l1"))
+
+        vm.onEvent(CatalogUiEvent.Back)
+        vm.onEvent(CatalogUiEvent.DismissDialog)
+
+        assertFalse(vm.uiState.value.showCloseConfirmDialog)
+        assertEquals(1, cartRepository.current.totalItemCount)
+        assertEquals(0, sessionRepository.endCount)
+    }
+
+    @Test
+    fun given_network_error_when_retry_succeeds_then_catalog_shown() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.failure(CatalogException(CatalogErrorCategory.Network)))
+        val vm = viewModel(repository = repository)
+        assertTrue(vm.uiState.value.isNetworkError)
+
+        repository.result = Result.success(CatalogFixtures.catalog())
+        vm.onEvent(CatalogUiEvent.Retry)
+
+        val state = vm.uiState.value
+        assertFalse(state.isNetworkError)
+        assertFalse(state.isLoading)
+        assertTrue(state.visibleProducts.isNotEmpty())
+        assertEquals(2, repository.callCount)
+    }
+
+    @Test
+    fun given_network_error_when_retry_fails_then_idle_countdown_restarts() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.failure(CatalogException(CatalogErrorCategory.Network)))
+        val vm = viewModel(repository = repository)
+        val timeoutMs = CatalogConstants.ERROR_IDLE_TIMEOUT_SECONDS * 1_000
+
+        vm.uiEffect.test {
+            advanceTimeBy(timeoutMs - 5_000)
+            vm.onEvent(CatalogUiEvent.Retry)
+            assertTrue(vm.uiState.value.isNetworkError)
+            // The first countdown would have fired here; the retry restarted it.
+            advanceTimeBy(10_000)
+            expectNoEvents()
+            advanceTimeBy(timeoutMs)
+            assertEquals(CatalogUiEffect.NavigateHomeIdle, awaitItem())
+        }
+        assertEquals(2, repository.callCount)
     }
 }

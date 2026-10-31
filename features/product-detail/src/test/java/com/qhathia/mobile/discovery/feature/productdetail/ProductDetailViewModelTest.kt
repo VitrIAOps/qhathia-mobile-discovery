@@ -9,6 +9,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.IsOrderableUseCase
@@ -65,6 +66,7 @@ class ProductDetailViewModelTest {
         validatePhone = ValidateConsumerPhoneUseCase(),
         observeSessionEnd = ObserveCustomerSessionEndUseCase(sessionRepository),
         isOrderable = IsOrderableUseCase(),
+        endCustomerSession = EndCustomerSessionUseCase(cartRepository, sessionRepository),
     )
 
     /** A view model whose detail is loaded, so the share dialog can open. */
@@ -579,5 +581,35 @@ class ProductDetailViewModelTest {
         assertTrue(share.visible) // still in the dialog
         assertEquals(ProductDetailUiState.ShareSubmission.Idle, share.submission)
         assertEquals("Ana Pérez", share.name) // entered data preserved for the retry
+    }
+
+    @Test
+    fun given_items_in_cart_when_close_confirmed_then_session_ends_before_going_home() =
+        runTest(mainDispatcher.dispatcher) {
+            val cartRepository = FakeCartRepository(CartFixtures.cart())
+            val sessionRepository = FakeCustomerSessionRepository()
+            val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+
+            vm.uiEffect.test {
+                vm.onEvent(ProductDetailUiEvent.NewSearch)
+                vm.onEvent(ProductDetailUiEvent.ConfirmCloseSearch)
+                assertEquals(ProductDetailUiEffect.NavigateHomeIdle, awaitItem())
+                // Already cleared when the navigation effect arrives (CAR-040).
+                assertTrue(cartRepository.current.items.isEmpty())
+                assertEquals(1, sessionRepository.endCount)
+            }
+        }
+
+    @Test
+    fun given_close_dialog_when_dismissed_then_session_kept() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository(CartFixtures.cart())
+        val sessionRepository = FakeCustomerSessionRepository()
+        val vm = viewModel(cartRepository = cartRepository, sessionRepository = sessionRepository)
+
+        vm.onEvent(ProductDetailUiEvent.NewSearch)
+        vm.onEvent(ProductDetailUiEvent.DismissDialog)
+
+        assertEquals(3, cartRepository.current.totalItemCount)
+        assertEquals(0, sessionRepository.endCount)
     }
 }

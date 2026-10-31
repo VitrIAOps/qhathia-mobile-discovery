@@ -41,6 +41,8 @@ import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.CartButton
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
+import com.qhathia.mobile.discovery.core.ui.component.closeDialogMessage
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
@@ -93,7 +95,10 @@ fun CatalogContent(
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
                     uiState.isNetworkError ->
-                        NetworkErrorBody(modifier = Modifier.align(Alignment.Center))
+                        NetworkErrorBody(
+                            onRetry = { onEvent(CatalogUiEvent.Retry) },
+                            modifier = Modifier.align(Alignment.Center),
+                        )
 
                     uiState.isStoreEmpty ->
                         StoreEmptyBody(modifier = Modifier.align(Alignment.Center))
@@ -137,6 +142,7 @@ fun CatalogContent(
 
         if (uiState.showCloseConfirmDialog) {
             CloseConfirmDialog(
+                cartItemCount = uiState.cartItemCount,
                 onConfirm = { onEvent(CatalogUiEvent.ConfirmCloseSearch) },
                 onDismiss = { onEvent(CatalogUiEvent.DismissDialog) },
             )
@@ -314,7 +320,7 @@ private fun DiscountsEmptyBody(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun NetworkErrorBody(modifier: Modifier = Modifier) {
+private fun NetworkErrorBody(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -332,6 +338,13 @@ private fun NetworkErrorBody(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 480.dp),
+        )
+        // A-12: same retry action as the product-detail error body.
+        Spacer(modifier = Modifier.size(Spacing.md))
+        PrimaryActionButton(
+            text = stringResource(UiR.string.discovery_action_retry),
+            onClick = onRetry,
+            fillMaxWidth = false,
         )
     }
 }
@@ -398,12 +411,13 @@ private fun BottomBar(
 
 @Composable
 private fun CloseConfirmDialog(
+    cartItemCount: Int,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ConfirmationDialog(
         title = stringResource(R.string.catalog_close_dialog_title),
-        message = stringResource(R.string.catalog_close_dialog_message),
+        message = closeDialogMessage(cartItemCount, R.string.catalog_close_dialog_message),
         confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
         dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
         onConfirm = onConfirm,
@@ -517,6 +531,51 @@ private fun CatalogCloseDialogPreview() {
                 isLoading = false,
                 tabs = sampleTabs(),
                 visibleProducts = sampleProducts(8),
+                showCloseConfirmDialog = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Catalog network error — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CatalogNetworkErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        CatalogContent(
+            uiState = CatalogUiState(isLoading = false, isNetworkError = true),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Catalog close dialog, 2 in cart — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CatalogCloseDialogWithCartLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        CatalogContent(
+            uiState = CatalogUiState(
+                isLoading = false,
+                tabs = sampleTabs(),
+                visibleProducts = sampleProducts(8),
+                cartItemCount = 2,
+                showCloseConfirmDialog = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Catalog close dialog, 2 in cart — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CatalogCloseDialogWithCartDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        CatalogContent(
+            uiState = CatalogUiState(
+                isLoading = false,
+                tabs = sampleTabs(),
+                visibleProducts = sampleProducts(8),
+                cartItemCount = 2,
                 showCloseConfirmDialog = true,
             ),
             onEvent = {},

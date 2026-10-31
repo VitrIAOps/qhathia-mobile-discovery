@@ -17,6 +17,7 @@ import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
@@ -52,8 +53,10 @@ import kotlinx.coroutines.launch
  * response already returned). A search (API) error settles `Unhappy` with no suggestions; a
  * connectivity failure settles `NetworkError` (screen kept). Each settled outcome is pushed onto an
  * in-memory history so Volver can return to the previous result; with no previous result Volver opens
- * the close-confirmation dialog. Nueva búsqueda (once confirmed) clears the history and returns Home
- * idle, as does the 30s idle timeout on the unhappy screen. The microphone animation is retained
+ * the close-confirmation dialog. Confirming that dialog (from Nueva búsqueda or Volver) ends the
+ * customer session (basket and customer data), clears the history and returns Home idle. The 30s idle
+ * timeout on the unhappy screen returns Home without ending the session. Ir al catálogo opens the
+ * catalog and keeps the session. The microphone animation is retained
  * while processing only for a voice-initiated search.
  */
 @HiltViewModel
@@ -64,6 +67,7 @@ class ProductSearchViewModel @Inject constructor(
     private val runVoiceSearchSession: RunVoiceSearchSessionUseCase,
     observeCart: ObserveCartUseCase,
     private val addToCart: AddToCartUseCase,
+    private val endCustomerSession: EndCustomerSessionUseCase,
 ) : ViewModel() {
 
     private val initialQuery: String = savedStateHandle.get<String>(ARG_QUERY)?.trim().orEmpty()
@@ -127,6 +131,7 @@ class ProductSearchViewModel @Inject constructor(
         when (event) {
             ProductSearchUiEvent.Back -> onBack()
             ProductSearchUiEvent.NewSearch -> _uiState.update { it.copy(showCloseConfirmDialog = true) }
+            ProductSearchUiEvent.GoToCatalog -> goToCatalog()
             ProductSearchUiEvent.ConfirmCloseSearch -> confirmCloseSearch()
             ProductSearchUiEvent.DismissDialog -> _uiState.update { it.copy(showCloseConfirmDialog = false) }
             is ProductSearchUiEvent.QueryChanged -> onQueryChanged(event.query)
@@ -452,6 +457,13 @@ class ProductSearchViewModel @Inject constructor(
         performSearch(query, SearchSource.Text)
     }
 
+    private fun goToCatalog() {
+        cancelTimers()
+        cancelVoiceJobs()
+        searchJob?.cancel()
+        emit(ProductSearchUiEffect.NavigateToCatalog)
+    }
+
     private fun confirmCloseSearch() {
         history.clear()
         clearSelection()
@@ -466,7 +478,11 @@ class ProductSearchViewModel @Inject constructor(
                 selectedSuggestion = null,
             )
         }
-        emit(ProductSearchUiEffect.NavigateHomeIdle)
+        // End the session first so Home already shows an empty basket (CAR-040).
+        viewModelScope.launch {
+            endCustomerSession()
+            _uiEffect.emit(ProductSearchUiEffect.NavigateHomeIdle)
+        }
     }
 
     private fun startSlowSearchTimer() {

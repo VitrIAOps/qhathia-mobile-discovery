@@ -11,6 +11,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductCatalogUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCatalogRefreshUseCase
@@ -56,6 +57,7 @@ class CatalogViewModel @Inject constructor(
     observeCart: ObserveCartUseCase,
     private val addToCart: AddToCartUseCase,
     observeCatalogRefresh: ObserveCatalogRefreshUseCase,
+    private val endCustomerSession: EndCustomerSessionUseCase,
 ) : ViewModel() {
 
     private val source: SearchSource = runCatching {
@@ -226,11 +228,18 @@ class CatalogViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Leave to Home ending the customer session (basket + customer data, CAR-040): the confirmed close
+     * dialog, and "Volver" with an empty basket, which skips the dialog.
+     */
     private fun confirmClose() {
         cancelIdleTimer()
         loadJob?.cancel()
         _uiState.update { it.copy(showCloseConfirmDialog = false) }
-        emit(CatalogUiEffect.NavigateHomeIdle)
+        viewModelScope.launch {
+            endCustomerSession()
+            _uiEffect.emit(CatalogUiEffect.NavigateHomeIdle)
+        }
     }
 
     private fun onQueryChanged(query: String) {

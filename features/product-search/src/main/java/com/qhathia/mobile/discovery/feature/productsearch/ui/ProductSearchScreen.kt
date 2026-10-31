@@ -25,6 +25,7 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiE
 fun ProductSearchScreen(
     onNavigateHomeIdle: () -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToCatalog: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
     modifier: Modifier = Modifier,
@@ -39,6 +40,7 @@ fun ProductSearchScreen(
             when (effect) {
                 ProductSearchUiEffect.NavigateHomeIdle -> onNavigateHomeIdle()
                 ProductSearchUiEffect.NavigateBack -> onNavigateBack()
+                ProductSearchUiEffect.NavigateToCatalog -> onNavigateToCatalog()
                 is ProductSearchUiEffect.NavigateToDetail -> onNavigateToDetail(effect.productId)
                 ProductSearchUiEffect.OpenCart -> onOpenCart()
                 ProductSearchUiEffect.LineLimitReached ->
