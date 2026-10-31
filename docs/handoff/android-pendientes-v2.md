@@ -989,8 +989,8 @@ Reglas que el backend ya aplicó (no hay que replicarlas):
 
 - `core/domain/.../model/Product.kt` — agregar
   `val discountedPrice: Double? = null` (con default, porque `Product` también
-  se construye desde los resultados de búsqueda, que **no** traen el campo —
-  ver "Limitación conocida" abajo).
+  se construye desde los resultados de búsqueda, que en su momento **no**
+  traían el campo — ver "Limitación conocida" abajo, ya resuelta en la Fase 29).
 - `core/data/.../catalog/CatalogMappers.kt`, `CatalogProductDto.toDomain()` —
   agregar `discountedPrice = discountedPrice`.
 - `features/catalog/.../ui/CatalogContent.kt:108` — hoy:
@@ -1015,13 +1015,18 @@ Reglas que el backend ya aplicó (no hay que replicarlas):
   redondea, qué pasa si el monto supera el precio— es volver al bug.
 - **No tratar `null` como "cargando".** Es un estado final: no hay descuento.
 
-#### Limitación conocida (backend, no del cliente)
+#### ~~Limitación conocida (backend, no del cliente)~~ — resuelta
 
-Los **resultados de búsqueda por voz** (`POST /api/v1/conversations/search`,
-`SearchProductDto`) **no traen `discountedPrice`** todavía: ese endpoint vive
-en otro servicio (vo) que proyecta los productos sin el cálculo. Está anotado
-como pendiente del backend. Mientras tanto, en la pantalla de resultados se
-pinta `price` sin tachado; no intentar derivarlo de otro lado.
+> **Resuelta en la Fase 29 (2026-10-24), verificado 2026-10-31.** `POST /api/v1/conversations/search`
+> trae `discountedPrice` y `discountEndsAt` en todos los `results[*]`, también en las sugerencias de
+> "sin resultados", con la misma regla y el mismo número que `/catalog/by-category`. Discovery ya los
+> consume: `SearchProductDto` los declara y `ProductMappers.kt` los pasa al `Product`, así que la
+> pantalla de resultados pinta el precio tachado y el carrito cobra `discountedPrice ?: price`. Ver
+> [`API_REFERENCE.md` §29](../api/API_REFERENCE.md#29-búsqueda-por-voz-precio-con-descuento-y-productos-no-encontrados-fase-29).
+
+Texto original, para contexto: los resultados de búsqueda por voz no traían `discountedPrice`
+porque ese endpoint vive en otro servicio (vo), que proyectaba los productos sin el cálculo. Mientras
+tanto se pintaba `price` sin tachado.
 
 #### Verificación
 
@@ -2041,23 +2046,25 @@ el hub ("Idioma y precios") pasa a "Idioma".
 
 ## Apéndice A · Campos nuevos y retirados, en un vistazo
 
-Todo desplegado y verificado el 2026-10-18/19.
+Todo desplegado y verificado el 2026-10-18/19. **Estado en el front actualizado el 2026-10-31**
+contra `qhathia-mobile-discovery@main` y `qhathia-mobile-staff@0ca3de8`; la evidencia de staff es la
+de la tabla "Estado al 2026-10-24" de arriba.
 
 | Endpoint | Campo | Tipo | Estado en el front |
 |---|---|---|---|
-| `GET /products` | `stock` | `Int?` | ⬜ falta — hoy se inventa (§2.1) |
-| `GET /products`, `/products/{id}`, `/catalog/by-category` | `discountedPrice` | `Double?` | ⬜ falta (§3.1) |
-| idem | `discountEndsAt` | ISO-8601 `?` | ⬜ falta (§3.1) |
-| `GET /dashboard/activity` | `confirmedOrders`, `confirmedOrdersDeltaPercent` | `Int`, `Double?` | ⬜ falta (§3.3) |
-| `GET /dashboard/ranking` | `needsAttention.totalCount` | `Int` | ⬜ falta (§3.4) |
-| `GET /insights/unmet-searches` | `term` (canónico) | `String` | ⬜ llega, pero el mapper pinta `examples[].rawText` (§3.2) |
+| `GET /products` | `stock` | `Int?` | ✅ Staff: `ProductDto.stock`, `mockedStock` borrado · `4813b31` (§2.1) |
+| `GET /products`, `/products/{id}`, `/catalog/by-category`, `POST /conversations/search` | `discountedPrice` | `Double?` | ✅ Discovery: grilla, detalle, relacionados, búsqueda y carrito · `c0cc199`. Staff: ✅ lista · `4813b31`; ⚠️ el detalle todavía lo calcula en el cliente (Nota 1) (§3.1) |
+| idem | `discountEndsAt` | ISO-8601 `?` | ◐ Las dos apps lo reciben y lo guardan en el modelo, pero ninguna pantalla lo muestra todavía. Opcional: el "termina en X" (§3.1) |
+| `GET /dashboard/activity` | `confirmedOrders`, `confirmedOrdersDeltaPercent` | `Int`, `Double?` | ✅ Staff: `ActivityTab.kt` · `255b418` (§3.3) |
+| `GET /dashboard/ranking` | `needsAttention.totalCount` | `Int` | ✅ Staff: "Inmovilizados en X de los Y productos sin ventas" · `255b418` (§3.4) |
+| `GET /insights/unmet-searches` | `term` (canónico) | `String` | ✅ Staff: titular = `term` · `44b5c30`. Opcional: la línea con `examples` (§3.2, paso 3) |
 | `GET /orders/{id}` | `items[].productImageUrl` | `String?` | ✅ ya consumido |
-| Push FCM | evento `ORDER_EXPIRING` | — | ⬜ falta el texto (§3.5) |
-| `POST /devices/heartbeat` | — | — | ⬜ **nunca se llama** (§1) |
-| `GET/PUT /stores/{id}` | ~~`pricesIncludeIgv`~~, ~~`igvRate`~~ | — | ⬜ borrar (§6) |
+| Push FCM | evento `ORDER_EXPIRING` | — | ✅ Staff: "Orden por vencer" · `1f6484f` (§3.5) |
+| `POST /devices/heartbeat` | — | — | ✅ Discovery: cada 60 s, telemetría, ajustes y comandos · `aaf07d5`; verificado con staff el 2026-10-31 (change `device-heartbeat`) (§1) |
+| `GET/PUT /stores/{id}` | ~~`pricesIncludeIgv`~~, ~~`igvRate`~~ | — | ✅ Staff: toggle retirado · `cf465d3` (§6) |
 
-**Pendiente del backend, no del cliente:** `discountedPrice` en los resultados
-de búsqueda por voz (`POST /conversations/search`). No intentar derivarlo.
+~~**Pendiente del backend, no del cliente:** `discountedPrice` en los resultados
+de búsqueda por voz (`POST /conversations/search`).~~ Resuelto en la Fase 29 (ver §3.1).
 
 ## Apéndice B · Verificación de punta a punta
 
