@@ -1,6 +1,6 @@
 # QA report: search-go-to-catalog
 
-Evidence lives in `openspec/changes/search-go-to-catalog/qa-evidence/`.
+Evidence lives in `openspec/changes/archive/2026-10-31-search-go-to-catalog/qa-evidence/`.
 
 **Legend:** ✔ works · ✖ fails · ⏸ blocked / not run on the emulator.
 **Ran by:** C = Claude (emulator + adb).
