@@ -5,6 +5,8 @@
     <!-- Idle hero copy -->
     <string name="home_title">Encuentra lo que necesitas</string>
     <string name="home_subtitle">Presiona aquí y describe lo que buscas, por nombre o detalles</string>
+    <!-- Voice assistant turned off remotely: there is no microphone, so the hero invites typing. -->
+    <string name="home_subtitle_voice_off">Escribe lo que buscas, por nombre o detalles</string>
 
     <!-- Search (feature-specific placeholder; shared search-icon CD lives in core:ui) -->
     <string name="home_search_placeholder">Describe lo que buscas (taladro de la marca bosch)</string>
