@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
+import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
@@ -293,7 +295,11 @@ private fun IdleHero(
     )
 }
 
-/** Resolves the hero (title, subtitle) pair for the idle / no-audio-retry / error / success states. */
+/**
+ * Resolves the hero (title, subtitle) pair for the idle / no-audio-retry / error / success states. With
+ * the voice assistant turned off the microphone is not drawn, so the idle subtitle invites typing
+ * instead of pointing at it.
+ */
 @Composable
 private fun headlineFor(micState: MicState): Pair<String, String> = when (micState) {
     is MicState.NoAudioRetry -> {
@@ -306,7 +312,9 @@ private fun headlineFor(micState: MicState): Pair<String, String> = when (micSta
         val copy = micState.category.toCopy()
         stringResource(copy.titleRes) to stringResource(copy.messageRes)
     }
-    else -> stringResource(R.string.home_title) to stringResource(R.string.home_subtitle)
+    else -> stringResource(R.string.home_title) to stringResource(
+        if (LocalVoiceAssistantEnabled.current) R.string.home_subtitle else R.string.home_subtitle_voice_off,
+    )
 }
 
 @Composable
@@ -446,5 +454,31 @@ private fun HomeContentIdleDarkPreview() {
             uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Idle),
             onEvent = {},
         )
+    }
+}
+
+@Preview(name = "Home idle, voice off — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentVoiceOffLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        CompositionLocalProvider(LocalVoiceAssistantEnabled provides false) {
+            HomeContent(
+                uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Idle),
+                onEvent = {},
+            )
+        }
+    }
+}
+
+@Preview(name = "Home idle, voice off — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun HomeContentVoiceOffDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        CompositionLocalProvider(LocalVoiceAssistantEnabled provides false) {
+            HomeContent(
+                uiState = HomeUiState(storeName = "Joyería María", micState = MicState.Idle),
+                onEvent = {},
+            )
+        }
     }
 }
