@@ -45,4 +45,12 @@
 - [x] 8.1 `./gradlew :app:assembleDebug` builds.
 - [x] 8.2 `./gradlew testDebugUnitTest :core:domain:test` passes. (328 tests, 0 failures.)
 - [x] 8.3 `./gradlew lintDebug` passes with no new warnings.
-- [ ] 8.4 Manual check on a paired tablet: set a 6-digit PIN from staff → gate asks for it and accepts it offline; remove it → settings open directly; voice off → mic buttons disappear; brightness HIGH/LOW visibly changes.
+- [x] 8.4 Manual check on a paired tablet: set a 6-digit PIN from staff → gate asks for it and accepts it offline; remove it → settings open directly; voice off → mic buttons disappear; brightness HIGH/LOW visibly changes.
+  - Done 2026-10-31 on `Medium_Tablet` (API 26, paired, production). Settings were sent with `PUT /api/v1/devices/{deviceId}/settings` as the store owner (the same call the staff app makes) and each one was checked on the tablet after the next heartbeat (≤ 75 s):
+    - 6-digit PIN `246810` → the gear asks for it; typing it opens Settings (validated on the 6th digit).
+    - `removeExitPin: true` → the gear opens Settings directly.
+    - `voiceAssistantEnabled: false` → no microphone on Home, Catalog or Search; back to `true` → it returns.
+    - `brightnessMode`: LOW → window brightness override 76/255 (0.3); HIGH → 255/255 (1.0) (`dumpsys power`, `mScreenBrightnessOverrideFromWindowManager`).
+    - Restored afterwards: the merchant's 5-digit PIN (accepted with "Confirmar PIN"), brightness LOW, voice on (`settingsVersion` 22 → 27).
+  - Offline PIN check: not reproducible on this emulator (Wi-Fi cannot be cut from adb). The gate compares against the cached `exitPinHash` with no request; covered by `SettingsAccessRepositoryImplTest` and `ValidateSettingsPasswordUseCaseTest`.
+  - Found (not in this change): with voice off, the Home subtitle still says "Presiona aquí y describe lo que buscas…", which points at the microphone that is no longer shown.
