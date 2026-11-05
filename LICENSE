@@ -1,0 +1,56 @@
+Qhathia Discovery — Proprietary License
+
+Copyright (c) 2026 VitrIAOps. All rights reserved.
+
+This repository, including its source code, branches, tags, commit history,
+specifications (OpenSpec), documentation, designs, build scripts and any other
+material contained in it (together, the "Software"), is the confidential and
+proprietary property of VitrIAOps.
+
+1. NO LICENSE GRANTED
+   No license or right of any kind is granted by making the Software available
+   to you, except the limited right of access described in section 2.
+
+2. AUTHORIZED ACCESS
+   Access is limited to persons expressly authorized in writing by VitrIAOps
+   (employees, contractors or collaborators), and only for the purpose of
+   developing, testing and maintaining the Software on behalf of VitrIAOps.
+   Authorized persons may clone the repository and create working branches
+   inside the official VitrIAOps repository solely for that purpose.
+
+3. PROHIBITED ACTIONS
+   Unless VitrIAOps gives prior written permission, you may NOT:
+   a) copy, clone, fork, mirror, export or re-host this repository or any of
+      its branches, tags or commit history to any other repository, account,
+      organization, server or storage service, public or private;
+   b) push any branch, tag or commit of the Software to a remote other than
+      the official VitrIAOps repository;
+   c) reproduce, modify, merge, publish, distribute, sublicense, sell, rent or
+      otherwise make the Software or any part of it available to third parties;
+   d) use the Software, in whole or in part, to build a competing or derivative
+      product;
+   e) reverse engineer, decompile or disassemble any binary built from the
+      Software, except where applicable law expressly permits it;
+   f) remove or alter this notice or any copyright notice in the Software.
+
+4. CONFIDENTIALITY
+   The Software is confidential information of VitrIAOps. Authorized persons
+   must protect it with at least the same care they use for their own
+   confidential information, and must delete every local copy when their
+   authorization ends or when VitrIAOps requests it.
+
+5. TERMINATION
+   Any breach of this license immediately ends any authorization to access the
+   Software. VitrIAOps reserves all rights and remedies available under
+   applicable law.
+
+6. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+   VITRIAOPS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+Third-party libraries used by the Software remain under their own licenses.
+
+For permission requests, contact VitrIAOps.

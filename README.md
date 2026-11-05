@@ -6,6 +6,47 @@ Android application written in **Kotlin** with **Jetpack Compose**, organized as
 
 This README is the technical entry point for developers. Deep-dive standards live under [`docs/`](#documentation).
 
+> **Built with Spec-Driven Development (SDD).** Every feature in this app started as a written
+> specification, not as code. Specs are the source of truth; code is the implementation of a spec.
+> See [How this project is built](#how-this-project-is-built-spec-driven-development).
+
+---
+
+## How this project is built: Spec-Driven Development
+
+This project follows **Spec-Driven Development** using [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+(`schema: spec-driven` in [`openspec/config.yaml`](openspec/config.yaml)). No non-trivial change is
+coded before its behavior is written down and agreed.
+
+```
+Feature request / ClickUp task
+        │
+        ▼
+ 1. Enrich      → business + technical context          (/write-user-story)
+        │
+        ▼
+ 2. Propose     → proposal.md · design.md · specs/ · tasks.md   (/opsx:propose)
+        │
+        ▼
+ 3. Apply       → implement tasks against the spec       (/opsx:apply)
+        │
+        ▼
+ 4. Archive     → merge spec deltas into openspec/specs/  (/opsx:archive)
+```
+
+- **Living specs** — [`openspec/specs/`](openspec/specs) holds one specification per capability
+  (e.g. `product-search`, `shopping-cart`, `device-pairing`, `kiosk-lock-mode`). They describe what
+  the app does *today*, as requirements and scenarios.
+- **Changes** — each change lives in `openspec/changes/<change>/` while in progress and moves to
+  [`openspec/changes/archive/`](openspec/changes/archive) (dated) once done. The archive is the
+  full, reviewable history of why each feature exists.
+- **Spec first, then code** — a pull request implements tasks from an approved change; reviewers
+  check the code against the spec's scenarios.
+- **AI-assisted** — the workflow is driven by agent skills and commands in [`.claude/`](.claude)
+  (see [`CLAUDE.md`](CLAUDE.md)), which load the project standards before writing any code.
+
+Validate a change with `openspec validate <change>`.
+
 ---
 
 ## Technology stack
@@ -154,7 +195,9 @@ root/
     ├── product-search/
     ├── product-detail/
     ├── cart/
-    └── settings/
+    ├── settings/
+    ├── pairing/
+    └── onboarding/
 ```
 
 **Dependency rules (enforced by convention):**
@@ -236,7 +279,8 @@ and [`docs/android/android-ui-ux-compose-guidelines.md`](docs/android/android-ui
 
 ### Spec-driven changes (OpenSpec)
 
-Non-trivial changes are proposed as OpenSpec artifacts before implementation:
+Non-trivial changes are proposed as OpenSpec artifacts before implementation — see
+[How this project is built](#how-this-project-is-built-spec-driven-development):
 
 ```
 openspec/
@@ -244,9 +288,6 @@ openspec/
 └── changes/            # In-flight changes (proposal.md, design.md, specs/, tasks.md)
     └── archive/        # Completed, archived changes (dated)
 ```
-
-Typical flow: **propose** (proposal + design + specs + tasks) → **apply** (implement tasks) →
-**archive** (sync specs into `openspec/specs/`). Validate with `openspec validate <change>`.
 
 ---
 
@@ -259,3 +300,14 @@ Typical flow: **propose** (proposal + design + specs + tasks) → **apply** (imp
 | Environment setup, Gradle tasks, build commands | [`docs/android/android-development-guide.md`](docs/android/android-development-guide.md) |
 | API contracts, endpoints, DTOs | [`docs/android/api-contract.md`](docs/android/api-contract.md) |
 | Repo-wide AI/agent context | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |
+
+---
+
+## License
+
+**Proprietary — all rights reserved.** © 2026 VitrIAOps.
+
+This repository is confidential. Copying, forking, mirroring or pushing this repository or any of
+its branches, tags or history to another location is **not allowed** without written permission
+from VitrIAOps. Authorized contributors may only create working branches inside the official
+repository. See [`LICENSE`](LICENSE) for the full terms.
