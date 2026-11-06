@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.ui.component.labeled
@@ -39,7 +40,7 @@ import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Shared fixed dark side menu for the settings area (Figma "Red Wifi" / "Comercio vinculado"): a back
- * affordance, the store title, and the Wi-Fi / Vincular section items. Hosted once by [SettingsScreen]
+ * affordance, the store title ([storeName], "Tienda" when `null`), and the Wi-Fi / Vincular section items. Hosted once by [SettingsScreen]
  * so the selection shadow animates smoothly as the merchant switches sections.
  *
  * While the kiosk lock is active it also offers "Salir del modo kiosko" at the bottom, with a hint that
@@ -52,6 +53,7 @@ fun SettingsSideMenu(
     onSelectSection: (SettingsSection) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    storeName: String? = null,
     kioskExit: KioskExitUiState = KioskExitUiState(),
     onExitKioskMode: () -> Unit = {},
 ) {
@@ -87,9 +89,11 @@ fun SettingsSideMenu(
             }
         }
         Text(
-            text = stringResource(R.string.network_store_title),
+            text = storeName ?: stringResource(R.string.network_store_title),
             style = MaterialTheme.typography.headlineMedium,
             color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             SideMenuItem(
@@ -187,6 +191,7 @@ private fun SettingsSideMenuLockedPreview() {
             selectedSection = SettingsSection.Wifi,
             onSelectSection = {},
             onBack = {},
+            storeName = "QA Discovery — Ferretería",
             kioskExit = KioskExitUiState(isLockActive = true),
         )
     }
@@ -200,6 +205,7 @@ private fun SettingsSideMenuExitedPreview() {
             selectedSection = SettingsSection.Wifi,
             onSelectSection = {},
             onBack = {},
+            storeName = "QA Discovery — Ferretería",
             kioskExit = KioskExitUiState(isLockActive = false, hasExited = true),
         )
     }

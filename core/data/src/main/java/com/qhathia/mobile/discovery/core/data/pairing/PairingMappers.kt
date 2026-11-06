@@ -34,6 +34,7 @@ internal fun DeviceTokenResponseDto.toPairedDevice(pairingCode: String?): Paired
     platform = platform,
     status = status,
     pairingCode = pairingCode,
+    storeName = storeName?.takeIf { it.isNotBlank() },
 )
 
 internal fun DeviceInfoResponseDto.toPairedDevice(pairingCode: String?, storeName: String?): PairedDevice = PairedDevice(

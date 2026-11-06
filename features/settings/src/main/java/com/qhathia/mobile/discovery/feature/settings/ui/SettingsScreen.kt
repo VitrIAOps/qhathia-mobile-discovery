@@ -10,11 +10,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qhathia.mobile.discovery.feature.pairing.ui.PairingScreen
-import com.qhathia.mobile.discovery.feature.settings.R
 import com.qhathia.mobile.discovery.feature.settings.model.KioskExitUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsSection
 
@@ -23,19 +21,23 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsSection
  * the shared dark side menu once (so the selection shadow animates) next to the section's panel —
  * Wi-Fi ("Red Wifi") or device pairing ("Vincular"). Back is hoisted to the caller.
  *
- * The pairing section is the shared `:features:pairing` slice, hosted here with the "TIENDA" title, the
+ * The pairing section is the shared `:features:pairing` slice, hosted here with the store title, the
  * side menu present and no back affordance; a successful pairing keeps the merchant in place (the slice
  * shows the paired-device details), so [PairingScreen]'s `onPaired` is a no-op.
  *
  * The side menu also carries "Salir del modo kiosko" ([KioskExitViewModel]) while the kiosk lock is on.
+ * The titles show the store name ([SettingsHostViewModel]); "TIENDA" / "Tienda" while it is unknown.
  */
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     kioskExitViewModel: KioskExitViewModel = hiltViewModel(),
+    hostViewModel: SettingsHostViewModel = hiltViewModel(),
 ) {
     val kioskExit by kioskExitViewModel.uiState.collectAsStateWithLifecycle()
+    val storeName by hostViewModel.storeName.collectAsStateWithLifecycle()
+    val panelTitle = storeName?.uppercase() ?: storeToolbarFallback()
     var section by rememberSaveable { mutableStateOf(SettingsSection.Wifi) }
 
     Row(modifier = modifier.fillMaxSize()) {
@@ -43,6 +45,7 @@ fun SettingsScreen(
             selectedSection = section,
             onSelectSection = { section = it },
             onBack = onNavigateBack,
+            storeName = storeName,
             kioskExit = kioskExit,
             onExitKioskMode = { kioskExitViewModel.onEvent(KioskExitUiEvent.ExitKioskMode) },
         )
@@ -52,8 +55,8 @@ fun SettingsScreen(
             label = "settingsSection",
         ) { current ->
             when (current) {
-                SettingsSection.Wifi -> NetworkSettingsScreen(onNavigateBack = onNavigateBack)
-                SettingsSection.Pairing -> PairingScreen(title = stringResource(R.string.network_toolbar_title))
+                SettingsSection.Wifi -> NetworkSettingsScreen(onNavigateBack = onNavigateBack, title = panelTitle)
+                SettingsSection.Pairing -> PairingScreen(title = panelTitle)
             }
         }
     }

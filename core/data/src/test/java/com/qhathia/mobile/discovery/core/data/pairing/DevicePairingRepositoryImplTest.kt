@@ -434,6 +434,29 @@ class DevicePairingRepositoryImplTest {
     private fun Result<*>.exchangeError(): PairingExchangeError? =
         (exceptionOrNull() as? PairingExchangeException)?.error
 
+    // --- store name from the exchange (F-05) ---
+
+    @Test
+    fun exchange_with_store_name_saves_it_for_home() = runTest {
+        coEvery { api.exchangeToken("sess-1") } returns
+            PairingExchangeResponse.Success(tokenDto.copy(storeName = "QA Discovery — Ferretería"))
+
+        val device = repository().exchangeForDeviceToken("sess-1").getOrNull()
+
+        assertEquals("QA Discovery — Ferretería", session.observe().first().storeName)
+        assertEquals("QA Discovery — Ferretería", device?.storeName)
+    }
+
+    @Test
+    fun exchange_without_store_name_keeps_the_session_name() = runTest {
+        session.updateStoreName("Ferretería")
+        coEvery { api.exchangeToken("sess-1") } returns PairingExchangeResponse.Success(tokenDto.copy(storeName = " "))
+
+        repository().exchangeForDeviceToken("sess-1")
+
+        assertEquals("Ferretería", session.observe().first().storeName)
+    }
+
     // --- abandoned codes (F-02) ---
 
     @Test
