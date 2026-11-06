@@ -4,9 +4,12 @@ import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.PinAttempts
 import com.qhathia.mobile.discovery.core.domain.usecase.IsSettingsPinRequiredUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePinLockUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveSettingsPinRequiredUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RegisterPinFailureUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ReportPinLockoutUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ResetPinAttemptsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateSettingsPasswordUseCase
+import com.qhathia.mobile.discovery.core.testing.FakeDeviceLogRepository
 import com.qhathia.mobile.discovery.core.testing.FakeSettingsAccessRepository
 import com.qhathia.mobile.discovery.core.testing.FakeSettingsPinAttemptsRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
@@ -15,6 +18,7 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEffect
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
 import com.qhathia.mobile.discovery.feature.settings.ui.SettingsViewModel
+import com.qhathia.mobile.discovery.feature.settings.ui.formatMinutesSeconds
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -37,6 +41,7 @@ class SettingsViewModelTest {
 
     private val attempts = FakeSettingsPinAttemptsRepository()
     private val clock = MutableClock { mainDispatcher.dispatcher.scheduler.currentTime }
+    private val deviceLogs = FakeDeviceLogRepository()
 
     private fun newViewModel(repository: FakeSettingsAccessRepository) = SettingsViewModel(
         validateSettingsPassword = ValidateSettingsPasswordUseCase(repository),
@@ -44,6 +49,8 @@ class SettingsViewModelTest {
         observePinLock = ObservePinLockUseCase(attempts, clock),
         registerPinFailure = RegisterPinFailureUseCase(attempts, clock),
         resetPinAttempts = ResetPinAttemptsUseCase(attempts),
+        observePinRequired = ObserveSettingsPinRequiredUseCase(repository),
+        reportPinLockout = ReportPinLockoutUseCase(deviceLogs),
     )
 
     private fun viewModel(repository: FakeSettingsAccessRepository = FakeSettingsAccessRepository(password = sixDigitPin)) =
@@ -158,13 +165,13 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun given_fifth_wrong_pin_then_locked_for_24_hours_and_keypad_ignores_input() =
+    fun given_fifth_wrong_pin_then_locked_for_30_seconds_and_keypad_ignores_input() =
         runTest(mainDispatcher.dispatcher) {
             val repository = FakeSettingsAccessRepository(password = sixDigitPin)
             val vm = viewModel(repository)
 
             repeat(5) { vm.enterWrongPin() }
-            assertEquals(24 * 60L, vm.uiState.value.lockedMinutesLeft)
+            assertEquals(30L, vm.uiState.value.lockedSecondsLeft)
             assertFalse(vm.uiState.value.isInputEnabled)
 
             // Even the right PIN is not checked while locked.
@@ -174,14 +181,14 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun given_locked_then_time_left_refreshes_every_minute() = runTest(mainDispatcher.dispatcher) {
+    fun given_locked_then_time_left_refreshes_every_second() = runTest(mainDispatcher.dispatcher) {
         val vm = viewModel()
         repeat(5) { vm.enterWrongPin() }
 
-        advanceTimeBy(60_000)
+        advanceTimeBy(1_000)
         runCurrent()
 
-        assertEquals(24 * 60L - 1, vm.uiState.value.lockedMinutesLeft)
+        assertEquals(29L, vm.uiState.value.lockedSecondsLeft)
     }
 
     @Test
@@ -196,19 +203,82 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun given_24_hours_passed_then_unlocked_with_five_attempts() = runTest(mainDispatcher.dispatcher) {
+    fun given_30_seconds_passed_then_unlocked_with_five_attempts_and_next_lock_is_1_minute() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel()
+            repeat(5) { vm.enterWrongPin() }
+
+            advanceTimeBy(30_000)
+            runCurrent()
+
+            assertFalse(vm.uiState.value.isLocked)
+            repeat(4) { vm.enterWrongPin() }
+            assertFalse(vm.uiState.value.isLocked)
+            vm.enterWrongPin()
+            assertEquals(60L, vm.uiState.value.lockedSecondsLeft)
+            vm.onEvent(SettingsUiEvent.DismissDialog)
+        }
+
+    @Test
+    fun given_each_new_lock_then_reported_once_with_its_duration() = runTest(mainDispatcher.dispatcher) {
         val vm = viewModel()
         repeat(5) { vm.enterWrongPin() }
+        vm.enterWrongPin() // ignored while locked
+        runCurrent()
+        assertEquals(listOf(5 to 30L), deviceLogs.lockouts)
 
-        advanceTimeBy(24 * 60 * 60_000L)
+        advanceTimeBy(30_000)
+        runCurrent()
+        repeat(5) { vm.enterWrongPin() }
         runCurrent()
 
-        assertFalse(vm.uiState.value.isLocked)
-        repeat(4) { vm.enterWrongPin() }
-        assertFalse(vm.uiState.value.isLocked)
-        vm.enterWrongPin()
-        assertTrue(vm.uiState.value.isLocked)
+        assertEquals(listOf(5 to 30L, 5 to 60L), deviceLogs.lockouts)
         vm.onEvent(SettingsUiEvent.DismissDialog)
+    }
+
+    @Test
+    fun given_report_fails_then_screen_is_unchanged() = runTest(mainDispatcher.dispatcher) {
+        deviceLogs.result = Result.failure(IllegalStateException("offline"))
+        val vm = viewModel()
+
+        repeat(5) { vm.enterWrongPin() }
+        runCurrent()
+
+        assertEquals(30L, vm.uiState.value.lockedSecondsLeft)
+        assertFalse(vm.uiState.value.showError)
+        assertEquals(1, deviceLogs.lockouts.size)
+    }
+
+    @Test
+    fun given_reopened_while_locked_then_not_reported_again() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        repeat(5) { vm.enterWrongPin() }
+        vm.onEvent(SettingsUiEvent.DismissDialog)
+
+        viewModel()
+        runCurrent()
+
+        assertEquals(1, deviceLogs.lockouts.size)
+    }
+
+    @Test
+    fun given_pin_removed_while_dialog_open_then_unlocks() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeSettingsAccessRepository(password = sixDigitPin)
+        val vm = viewModel(repository)
+        repeat(5) { vm.enterWrongPin() }
+
+        vm.uiEffect.test {
+            repository.pinRequired = false
+            assertTrue(awaitItem() is SettingsUiEffect.Unlocked)
+        }
+    }
+
+    @Test
+    fun lock_time_is_formatted_as_minutes_and_seconds() {
+        assertEquals("0:30", formatMinutesSeconds(30))
+        assertEquals("0:01", formatMinutesSeconds(1))
+        assertEquals("1:00", formatMinutesSeconds(60))
+        assertEquals("15:00", formatMinutesSeconds(900))
     }
 
     @Test

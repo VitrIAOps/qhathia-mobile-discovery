@@ -37,6 +37,7 @@ class SettingsPinAttemptsRepositoryImpl @Inject constructor(
                 PinAttempts(
                     failedCount = preferences[KEY_FAILED_COUNT] ?: 0,
                     lockedAt = preferences[KEY_LOCKED_AT]?.let(Instant::ofEpochMilli),
+                    lockCount = preferences[KEY_LOCK_COUNT] ?: 0,
                 )
             }
         }.distinctUntilChanged()
@@ -49,12 +50,14 @@ class SettingsPinAttemptsRepositoryImpl @Inject constructor(
             if (attempts == PinAttempts.NONE) {
                 preferences.remove(KEY_FAILED_COUNT)
                 preferences.remove(KEY_LOCKED_AT)
+                preferences.remove(KEY_LOCK_COUNT)
                 preferences.remove(KEY_PIN_FINGERPRINT)
                 return@edit
             }
             preferences[KEY_FAILED_COUNT] = attempts.failedCount
             attempts.lockedAt?.let { preferences[KEY_LOCKED_AT] = it.toEpochMilli() }
                 ?: preferences.remove(KEY_LOCKED_AT)
+            preferences[KEY_LOCK_COUNT] = attempts.lockCount
             preferences[KEY_PIN_FINGERPRINT] = fingerprint
         }
     }
@@ -69,6 +72,7 @@ class SettingsPinAttemptsRepositoryImpl @Inject constructor(
         const val NO_PIN = "none"
         val KEY_FAILED_COUNT = intPreferencesKey("settings_pin_failed_count")
         val KEY_LOCKED_AT = longPreferencesKey("settings_pin_locked_at")
+        val KEY_LOCK_COUNT = intPreferencesKey("settings_pin_lock_count")
         val KEY_PIN_FINGERPRINT = stringPreferencesKey("settings_pin_fingerprint")
     }
 }
