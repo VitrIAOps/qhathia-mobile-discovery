@@ -63,12 +63,17 @@ When a search returns products, the app SHALL present a "catalog viewed from cha
 
 ### Requirement: Search filters and suggestions surfaced from the response
 
-The app SHALL parse the `filters` (`[{criterion, options[]}]`) and `suggestions` (`List<String>`) fields from the `POST /api/v1/conversations/search` response and carry them into the search result. On the results (has-products) screen, the app SHALL present a **filters & suggestions section** following the Figma design, listing each filter criterion with its options and the suggestion phrases. When the response carries no filters and no suggestions — including the unhappy / no-results path, where the API returns both empty — the section SHALL be hidden.
+The app SHALL parse the `filters` (`[{criterion, options[], values[]}]`, where `values[i]` is the value to send for `options[i]` and defaults to the option when absent) and `suggestions` (`List<String>`) fields from the `POST /api/v1/conversations/search` response and carry them into the search result. On the results (has-products) screen, the app SHALL present a **filters & suggestions section** following the Figma design, listing each filter criterion with its options and the suggestion phrases. When the response carries no filters and no suggestions — including the unhappy / no-results path, where the API returns both empty — the section SHALL be hidden.
 
 #### Scenario: Filters and suggestions rendered with results
 
 - **WHEN** a search returns products together with non-empty `filters` and/or `suggestions`
 - **THEN** the results screen shows the filters & suggestions section listing each criterion with its options and the suggestion phrases
+
+#### Scenario: Values default to the options
+
+- **WHEN** a criterion arrives without `values`
+- **THEN** each option's value is the option label itself
 
 #### Scenario: Section hidden when none are returned
 
@@ -103,31 +108,6 @@ The app SHALL let the consumer select filter options and suggestions on the resu
 
 - **WHEN** a filter option or suggestion is selected
 - **THEN** it is rendered in the selected visual state per the design
-
-### Requirement: Filter or suggestion selection re-queries with concatenated terms
-
-When the consumer selects or de-selects a filter option or a suggestion, the app SHALL issue a new `POST /api/v1/conversations/search` request whose query is built by concatenating the currently selected terms **naturally onto the original raw query** that started the current results view (e.g. raw query *busco un taladro* with suggestion *para uso doméstico* → *busco un taladro para uso doméstico*). The app SHALL retain that original raw query as the immutable concatenation base, so that de-selecting all terms reproduces the base query. The re-query SHALL refresh both the products and the filters/suggestions lists from the new response, and SHALL reuse the existing search processing and unhappy/network-error handling.
-
-#### Scenario: Selecting a suggestion re-queries with it appended
-
-- **WHEN** the consumer selects a suggestion
-- **THEN** the app submits a new search whose query is the original raw query with the suggestion concatenated naturally
-- **AND** presents the products and filters/suggestions from the new response
-
-#### Scenario: Selecting filters re-queries with them appended
-
-- **WHEN** the consumer selects one or more filter options
-- **THEN** the app submits a new search whose query is the original raw query with the selected filter terms concatenated naturally
-
-#### Scenario: De-selecting all terms returns to the base query
-
-- **WHEN** the consumer de-selects every previously selected filter and suggestion
-- **THEN** the next re-query uses the original raw query unchanged
-
-#### Scenario: An empty re-query result follows the unhappy path
-
-- **WHEN** a filter/suggestion re-query returns `noResults=true`
-- **THEN** the app follows the established unhappy-screen handling
 
 ### Requirement: Search outcome decided by the response's noResults flag
 
@@ -235,16 +215,26 @@ When a search response carries `noResults=true`, or the search fails with a sear
 
 ### Requirement: Temporary search history with back navigation
 
-The app SHALL store the history of search results temporarily (in memory) so the consumer can go back to a previous result. The **Volver** control SHALL return to the immediately previous search result when one exists. When no previous result exists, **Volver** SHALL open the new-search confirmation dialog.
+The app SHALL store the history of search results temporarily (in memory) so the consumer can go back to a previous result. The **Volver** control SHALL return to the immediately previous search result when one exists. While a network error is shown over a result, **Volver** SHALL return to that result. When no previous result exists, **Volver** SHALL return to the previous screen (Catalog or Product detail) keeping the cart and the customer session; only when the search was opened from Home SHALL it open the new-search confirmation dialog.
 
 #### Scenario: Back returns to the previous result
 
 - **WHEN** the consumer has performed more than one search and taps Volver
 - **THEN** the app shows the immediately previous search result
 
-#### Scenario: Back with no previous result asks to close
+#### Scenario: Back after a network error
 
-- **WHEN** the consumer taps Volver and there is no previous search result
+- **WHEN** a result is shown, a later search fails for lack of network, and the consumer taps Volver
+- **THEN** the app shows that result again
+
+#### Scenario: Back to the Catalog
+
+- **WHEN** the search was opened from the Catalog, there is no previous search result, and the consumer taps Volver or system Back
+- **THEN** the app returns to the Catalog without a dialog, and the cart is kept
+
+#### Scenario: Back with no previous result from Home asks to close
+
+- **WHEN** the search was opened from Home, there is no previous search result, and the consumer taps Volver
 - **THEN** the app opens the confirmation dialog to close the current search
 
 ### Requirement: New search resets the session
@@ -398,4 +388,84 @@ When the consumer captures voice in place from the results or unhappy screen, th
 
 - **WHEN** interim results arrive after the in-place recording has ended
 - **THEN** the screen updates the shown text to the latest transcript
+
+### Requirement: Filter chips re-query with structured filters
+
+When the consumer selects or de-selects a filter option, the app SHALL issue a new `POST /api/v1/conversations/search` request whose `transcribedText` is the original raw query that started the current results view, with only the selected suggestion (if any) concatenated naturally onto it, and whose `filters` carry the selected options:
+
+- options of the "Marca" criterion SHALL be sent in `filters.brands`, as their labels;
+- options of any other criterion SHALL be sent in `filters.tags`, as the criterion's `values` entry matching each option, never as the label.
+
+When no option is selected, the request SHALL carry no `filters`. The app SHALL keep the original raw query as the immutable base, so that de-selecting every chip and the suggestion reproduces the base query.
+
+#### Scenario: Brand chip filters by brand
+
+- **WHEN** the consumer searched "taladro" and taps the "Bosch" chip of the "Marca" criterion
+- **THEN** the request carries `transcribedText` "taladro" and `filters.brands` ["Bosch"], with no chip text in `transcribedText`
+
+#### Scenario: Tag chip sends its value
+
+- **WHEN** the consumer taps the "Inalámbrico" option of the "Tipo" criterion, whose matching value is "inalambrico"
+- **THEN** the request carries `filters.tags` ["inalambrico"]
+
+#### Scenario: Suggestion stays in the text
+
+- **WHEN** the consumer has the "Bosch" chip selected and selects the suggestion "para uso doméstico"
+- **THEN** the request carries `transcribedText` "taladro para uso doméstico" and `filters.brands` ["Bosch"]
+
+#### Scenario: Clearing every chip returns to the base query
+
+- **WHEN** the consumer de-selects every chip and the suggestion
+- **THEN** the next request carries the original raw query unchanged and no `filters`
+
+### Requirement: Stable filter panel while refining
+
+The filter criteria, options and suggestions shown SHALL be the ones returned by the search that started the current results view. A refinement SHALL update the products and the selection, but SHALL NOT replace the panel with the refined response's own `filters` or `suggestions`.
+
+#### Scenario: Panel unchanged after a brand chip
+
+- **WHEN** the search returned the brands Bosch, DeWalt and Makita and the consumer taps "Bosch"
+- **THEN** the panel still shows Bosch, DeWalt and Makita, with Bosch selected
+
+### Requirement: Refinement without matches keeps the chips
+
+When a refinement with at least one selected chip returns `noResults=true`, the app SHALL stay on the results view with the chips still selected, show no products, and show "No hay productos con esos filtros. Quita alguno para ver más.". It SHALL NOT show the unhappy screen, and SHALL NOT present the response's unfiltered results as matches.
+
+#### Scenario: Two chips with no product
+
+- **WHEN** the consumer selects "Bosch" and "Inalámbrico" and no product has both
+- **THEN** the results view shows the no-match message with both chips selected, and the unhappy screen is not shown
+
+#### Scenario: Removing a chip after no match
+
+- **WHEN** after the no-match message the consumer de-selects "Inalámbrico"
+- **THEN** the app re-queries with only `filters.brands` ["Bosch"] and shows its products
+
+### Requirement: Alternatives-only notice
+
+When a search response has `alternativesOnly=true` and names the `missingCategory`, the results headline SHALL say that the store does not have that product and that alternatives are shown ("No tenemos «X»; te mostramos alternativas.").
+
+#### Scenario: Missing product with alternatives
+
+- **WHEN** the consumer searches "ventilador" in a store without fans and the response has `alternativesOnly=true` and `missingCategory` "ventilador"
+- **THEN** the results headline says "No tenemos «ventilador»; te mostramos alternativas." and the alternatives are listed
+
+### Requirement: Failed voice search says why
+
+When a voice search started in Search fails, the app SHALL tell the consumer why with a message that outlives the screen: the established network-error title and message when the network is missing or unstable, and "No pude usar el micrófono. Escribe tu búsqueda o inténtalo otra vez." for any other error. The screen SHALL be restored as before (the results kept, or back to the previous screen when the search was opened by voice), and no alternative search SHALL run. When nothing was heard, no message SHALL be shown.
+
+#### Scenario: Microphone without network
+
+- **WHEN** results are shown, the network is lost, and the consumer taps the microphone
+- **THEN** within 1 second the app shows "Perdí la conexión…" and the results stay on screen
+
+#### Scenario: Voice search opened from the Catalog without network
+
+- **WHEN** the consumer taps the Catalog microphone without network
+- **THEN** the app returns to the Catalog and shows the same network message
+
+#### Scenario: Nothing heard
+
+- **WHEN** the voice capture ends without speech
+- **THEN** the previous screen comes back without a message
 
