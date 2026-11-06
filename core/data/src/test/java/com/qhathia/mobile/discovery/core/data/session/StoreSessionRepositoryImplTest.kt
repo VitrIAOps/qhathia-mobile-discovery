@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -55,5 +56,37 @@ class StoreSessionRepositoryImplTest {
             assertEquals("Joyería María", awaitItem().storeName)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun revoke_clears_device_session_and_store_name_and_sets_notice() = runTest {
+        val repository = backgroundScope.repository()
+        repository.saveDeviceSession("device-jwt", "Tablet 3", "CXZC7")
+        repository.updateStoreName("QA Discovery")
+
+        repository.revokeDeviceSession()
+
+        val session = repository.observe().first()
+        assertEquals(StoreSession(unlinkedNotice = true), session)
+        assertFalse(session.isPaired)
+    }
+
+    @Test
+    fun dismiss_clears_only_the_notice() = runTest {
+        val repository = backgroundScope.repository()
+        repository.revokeDeviceSession()
+        repository.updateStoreName("Otra tienda")
+
+        repository.dismissUnlinkedNotice()
+
+        assertEquals(StoreSession(storeName = "Otra tienda"), repository.observe().first())
+    }
+
+    @Test
+    fun no_notice_by_default() = runTest {
+        val repository = backgroundScope.repository()
+        repository.saveDeviceSession("device-jwt", "Tablet 3", null)
+
+        assertFalse(repository.observe().first().unlinkedNotice)
     }
 }

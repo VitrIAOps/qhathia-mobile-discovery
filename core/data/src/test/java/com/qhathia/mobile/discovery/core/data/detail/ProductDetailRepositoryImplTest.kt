@@ -11,6 +11,7 @@ import com.qhathia.mobile.discovery.core.network.dto.ProductSuggestionsResponseD
 import com.qhathia.mobile.discovery.core.network.dto.SuggestedProductDto
 import com.qhathia.mobile.discovery.core.network.service.ProductApiService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -43,7 +44,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_product_when_get_then_maps_and_orders_images() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getProduct("jwt", "p1") } returns NetworkResult.Success(response())
 
         val detail = repository().getProduct("p1").getOrNull()!!
@@ -57,7 +58,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_404_when_get_then_not_found_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getProduct(any(), any()) } returns NetworkResult.HttpError(404, "Not Found")
 
         val result = repository().getProduct("missing")
@@ -67,7 +68,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_server_error_when_get_then_detail_api_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getProduct(any(), any()) } returns NetworkResult.HttpError(500, "Server Error")
 
         val result = repository().getProduct("p1")
@@ -77,7 +78,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_connectivity_failure_when_get_then_network_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getProduct(any(), any()) } returns
             NetworkResult.NetworkError(UnknownHostException("no dns"), NetworkErrorKind.Connectivity)
 
@@ -87,16 +88,14 @@ class ProductDetailRepositoryImplTest {
     }
 
     @Test
-    fun given_401_when_get_then_clears_token_and_retries_once() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { productApiService.getProduct("stale", "p1") } returns NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { productApiService.getProduct("fresh", "p1") } returns NetworkResult.Success(response())
+    fun given_401_when_get_then_fails_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { productApiService.getProduct("jwt", "p1") } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val result = repository().getProduct("p1")
 
-        assertTrue(result.isSuccess)
-        assertEquals("Taladro", result.getOrNull()!!.name)
+        assertEquals(DetailErrorCategory.DetailApi, (result.exceptionOrNull() as DetailException).category)
+        coVerify(exactly = 1) { productApiService.getProduct(any(), any()) }
     }
 
     private fun suggested(id: String) = SuggestedProductDto(
@@ -110,7 +109,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_suggestions_when_get_then_maps_and_caps_at_five() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getSuggestions("jwt", "p1") } returns NetworkResult.Success(
             ProductSuggestionsResponseDto(
                 productId = "p1",
@@ -128,7 +127,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_empty_suggestions_when_get_then_empty_success() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getSuggestions(any(), any()) } returns NetworkResult.Success(
             ProductSuggestionsResponseDto(productId = "p1", suggestions = emptyList(), source = "empty"),
         )
@@ -141,7 +140,7 @@ class ProductDetailRepositoryImplTest {
 
     @Test
     fun given_server_error_when_get_suggestions_then_detail_api_failure() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { productApiService.getSuggestions(any(), any()) } returns NetworkResult.HttpError(500, "Server Error")
 
         val result = repository().getSuggestions("p1")
@@ -150,17 +149,13 @@ class ProductDetailRepositoryImplTest {
     }
 
     @Test
-    fun given_401_when_get_suggestions_then_clears_token_and_retries_once() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { productApiService.getSuggestions("stale", "p1") } returns NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { productApiService.getSuggestions("fresh", "p1") } returns NetworkResult.Success(
-            ProductSuggestionsResponseDto(productId = "p1", suggestions = listOf(suggested("s1")), source = "llm"),
-        )
+    fun given_401_when_get_suggestions_then_fails_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { productApiService.getSuggestions("jwt", "p1") } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val result = repository().getSuggestions("p1")
 
-        assertTrue(result.isSuccess)
-        assertEquals(1, result.getOrNull()!!.size)
+        assertEquals(DetailErrorCategory.DetailApi, (result.exceptionOrNull() as DetailException).category)
+        coVerify(exactly = 1) { productApiService.getSuggestions(any(), any()) }
     }
 }

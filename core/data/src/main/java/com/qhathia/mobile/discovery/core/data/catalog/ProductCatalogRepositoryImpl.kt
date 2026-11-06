@@ -14,9 +14,8 @@ import javax.inject.Inject
 /**
  * Calls the Qhathia catalog API and maps the result to a list of [CatalogCategory].
  *
- * Obtains the session JWT via the shared [SessionTokenProvider] (the interim auth seam reused from the
- * STT pipeline). On a `401` the cached token is dropped and the call is retried once with a fresh
- * login. Failures surface as a failed [Result] carrying a [CatalogException] tagged with the matching
+ * Obtains the DEVICE session JWT via the shared [SessionTokenProvider]. A `401` is not retried: an unlinked tablet ends its session through the HTTP client's unlink signal.
+ * Failures surface as a failed [Result] carrying a [CatalogException] tagged with the matching
  * [CatalogErrorCategory] so the presentation layer can pick the recovery UX.
  */
 class ProductCatalogRepositoryImpl @Inject constructor(
@@ -28,13 +27,7 @@ class ProductCatalogRepositoryImpl @Inject constructor(
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(CatalogErrorMapper.fromTokenFailure(it)) }
 
-        var response = catalogApiService.getCatalog(token)
-        if (response is NetworkResult.HttpError && response.code == HTTP_UNAUTHORIZED) {
-            sessionTokenProvider.clear()
-            val refreshed = sessionTokenProvider.accessToken(forceRefresh = true)
-                .getOrElse { return failure(CatalogErrorMapper.fromTokenFailure(it)) }
-            response = catalogApiService.getCatalog(refreshed)
-        }
+        val response = catalogApiService.getCatalog(token)
 
         return when (response) {
             is NetworkResult.Success -> success(response.data.map { it.toDomain() })
@@ -57,6 +50,5 @@ class ProductCatalogRepositoryImpl @Inject constructor(
 
     private companion object {
         const val TAG = "ProductCatalog"
-        const val HTTP_UNAUTHORIZED = 401
     }
 }

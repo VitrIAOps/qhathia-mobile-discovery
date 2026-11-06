@@ -22,6 +22,8 @@ class DeviceSettingsRepositoryImpl @Inject constructor(
 
     override suspend fun storedVersion(): Long? = localDataSource.storedVersion()
 
+    override suspend fun clear() = localDataSource.clear()
+
     override suspend fun refresh(): Result<DeviceSettings> {
         val token = storeSessionRepository.deviceAccessToken()
         if (token.isNullOrBlank()) return Result.failure(IllegalStateException("Device is not paired"))

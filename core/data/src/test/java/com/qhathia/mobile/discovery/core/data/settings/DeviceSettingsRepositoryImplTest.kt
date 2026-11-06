@@ -74,6 +74,24 @@ class DeviceSettingsRepositoryImplTest {
     }
 
     @Test
+    fun clear_removes_settings_version_and_hash() = runTest {
+        val local = backgroundScope.local()
+        local.save(
+            DeviceSettingsLocalDataSource.Stored(
+                DeviceSettings.DEFAULT.copy(version = 7, kioskMode = false, voiceAssistantEnabled = false),
+                "\$2a\$10\$old",
+            ),
+        )
+        val repository = DeviceSettingsRepositoryImpl(api, local, paired)
+
+        repository.clear()
+
+        assertEquals(DeviceSettings.DEFAULT, repository.observe().first())
+        assertNull(repository.storedVersion())
+        assertNull(local.exitPinHash())
+    }
+
+    @Test
     fun unknown_brightness_maps_to_auto() {
         assertEquals(BrightnessMode.AUTO, brightnessModeOf("ULTRA"))
         assertEquals(BrightnessMode.AUTO, brightnessModeOf(null))

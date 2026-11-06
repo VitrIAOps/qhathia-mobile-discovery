@@ -11,12 +11,15 @@ package com.qhathia.mobile.discovery.core.domain.model
  * @property deviceName the paired device's display name, or `null` when not paired.
  * @property pairingCode the code used to pair this device, or `null` when unknown (not paired, or
  *   paired before the code was saved).
+ * @property unlinkedNotice `true` after the merchant unlinked this tablet and the session was revoked,
+ *   until the Welcome notice is dismissed.
  */
 data class StoreSession(
     val storeName: String? = null,
     val deviceAccessToken: String? = null,
     val deviceName: String? = null,
     val pairingCode: String? = null,
+    val unlinkedNotice: Boolean = false,
 ) {
     /** Whether the device has completed pairing (a device token is persisted). */
     val isPaired: Boolean

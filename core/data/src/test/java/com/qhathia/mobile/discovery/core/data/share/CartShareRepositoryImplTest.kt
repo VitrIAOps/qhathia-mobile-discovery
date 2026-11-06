@@ -26,7 +26,7 @@ import java.net.UnknownHostException
 class CartShareRepositoryImplTest {
 
     private val sessionTokenProvider = mockk<SessionTokenProvider>(relaxUnitFun = true).apply {
-        coEvery { accessToken(any()) } returns Result.success("jwt")
+        coEvery { accessToken() } returns Result.success("jwt")
     }
     private val cartShareApiService = mockk<CartShareApiService>()
 
@@ -131,21 +131,20 @@ class CartShareRepositoryImplTest {
 
     @Test
     fun given_network_token_failure_when_shared_then_failed_network_without_request() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.failure(SttException(SttErrorCategory.Network))
+        coEvery { sessionTokenProvider.accessToken() } returns Result.failure(SttException(SttErrorCategory.Network))
 
         assertEquals(ShareOutcome.Failed(CartShareErrorCategory.Network), shareWith(NetworkResult.Success(response("SENT"))))
         coVerify(exactly = 0) { cartShareApiService.shareCart(any(), any()) }
     }
 
     @Test
-    fun given_401_when_shared_then_refreshes_token_and_sends_once_more() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { cartShareApiService.shareCart("stale", any()) } returns NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { cartShareApiService.shareCart("fresh", any()) } returns NetworkResult.Success(response("SENT"))
+    fun given_401_when_shared_then_rejected_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { cartShareApiService.shareCart("jwt", any()) } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val outcome = repository().shareCart("Ana", "987654321", items)
 
-        assertEquals(ShareOutcome.Delivered("https://r2.dev/cotizacion.pdf"), outcome)
+        assertEquals(ShareOutcome.Rejected(ShareRejection.Other), outcome)
+        coVerify(exactly = 1) { cartShareApiService.shareCart(any(), any()) }
     }
 }

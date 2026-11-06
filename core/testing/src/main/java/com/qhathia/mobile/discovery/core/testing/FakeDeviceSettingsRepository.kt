@@ -32,6 +32,18 @@ class FakeDeviceSettingsRepository(
         return Result.success(remote)
     }
 
+    /** When set, [clear] throws it (to test best-effort callers). */
+    var clearFailure: Throwable? = null
+
+    var clearCount: Int = 0
+        private set
+
+    override suspend fun clear() {
+        clearCount++
+        clearFailure?.let { throw it }
+        stored.value = DeviceSettings.DEFAULT
+    }
+
     /** Test helper: replaces the stored settings. */
     fun store(settings: DeviceSettings) {
         stored.value = settings

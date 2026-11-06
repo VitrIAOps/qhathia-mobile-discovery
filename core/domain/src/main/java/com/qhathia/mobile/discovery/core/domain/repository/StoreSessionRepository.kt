@@ -23,4 +23,13 @@ interface StoreSessionRepository {
 
     /** Clears the persisted device session, pairing code included (used by unpair). */
     suspend fun clearDeviceSession()
+
+    /**
+     * Revokes the device session after the tablet was unlinked: in one write, removes the device token,
+     * device name, pairing code and store name, and marks the unlink notice as pending.
+     */
+    suspend fun revokeDeviceSession()
+
+    /** Clears the pending unlink notice and nothing else. */
+    suspend fun dismissUnlinkedNotice()
 }
