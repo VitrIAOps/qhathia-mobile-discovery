@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.feature.productsearch.model
 
+import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
+
 /** One-shot intents emitted by the product-search screen. */
 sealed interface ProductSearchUiEffect {
 
@@ -20,6 +22,12 @@ sealed interface ProductSearchUiEffect {
 
     /** Open the cart dialog (hosted by the app over the current screen). */
     data object OpenCart : ProductSearchUiEffect
+
+    /**
+     * The voice search failed (F-17): tell the consumer why. The screen under it is kept (or left,
+     * when it was opened by voice), so the message must outlive it.
+     */
+    data class VoiceFailed(val category: SttErrorCategory) : ProductSearchUiEffect
 
     /** The basket already has 20 distinct products: tell the consumer why nothing was added. */
     data object LineLimitReached : ProductSearchUiEffect
