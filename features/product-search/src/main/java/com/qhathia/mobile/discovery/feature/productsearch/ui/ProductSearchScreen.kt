@@ -20,6 +20,9 @@ import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchUiE
 /**
  * Stateful product-search entry point. Binds [ProductSearchViewModel], collects its state with
  * lifecycle awareness, and forwards one-shot navigation effects to the app.
+ *
+ * [previousIsHome] tells where Volver goes with no previous result (F-38): from Home it opens the
+ * close-search dialog; from anywhere else it calls [onNavigateBack] and the cart is kept.
  */
 @Composable
 fun ProductSearchScreen(
@@ -28,6 +31,7 @@ fun ProductSearchScreen(
     onNavigateToCatalog: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
+    previousIsHome: () -> Boolean,
     modifier: Modifier = Modifier,
     viewModel: ProductSearchViewModel = hiltViewModel(),
 ) {
@@ -40,6 +44,8 @@ fun ProductSearchScreen(
             when (effect) {
                 ProductSearchUiEffect.NavigateHomeIdle -> onNavigateHomeIdle()
                 ProductSearchUiEffect.NavigateBack -> onNavigateBack()
+                ProductSearchUiEffect.ExitRequested ->
+                    if (previousIsHome()) viewModel.onEvent(ProductSearchUiEvent.NewSearch) else onNavigateBack()
                 ProductSearchUiEffect.NavigateToCatalog -> onNavigateToCatalog()
                 is ProductSearchUiEffect.NavigateToDetail -> onNavigateToDetail(effect.productId)
                 ProductSearchUiEffect.OpenCart -> onOpenCart()
