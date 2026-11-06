@@ -47,7 +47,7 @@ class AudioRecorderImpl @Inject constructor() : AudioRecorder {
     private var startedAtMillis: Long = 0L
     private var capturedBytes: Long = 0L
 
-    // Voice search is gated on the RECORD_AUDIO grant (requested at app open) before start() is called.
+    // Voice search is gated on the RECORD_AUDIO grant (asked on the first microphone tap) before start() is called.
     @SuppressLint("MissingPermission")
     override suspend fun start() {
         cancel() // ensure no previous session lingers

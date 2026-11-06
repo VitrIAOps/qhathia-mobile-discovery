@@ -3,7 +3,6 @@ package com.qhathia.mobile.discovery.core.data.heartbeat
 import android.content.Context
 import android.os.BatteryManager
 import android.os.Build
-import android.os.Process
 import android.os.SystemClock
 import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
 import com.qhathia.mobile.discovery.core.domain.model.DeviceTelemetry
@@ -28,7 +27,7 @@ class DeviceTelemetryProviderImpl @Inject constructor(
         batteryLevel = runCatching { batteryLevel() }.getOrNull(),
         networkStatus = runCatching { connectivityDataSource.observe().first().toNetworkStatus() }.getOrNull(),
         model = runCatching { formatDeviceModel(Build.MANUFACTURER, Build.MODEL) }.getOrNull(),
-        uptimeSeconds = runCatching { processUptimeSeconds() }.getOrNull(),
+        uptimeSeconds = deviceUptimeSeconds(),
     )
 
     private fun appVersion(): String =
@@ -42,10 +41,11 @@ class DeviceTelemetryProviderImpl @Inject constructor(
         return sanitizeBatteryLevel(manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
     }
 
-    private fun processUptimeSeconds(): Long? {
-        val elapsedMs = SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime()
-        return (elapsedMs / MILLIS_PER_SECOND).takeIf { it >= 0 }
-    }
+    /**
+     * Time since the device booted, as the backend defines `uptimeSeconds` (F-63). The process time
+     * was always 0 on the first heartbeat, sent from `Application.onCreate`.
+     */
+    private fun deviceUptimeSeconds(): Long = SystemClock.elapsedRealtime() / MILLIS_PER_SECOND
 
     private companion object {
         // `appVersion` is required by the API; a placeholder keeps the heartbeat alive if it cannot be read.

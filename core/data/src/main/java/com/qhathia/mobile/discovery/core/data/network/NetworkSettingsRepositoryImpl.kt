@@ -44,6 +44,7 @@ class NetworkSettingsRepositoryImpl @Inject constructor(
         simAvailable = simAvailable,
         airplaneModeActive = airplaneModeActive,
         connectedSsid = connectedSsid,
+        hasInternet = internetValidated,
     )
 
     private fun WifiScanResult.toDomain(connectedSsid: String?): WifiNetwork = WifiNetwork(

@@ -14,6 +14,12 @@ object DeviceConstants {
      */
     val HEARTBEAT_INTERVAL: Duration = 60.seconds
 
+    /**
+     * Waits after the 1st, 2nd, 3rd and 4th failed heartbeat in a row (F-24); later failures wait
+     * [HEARTBEAT_INTERVAL]. Internet coming back sends the next one at once, whatever the wait.
+     */
+    val HEARTBEAT_RETRY_DELAYS: List<Duration> = listOf(5.seconds, 10.seconds, 20.seconds, 40.seconds)
+
     /** Maximum length the backend accepts for the reported device `model`. */
     const val MODEL_MAX_LENGTH: Int = 100
 

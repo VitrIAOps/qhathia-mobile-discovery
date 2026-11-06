@@ -25,6 +25,8 @@ data class ConnectivitySnapshot(
     val connectedSsid: String?,
     val wifiActive: Boolean = false,
     val hasInternet: Boolean = false,
+    /** [hasInternet] and validated by Android (the internet was actually reached). */
+    val internetValidated: Boolean = false,
     val simAvailable: Boolean = false,
     val mobileDataEnabled: Boolean = false,
 )
