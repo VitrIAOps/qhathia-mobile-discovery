@@ -13,7 +13,34 @@
 
 ---
 
-## Cambios recientes (Fase 1-34)
+## Cambios recientes (Fase 1-43)
+
+**Fase 43 — 2026-11-03 (regresión QA, F-103):** la interpretación por voz pide JSON con esquema estricto (`response_format: json_schema`, `strict: true`): el proveedor restringe la generación y el modelo no puede devolver un JSON roto. Antes era `json_object` y Groq respondía 400 `json_validate_failed` en 26 de 46 búsquedas. El tope de tokens sube a 4096 (incluye el razonamiento de gpt-oss), el reintento ya no repite la misma petición, y vo puede usar Groq o Cerebras cambiando solo el `.env`. **Sin cambios de contrato para las apps.** Detalle en la [sección 43](#43-json-estricto-del-llm-y-proveedor-configurable-fase-43).
+
+
+**Fase 42 — 2026-10-29 (campaña QA):** pulido. Una ruta inexistente responde 404 `NOT_FOUND`, un método no soportado 405 `METHOD_NOT_ALLOWED` con cabecera `Allow`, y un parámetro o cabecera faltante 400, en auth, biz y vo (antes 500 `INTERNAL_ERROR`). Los 401/403 que corta el filtro de seguridad salen como `application/problem+json` con `errorCode` `UNAUTHORIZED` / `FORBIDDEN`. `GET /catalog/count` suma `visibleProducts` (lo que muestra la tablet) y `hidden`. El ranking suma `asOf`, `topSellers.periodRevenue`, `topSellers.productsSold` e `items[].active`. Las preferencias de notificación suman `supported`, `supportedCount`, `supportedActiveCount` y `orderExpiringWarningMinutes`. El celular y el nombre del cliente salen enmascarados en los logs de biz. Detalle en la [sección 42](#42-pulido-del-backend-fase-42).
+
+
+**Fase 41 — 2026-10-29 (campaña QA):** búsqueda e insights. El LLM reintenta y rescata el JSON cuando Groq responde `json_validate_failed`, con temperatura 0 y más tokens. `POST /conversations/search` acepta `filters` (marca, tags, precio) y cada criterio de `filters` suma `values`; la respuesta suma `alternativesOnly`, `missingCategory` y `degraded`. "Productos no encontrados": la afinidad del grupo es el máximo (lo más pedido ya no desaparece), cuenta también las búsquedas que solo devolvieron alternativas, agrupa por producto con `variants`, y suma `storeFitAvg` y `personCountEstimated`. La sesión del cliente se deriva por tablet (o header `X-Kiosk-Session`), y un pedido cierra la sesión en "Clientes". Precios: "-50 soles" ya no es precio y "1,500" es 1500. Detalle en la [sección 41](#41-búsqueda-e-insights-fiables-fase-41).
+
+
+**Fase 40 — 2026-10-28 (campaña QA):** `PUT /products/{id}` conserva los campos ausentes (antes editar el nombre borraba la marca); para vaciar, `""` o `[]`; categoría con `clearCategory`. Cabecera opcional `Idempotency-Key` en `POST /products` y `/products/with-images`: un reintento devuelve el producto ya creado (200 + `Idempotent-Replayed: true`) en vez de duplicarlo. Versión optimista: `version` en el producto y en el PUT → **409 `PRODUCT_VERSION_CONFLICT`** si es vieja. Siempre exactamente una foto principal; el detalle suma `primaryImageUrl`. Migraciones biz `V21`–`V23`. Detalle en la [sección 40](#40-escrituras-de-producto-seguras-fase-40).
+
+
+**Fase 39 — 2026-10-28 (campaña QA):** la búsqueda solo ofrece lo que se puede pedir (AVAILABLE con stock) y suma `stock` en cada resultado; confirmar un pedido reproyecta la búsqueda. Un producto no vendible en el pedido o la cotización → **409 `PRODUCT_NOT_SELLABLE`** con `reason` (antes 400 genérico); pedir más que el stock → 422 `STOCK_INSUFFICIENT`. Borrar un producto con pedidos pendientes → **409 `PRODUCT_IN_PENDING_ORDERS`** (o `?force=true`); confirmar un pedido con un producto borrado → 409. Editar o volver a borrar un producto eliminado → **404 `PRODUCT_DELETED`**. La tablet recibe 404 al abrir un producto eliminado. El pedido guarda el nombre del producto (migración biz `V20`) y suma `productActive`/`currentProductName`. Detalle en la [sección 39](#39-productos-no-vendibles-y-productos-eliminados-fase-39).
+
+
+**Fase 38 — 2026-10-28 (campaña QA):** el pedido y el PDF cobran el **precio con descuento** vigente (antes el de lista: el cliente veía S/ 80 y el vendedor cobraba S/ 100). `order_items` suma `listPriceSnapshot` (migración biz `V19`). `items[].expectedUnitPrice` opcional en `POST /orders`: si no coincide → **409 `PRICE_CHANGED`** con `changes[]`. Los relacionados traen `discountedPrice`. Pedidos con `confirmedAt`/`rejectedAt`/`expiredAt`. Nuevo `GET /orders/{id}/status` para la tablet (token DEVICE, solo sus pedidos). Detalle en la [sección 38](#38-precios-del-pedido-y-estado-para-la-tablet-fase-38).
+
+
+**Fase 37 — 2026-10-28 (campaña QA):** vinculación confiable. El socket de vinculación recibe `WAITING` cada 25 s y ya no se corta a los 61 s (sin cambios en la tablet). Nuevos endpoints públicos `GET /devices/pairing-session/{id}/status` (estado + `tokenExchanged`) y `POST /devices/pairing-session/{id}/cancel`; `POST /devices/pairing-token` acepta `{"replacesSessionId"}`. Estado nuevo `CANCELLED` → aprobar ese código da 400 `PAIRING_TOKEN_CANCELLED`. El código se acepta en minúsculas o con espacios y se valida la forma. `deviceName`/`platform`/`appVersion` opcionales en `/pair` (sin nombre → "Tablet N"). `GET /devices` ordena por `linkedAt`. `/devices/me` y el canje suman `storeName`/`storeCategory`. `GET /devices/{id}` 404 si no es de la tienda. Detalle en la [sección 37](#37-vinculación-confiable-fase-37).
+
+
+**Fase 36 — 2026-10-28 (campaña QA):** el refresh conserva la tienda activa (antes salía sin `storeId` y a las 24 h el celular mostraba la tienda vacía); `RefreshResponse` suma `storeId` y `store`. Cerrar sesión, cerrar otra sesión o cambiar la contraseña invalida al instante el access de esas sesiones (**401 `SESSION_REVOKED`**). Contraseña actual incorrecta: sigue 401, ahora con `errorCode CURRENT_PASSWORD_INCORRECT`. `GET /auth/sessions` pagina (`page`, `size`, cabecera `X-Total-Count`) y hay tope de 20 sesiones por usuario. `PUT /users/me {"phone": ""}` quita el celular. biz responde **403 `STORE_CONTEXT_REQUIRED`** a un token de usuario sin tienda (antes listas vacías y 500). Detalle en la [sección 36](#36-sesiones-el-refresh-conserva-la-tienda-y-cerrar-sesión-corta-el-access-fase-36).
+
+
+**Fase 35 — 2026-10-28 (campaña QA 25–28/10):** una tablet desvinculada pierde el acceso. Sus peticiones a auth, biz y vo responden **401 `DEVICE_UNLINKED`** (en biz y vo, a más tardar 60 s después de desvincularla). El token de una tablet ya no escribe catálogo, categorías ni la integración de WhatsApp (403). Desvincular una tablet ya desvinculada o de otra tienda responde 404 (antes 403). Detalle en la [sección 35](#35-una-tablet-desvinculada-pierde-el-acceso-fase-35). **La tablet debe volver a Welcome ante `DEVICE_UNLINKED`.**
+
 
 **Fase 34 — 2026-10-25:** el token de la tablet lleva rubro, centro comercial y slugs, igual que el del staff. Antes llevaba solo `storeId`, y la IA de la búsqueda no sabía de qué rubro era la tienda. Para tokens viejos, vo completa esos datos desde su proyección. Detalle en la [sección 34](#34-el-token-de-la-tablet-lleva-el-rubro-fase-34). La app no cambia.
 
@@ -261,6 +288,15 @@ Esta sección resume los cambios contractuales más relevantes desde la versión
 32. [Afinidad con el rubro en "Productos no encontrados" (Fase 32)](#32-afinidad-con-el-rubro-en-productos-no-encontrados-fase-32)
 33. ["Productos no encontrados" solo con producto identificado (Fase 33)](#33-productos-no-encontrados-solo-con-producto-identificado-fase-33)
 34. [El token de la tablet lleva el rubro (Fase 34)](#34-el-token-de-la-tablet-lleva-el-rubro-fase-34)
+35. [Una tablet desvinculada pierde el acceso (Fase 35)](#35-una-tablet-desvinculada-pierde-el-acceso-fase-35)
+36. [Sesiones: el refresh conserva la tienda y cerrar sesión corta el access (Fase 36)](#36-sesiones-el-refresh-conserva-la-tienda-y-cerrar-sesión-corta-el-access-fase-36)
+37. [Vinculación confiable (Fase 37)](#37-vinculación-confiable-fase-37)
+38. [Precios del pedido y estado para la tablet (Fase 38)](#38-precios-del-pedido-y-estado-para-la-tablet-fase-38)
+39. [Productos no vendibles y productos eliminados (Fase 39)](#39-productos-no-vendibles-y-productos-eliminados-fase-39)
+40. [Escrituras de producto seguras (Fase 40)](#40-escrituras-de-producto-seguras-fase-40)
+41. [Búsqueda e insights fiables (Fase 41)](#41-búsqueda-e-insights-fiables-fase-41)
+42. [Pulido del backend (Fase 42)](#42-pulido-del-backend-fase-42)
+43. [JSON estricto del LLM y proveedor configurable (Fase 43)](#43-json-estricto-del-llm-y-proveedor-configurable-fase-43)
 
 ---
 
@@ -1194,9 +1230,11 @@ curl -X POST http://87.99.156.164/api/v1/devices/link \
 
 **Response 200:** objeto `DeviceStatusResponse` con `status: "INACTIVE"`.
 
+Desde ese momento el token de la tablet deja de valer (401 `DEVICE_UNLINKED`, ver sección 35) y sus comandos pendientes pasan a `EXPIRED`.
+
 **Errores:**
-- `404` — Dispositivo no encontrado
-- `403` — Dispositivo de otra tienda
+- `404` `RESOURCE_NOT_FOUND` — no existe, es de otra tienda o **ya estaba desvinculado** (Fase 35; antes 403). Tratarlo como "esta tablet ya no está vinculada a tu tienda" y no reintentar.
+- `403` — rol sin permiso
 
 **curl:**
 ```bash
@@ -4859,3 +4897,683 @@ en adelante.
 Las búsquedas guardadas antes del deploy tienen una afinidad calculada sin rubro.
 Se limpian con un comando, después del deploy; quedan como "sin medir" y vuelven
 a la tarjeta.
+
+---
+
+## 35. Una tablet desvinculada pierde el acceso (Fase 35)
+
+Campaña QA del 25–28/10: tras desvincular la tablet desde el celular, la tablet
+seguía mostrando el catálogo, buscando y creando pedidos que llegaban al celular,
+y el comerciante ya no podía mandarle comandos (XVI-040/041). Además, con el token
+de una tablet se podían crear productos (RED-063).
+
+### Qué cambia
+
+**1. El token de una tablet desvinculada deja de valer.** El token DEVICE dura un
+año y no se puede invalidar por sí mismo, así que cada servicio comprueba que la
+tablet siga vinculada:
+
+| Servicio | Cómo lo sabe | Desde cuándo rechaza |
+|---|---|---|
+| auth | lee `devices`: `status = ACTIVE` y misma tienda que el token | inmediato |
+| biz, vo | pregunta a auth `GET /api/v1/devices/me` con el mismo token; cachea 60 s por tablet | ≤ 60 s |
+
+La respuesta es siempre la misma:
+
+```json
+HTTP 401  Content-Type: application/problem+json
+{
+  "type": "/errors/device-unlinked",
+  "title": "Device Unlinked",
+  "status": 401,
+  "detail": "Esta tablet fue desvinculada de la tienda. Vuelve a vincularla desde la app del comerciante.",
+  "errorCode": "DEVICE_UNLINKED"
+}
+```
+
+Los endpoints públicos (pedir un código de vinculación nuevo) siguen funcionando
+aunque la tablet mande su token viejo. Si auth no responde, biz y vo dejan pasar a
+la tablet y lo registran como WARN: una vitrina no se apaga porque auth falle.
+
+Una tablet re-vinculada recibe un `deviceId` y un token nuevos; el viejo no revive.
+
+**2. La tablet solo lee el catálogo.** Con token DEVICE responden **403**:
+`POST/PUT/DELETE /api/v1/products…` (incluye media, descuentos, desactivar y
+`suggest-tags`), `POST/PATCH/DELETE /api/v1/categories…`, todo
+`/api/v1/integrations/whatsapp/**` y `POST /api/v1/tags/suggest-from-image`. Lo
+que la tablet usa sigue igual: leer productos, catálogo, sugerencias, crear
+pedidos, compartir el carrito, búsqueda, heartbeat y comandos.
+
+**3. `POST /devices/{id}/unlink`** responde 404 si la tablet ya estaba
+desvinculada o es de otra tienda (antes 403, y la app reintentaba para siempre), y
+cierra como `EXPIRED` los comandos que tenía en vuelo.
+
+### Qué tiene que hacer la tablet
+
+Ante `401` con `errorCode: DEVICE_UNLINKED` en cualquier llamada: borrar la sesión
+guardada, salir del modo kiosko y volver a Welcome. Mientras no lo haga, la tablet
+queda mostrando errores (ya no vende).
+
+---
+
+## 36. Sesiones: el refresh conserva la tienda y cerrar sesión corta el access (Fase 36)
+
+Campaña QA del 25–28/10: tras el primer refresh el access salía **sin `storeId`** y
+biz respondía inventario y pedidos vacíos y un 500 al registrar el push (EXP-005);
+pasaba a las 24 h, o antes con una contraseña actual mal escrita. Además, cerrar una
+sesión no invalidaba su access hasta que vencía (LOG-031), la lista de sesiones
+crecía sin límite (XCO-040) y un celular guardado no se podía quitar (EXP-021).
+
+### `POST /api/v1/auth/refresh`
+
+El access nuevo conserva la tienda activa:
+
+1. la que tenía la sesión (se guarda al hacer login o switch-store), si el usuario
+   sigue con acceso activo a ella;
+2. si no, la única tienda activa del usuario (misma regla que el login);
+3. con 2+ tiendas y ninguna guardada, sin tienda: el cliente debe llamar switch-store.
+
+La respuesta suma dos campos (nullable):
+
+```json
+{
+  "accessToken": "…",
+  "refreshToken": "…",
+  "tokenType": "Bearer",
+  "expiresIn": 86400,
+  "storeId": "6b89ea64-…",
+  "store": { "id": "6b89ea64-…", "name": "…", "slug": "…", "category": "TOOLS", "shoppingCenterId": "…", "shoppingCenterSlug": "…" }
+}
+```
+
+### Cerrar sesión corta el access de esa sesión
+
+El access de usuario lleva un claim nuevo `sid` (el `sessionId` de su sesión de
+refresh). Logout, `DELETE /auth/sessions/{id}`, `revoke-others`, el cambio de
+contraseña y el tope de sesiones marcan esa sesión como cerrada, y auth rechaza sus
+access de inmediato:
+
+```json
+HTTP 401  application/problem+json
+{ "errorCode": "SESSION_REVOKED", "detail": "Tu sesión en este equipo fue cerrada. Vuelve a iniciar sesión.", … }
+```
+
+Rotar el refresh **no** cierra la sesión: el access anterior de esa misma sesión sigue
+valiendo hasta que vence. Los access emitidos antes del deploy no traen `sid` y se
+aceptan hasta que vencen. biz y vo todavía no verifican el `sid` (aceptan el access
+hasta su vencimiento).
+
+**Qué hace el cliente:** ante `SESSION_REVOKED` ir a Login **sin** intentar refresh.
+
+### Contraseña actual incorrecta
+
+`POST /auth/change-password` sigue respondiendo **401** (la app ya traduce ese 401 a
+"La contraseña actual no es correcta"), ahora con `errorCode: CURRENT_PASSWORD_INCORRECT`.
+El cliente no debe refrescar ante ese código: no es un token vencido.
+
+### `GET /api/v1/auth/sessions`
+
+Paginado: `?page=0&size=50` (por defecto 50, máximo 200). El cuerpo sigue siendo un
+array; el total va en la cabecera `X-Total-Count`. Tope de **20 sesiones por usuario**
+(`vitria.auth.sessions.max-per-user`): al abrir la 21.ª se cierran las más viejas.
+
+### `POST /api/v1/auth/switch-store/{storeId}`
+
+Acepta el header opcional `X-Refresh-Token`. Con él, rota la sesión del equipo y le
+cambia la tienda (el `refreshToken` devuelto reemplaza al anterior) en vez de abrir
+una sesión nueva por cada cambio.
+
+### `PUT /api/v1/users/me`
+
+`"phone": ""` quita el celular (`phone: null` en la respuesta). `null` o ausente sigue
+siendo "no tocar".
+
+### biz: token de usuario sin tienda
+
+Todo endpoint de biz es de una tienda. Un access de usuario sin `storeId` (que no sea
+ADMIN) recibe **403 `STORE_CONTEXT_REQUIRED`** ("Tu sesión no tiene una tienda activa…")
+en vez de listas vacías o un 500. Es 403 y no 401 a propósito: el token es válido y un
+401 haría que la app refresque otra vez.
+
+---
+
+## 37. Vinculación confiable (Fase 37)
+
+Campaña QA del 25–28/10: si el comerciante tecleaba el código después de 60 s (o la
+tablet perdía la red unos segundos), el backend aprobaba, el celular mostraba una
+tarjeta "Tablet · Inactivo" y la tablet seguía con el código (VIN-031, VIN-032,
+XVI-010, XVI-024). Los códigos que la tablet abandonaba seguían aprobables y dejaban
+tablets huérfanas (VIN-022, VIN-030, XVI-011, DIS-031). Un código en minúsculas daba
+"inválido" (VIN-011, DIS-022, XVI-021).
+
+### El socket ya no se corta a los 61 s
+
+El servidor reenvía `{"status":"WAITING","sessionId":"…"}` cada 25 s a cada socket
+de vinculación abierto. Antes el canal callaba entre el primer frame y el desenlace y
+el timeout de inactividad de 60 s (cliente o nginx) lo cerraba. La tablet ya trata
+`WAITING` como no-op: **funciona sin cambiar la app**. Si la tablet reconecta, el
+socket viejo se cierra y el desenlace va al nuevo.
+
+### `GET /api/v1/devices/pairing-session/{sessionId}/status` (público, nuevo)
+
+Respaldo HTTP del socket. Solo lectura; no consume el canje.
+
+```json
+200
+{
+  "sessionId": "…",
+  "status": "WAITING | APPROVED | REJECTED | EXPIRED | CANCELLED",
+  "expiresAt": "2026-10-28T10:15:00Z",
+  "tokenExchanged": false,
+  "tokenExchangedAt": null,
+  "deviceId": "…"
+}
+```
+
+`404` si la sesión no existe. Una sesión `WAITING` ya vencida se informa como `EXPIRED`.
+
+- **Tablet:** consultarlo cada 3–5 s mientras muestra el código; al ver `APPROVED`,
+  canjear con `GET …/token`.
+- **Celular:** tras aprobar, consultarlo unos 30 s; si `tokenExchanged` sigue en
+  `false`, avisar que la tablet no recibió la aprobación (y ofrecer desvincular).
+
+### Códigos abandonados
+
+- `POST /api/v1/devices/pairing-session/{sessionId}/cancel` (público, nuevo): la tablet
+  descarta el código que mostraba. `204` (idempotente), `404` si no existe.
+- `POST /api/v1/devices/pairing-token` acepta un body opcional
+  `{"replacesSessionId": "<uuid>"}`: emite el código nuevo y cancela el anterior.
+- Estado nuevo **`CANCELLED`** (migración auth `V20`). Aprobar un código cancelado →
+  `400 PAIRING_TOKEN_CANCELLED`; canjearlo → `410`.
+- **Ventana de canje:** la tablet puede canjear su token hasta 10 min después de la
+  aprobación (`vitria.devices.pairing.exchange-window`). Después → `410`. Antes una
+  sesión aprobada y abandonada entregaba el token horas después.
+- Canjear el token de una tablet que el comerciante ya desvinculó → `410` (antes 500).
+
+### `POST /api/v1/devices/pair`
+
+- El código se normaliza (sin espacios ni guiones, en mayúsculas): `" cxzc7 "` = `CXZC7`.
+- Si no tiene 5 caracteres del alfabeto (sin O, 0, I, L, 1) → `400 INVALID_PAIRING_TOKEN`
+  con un `detail` que lo explica, sin consultar la base.
+- `deviceName`, `platform` y `appVersion` son **opcionales** (antes obligatorios incluso
+  para rechazar). Sin nombre, o con el genérico "Tablet", la tablet se llama
+  **"Tablet N"** (N = tablets activas + 1). `platform` por defecto `ANDROID`;
+  `appVersion` llega con el primer heartbeat. Un REJECT solo necesita
+  `{"pairingToken", "decision": "REJECT"}`.
+- Para renombrar ya existe `PATCH /api/v1/devices/{deviceId} {"name": "…"}`.
+
+### Otros
+
+- `GET /api/v1/devices` ordena por `linkedAt` ascendente: la tablet nueva sale al final.
+- `GET /api/v1/devices/{deviceId}`: `404` si no es de la tienda del JWT (antes cualquier
+  dueño leía cualquier id).
+- `GET /api/v1/devices/me` suma `storeName`, `storeCategory` y `shoppingCenterName`
+  (null si la tablet está desvinculada). El canje (`GET …/token`) suma `storeName` y
+  `storeCategory`. La tablet puede dejar de mostrar "TIENDA".
+
+---
+
+## 38. Precios del pedido y estado para la tablet (Fase 38)
+
+Campaña QA del 25–28/10: la tablet mostraba el precio con descuento y el pedido y el
+PDF se grababan a precio de lista (CAR-012, SOL-037, XPE-007, XJO-006); si el vendedor
+cambiaba el precio con el producto en el carrito, el pedido salía con el precio nuevo
+sin avisar (CAR-026, XCA-010, XJO-011); los relacionados venían sin descuento (DET-012,
+XCA-023); el cliente nunca sabía si su pedido se confirmó, se rechazó o venció
+(XPE-004, XPE-043, XJO-009).
+
+### `POST /api/v1/orders`
+
+- `unitPriceSnapshot` es el precio que se cobra: con el descuento vigente si hay uno
+  (misma regla que `discountedPrice` del catálogo). `subtotal` y `total` salen de ahí.
+- `items[].listPriceSnapshot` (nuevo, migración biz `V19`): el precio de lista al crear
+  el pedido. En los pedidos anteriores es igual a `unitPriceSnapshot`.
+- `items[].expectedUnitPrice` (nuevo, **opcional** en el request): el precio que el
+  cliente vio (`discountedPrice ?: price`). Si alguno no coincide con el actual:
+
+```json
+HTTP 409  application/problem+json
+{
+  "errorCode": "PRICE_CHANGED",
+  "detail": "El precio de 'QA X OK' cambió de S/ 210.00 a S/ 199.00. Revisa tu carrito.",
+  "changes": [
+    { "productId": "…", "productName": "QA X OK", "expectedUnitPrice": 210.00, "currentUnitPrice": 199.00 }
+  ]
+}
+```
+
+No se crea el pedido. La tablet actualiza las líneas con `currentUnitPrice` y pide
+confirmar. Sin `expectedUnitPrice` el comportamiento es el de antes (cobra el actual).
+
+### `POST /api/v1/carts/share-pdf`
+
+El PDF de la cotización usa el mismo precio efectivo que el pedido.
+
+### `GET /api/v1/products/{id}/suggestions`
+
+Cada sugerencia trae `discountedPrice` y `discountEndsAt`, igual que el catálogo.
+
+### Pedidos: `confirmedAt`, `rejectedAt`, `expiredAt`
+
+`GET /orders`, `GET /orders/{id}` y el resto de respuestas de pedido suman los tres
+campos: el instante en que el pedido llegó a ese estado (= `lastStatusChangedAt`) si
+está en él; `null` si no.
+
+### `GET /api/v1/orders/{id}/status` (nuevo, token DEVICE)
+
+Solo los pedidos que creó esa tablet; uno de otra tablet o de otra tienda → `404`.
+
+```json
+200  Cache-Control: no-store
+{
+  "id": "…",
+  "orderCode": "624731",
+  "status": "PENDING | CONFIRMED | REJECTED | EXPIRED | CANCELLED",
+  "rejectionReason": "Cliente se desanimó",
+  "expiresAt": "…",
+  "lastStatusChangedAt": "…",
+  "serverTime": "…"
+}
+```
+
+`rejectionReason` solo viene en `REJECTED`. Sugerido: consultarlo cada 5 s mientras la
+pantalla "¡Pedido generado!" esté visible (máximo 10 min) y parar en un estado terminal.
+
+---
+
+## 39. Productos no vendibles y productos eliminados (Fase 39)
+
+Campaña QA del 25–28/10: la búsqueda seguía ofreciendo productos agotados o "a
+consultar", la tablet dejaba agregarlos y el pedido fallaba con "Inténtalo de nuevo en
+unos momentos" en bucle (CAR-023, CAR-025, EXP-003, XPE-003, XCA-012, XCA-030, XJO-008).
+Se podía borrar un producto que estaba en un pedido pendiente y confirmar ese pedido
+(INV-048), y editar o volver a borrar un producto eliminado daba éxito (DET-080, XCO-025).
+
+### Qué es "vendible"
+
+`availability = AVAILABLE` y, si el producto lleva stock, mayor que cero. Es la regla
+de siempre del catálogo y de los pedidos; ahora también la aplica la búsqueda.
+`LOW_STOCK` sigue sin venderse desde la tablet.
+
+### Búsqueda (`POST /api/v1/conversations/search`)
+
+- Solo devuelve productos vendibles (resultados normales y sugerencias).
+- Cada resultado suma `stock` (null = "a consultar") para topar la cantidad.
+- Al confirmar un pedido, biz reproyecta los productos en la búsqueda: un producto
+  agotado por una venta deja de aparecer en segundos (antes seguía como AVAILABLE).
+
+### `POST /orders` y `POST /carts/share-pdf`
+
+Un producto inactivo o no AVAILABLE responde:
+
+```json
+HTTP 409  application/problem+json
+{
+  "errorCode": "PRODUCT_NOT_SELLABLE",
+  "detail": "'QA X UNICO' se agotó. Quítalo del carrito.",
+  "productId": "…",
+  "productName": "QA X UNICO",
+  "reason": "INACTIVE | OUT_OF_STOCK | CONSULT | LOW_STOCK"
+}
+```
+
+Antes era `400 BAD_REQUEST`. Pedir más unidades que el stock → `422 STOCK_INSUFFICIENT`
+(`available`, `requested`). La tablet debe quitar la línea y explicar el motivo.
+
+`GET /api/v1/products/{id}` con token de tablet sobre un producto eliminado → `404`
+(el staff lo sigue viendo con `active: false`).
+
+### Borrar un producto (`DELETE /api/v1/products/{id}`, `POST …/deactivate`)
+
+- Si está en pedidos pendientes:
+
+```json
+HTTP 409
+{
+  "errorCode": "PRODUCT_IN_PENDING_ORDERS",
+  "detail": "Este producto está en 1 pedido pendiente (#400776). Confírmalo o recházalo antes, o elimínalo igual.",
+  "pendingOrders": [ { "id": "…", "orderCode": "400776" } ]
+}
+```
+
+Con `?force=true` se borra igual.
+- Confirmar un pedido que tiene un producto ya eliminado → `409 PRODUCT_NOT_SELLABLE`
+  (`reason: INACTIVE`) y no se descuenta stock. Rechazarlo sigue permitido.
+- Editar (`PUT`), volver a borrar, o agregar/quitar fotos o descuentos de un producto
+  eliminado → `404 PRODUCT_DELETED` ("Este producto ya fue eliminado.").
+
+### Pedidos: nombre del producto
+
+`order_items` guarda el nombre al crear el pedido (migración biz `V20`). En
+`items[]`: `productName` es ese nombre; `currentProductName` (nuevo) viene solo si el
+producto se renombró después; `productActive` (nuevo) es `false` si se eliminó.
+
+---
+
+## 40. Escrituras de producto seguras (Fase 40)
+
+Campaña QA del 25–28/10: editar solo el nombre borraba la marca (DET-002); salir del
+registro con Atrás creaba el producto igual y al registrarlo otra vez quedaba duplicado
+(EXP-022, REG-085, REG-094); dos vendedores editando el mismo producto se pisaban sin
+aviso (XCO-024); quitar la foto principal dejaba el producto sin ninguna (DET-022).
+
+### `PUT /api/v1/products/{id}`: lo ausente se conserva
+
+Antes el PUT reemplazaba todo y un campo que no venía quedaba vacío. Ahora:
+
+| Campo | Ausente / `null` | Para vaciarlo |
+|---|---|---|
+| `description`, `brand` | se conserva | `""` |
+| `tags` | se conserva | `[]` |
+| `position`, `allowDiscountInquiry` | se conserva | — |
+| `categoryId` | se conserva | `"clearCategory": true` |
+| `stock` | se conserva (como antes) | — |
+
+`name` y `price` siguen siendo obligatorios. En el alta, `position` y
+`allowDiscountInquiry` ausentes valen `0` y `false`.
+
+### Alta idempotente: cabecera `Idempotency-Key`
+
+`POST /api/v1/products` y `POST /api/v1/products/with-images` aceptan la cabecera
+opcional `Idempotency-Key: <uuid>`. La app genera una por intento de alta (al tocar
+"Agregar") y la reusa en cada reintento del mismo formulario:
+
+- primer intento → `201` como siempre;
+- reintento con la misma clave (aunque el primero se haya cortado) → `200` con el
+  producto ya creado y la cabecera `Idempotent-Replayed: true`; no se suben fotos de
+  nuevo ni se consume cupo del plan.
+
+Sin la cabecera, todo sigue igual. Migración biz `V21` (`products.client_request_id`).
+
+### Versión optimista
+
+- `GET /products/{id}` (y toda respuesta `ProductResponse`) suma `version`.
+- `PUT /products/{id}` acepta `version` (opcional). Si ya no es la actual:
+
+```json
+HTTP 409
+{ "errorCode": "PRODUCT_VERSION_CONFLICT",
+  "detail": "Otra persona modificó este producto mientras lo editabas. Revisa los cambios y vuelve a guardar.",
+  "currentVersion": 8 }
+```
+
+- Una escritura simultánea que choca en la base → `409 CONCURRENT_MODIFICATION`.
+- Confirmar un pedido también sube la versión del producto (cambia el stock): un
+  formulario abierto desde antes recibe 409 en vez de restaurar el stock viejo.
+
+Sin `version` en el PUT, el comportamiento es el de antes. Migración biz `V22`.
+
+### Foto principal
+
+Siempre hay exactamente una foto principal si el producto tiene fotos:
+
+- al quitar la principal, la siguiente por posición pasa a serlo;
+- agregar una foto con `primary: true` desmarca la anterior; la primera foto de un
+  producto sin fotos es la principal;
+- adjuntar imágenes a un producto sin principal marca la primera subida.
+
+La migración biz `V23` corrige los datos existentes y agrega un índice único parcial.
+`GET /products/{id}` suma `primaryImageUrl` (antes solo estaba en el listado).
+
+---
+
+## 41. Búsqueda e insights fiables (Fase 41)
+
+Campaña QA del 25–28/10: lo que más pedían los clientes podía desaparecer de
+"Productos no encontrados" porque el LLM juzgaba distinto la misma búsqueda (EXP-007);
+"no hay ventilador; lámparas disponibles" no contaba como no encontrado (EXP-009);
+"soldadora electrica" y "soldadoras" eran tarjetas distintas (XBU-006); cada búsqueda
+contaba como una persona (EXP-008); el LLM fallaba con `json_validate_failed` en ~12 de
+15 búsquedas en una hora y la búsqueda caía a reglas sin aviso (EXP-010); los chips de
+filtro no filtraban (EXP-004, XBU-032); "-50 soles" se leía como "hasta 50" (INI-015).
+
+### LLM más estable
+
+- Temperatura 0 en la interpretación; `max_tokens` 1500 (antes 500, que un modelo que
+  razona agotaba antes de cerrar el JSON); `reasoning_effort` configurable
+  (`LLM_REASONING_EFFORT`, `low` en el compose de producción).
+- Si Groq responde 400 `json_validate_failed`, se rescata el JSON de
+  `error.failed_generation`; si no se puede, un reintento (también ante 429 y 5xx)
+  mientras no pasen 3 s. Un timeout no se reintenta. Los fallos se loguean con su tipo.
+- `storeFit` mide el **rubro**, no la lista de productos de la tienda: una soldadora en
+  una ferretería es 1.0 aunque no la tenga.
+
+### `POST /api/v1/conversations/search`
+
+Request, campo nuevo opcional:
+
+```json
+{
+  "transcribedText": "taladro",
+  "filters": { "brands": ["Bosch"], "tags": ["inalambrico"], "minPrice": 100, "maxPrice": 500 }
+}
+```
+
+La tablet manda el texto **original** y los chips en `filters` (antes concatenaba el
+chip al texto y no filtraba). Marcas en OR; tags en OR dentro del mismo criterio y AND
+entre criterios; precio sobre el precio con descuento. Si ningún producto cumple los
+filtros: `noResults: true`, `fallbackMessage` "No hay productos con esos filtros…" y los
+mejores 3 del texto sin filtros en `results`.
+
+La sesión del cliente: `sessionId` del body, o el header `X-Kiosk-Session`, o se deriva
+por tablet (última búsqueda sin resultado de esa tablet en los últimos 15 min).
+
+Response, campos nuevos:
+
+| Campo | Qué es |
+|---|---|
+| `filters[].values` | valor a mandar en `filters` por cada opción (`values[i]` ↔ `options[i]`) |
+| `alternativesOnly` | el producto pedido no está; los resultados son alternativas (`noResults` sigue `false`) |
+| `missingCategory` | el producto que faltó, si `alternativesOnly` |
+| `degraded` | la interpretación vino de las reglas de respaldo porque el LLM falló |
+
+Precios en el texto: un número negativo no es precio; "1,500" = 1500; "150,50" = 150.50.
+
+### `GET /api/v1/insights/unmet-searches`
+
+- Cuenta también las búsquedas con `alternativesOnly` (el producto pedido no estaba).
+- Agrupa por **producto**: el subtipo ya no abre otra tarjeta. Cada grupo suma
+  `variants: [{ term, searchCount }]` (top 3). Un término que empieza por otro
+  ("soldadora electrica" / "soldadora") se funde en el más corto. El plural se quita
+  palabra por palabra.
+- `storeFit` del grupo es el **máximo** de sus búsquedas (antes el promedio, y una sola
+  interpretación en 0.0 lo mandaba a `otherRequests`); `storeFitAvg` (nuevo) es el
+  promedio informativo.
+- `personCountEstimated` (nuevo): `true` si no hubo sesiones y `personCount` son
+  búsquedas.
+
+### "Clientes" del dashboard (biz)
+
+Crear un pedido registra `ORDER_CREATED` en `kiosk_events`; la siguiente actividad de la
+tablet abre una sesión nueva. Antes un cliente que compraba no cerraba su sesión y el
+siguiente se sumaba a la misma ("Clientes 5" con más de 30 pedidos, XBU-010).
+
+### Pendiente
+
+- Reinterpretar más tarde las búsquedas que cayeron a reglas por un fallo del LLM (job
+  diferido) no está implementado; el reintento y el rescate cubren el caso común.
+
+---
+
+## 42. Pulido del backend (Fase 42)
+
+Campaña QA del 25–28/10: `GET /auth/me` y `GET /notifications/tokens` respondían 500
+(EXP-001, SOL-068); "Catálogo visible: 58" cuando la tablet mostraba 52 (XCA-050); el
+top-3 de "Lo que más vende" no cuadraba con las ventas del día y mostraba productos
+borrados sin marca (XJO-013, XBU-020); el total "sin ventas" variaba sin saber de cuándo
+era (XBU-021); la pantalla Notificaciones pintaba 7 alertas activas cuando solo 2 envían
+algo, y decía "2 min" cuando el aviso sale 10 min antes (PER-045); el celular del cliente
+quedaba completo en el log de biz (RED-060).
+
+### Errores del cliente (auth, biz, vo)
+
+Mismo bloque en los tres `GlobalExceptionHandler`:
+
+| Caso | Antes | Ahora |
+|---|---|---|
+| Ruta inexistente | 500 `INTERNAL_ERROR` | 404 `NOT_FOUND` |
+| Método no soportado (`GET /notifications/tokens`) | 500 | 405 `METHOD_NOT_ALLOWED` + cabecera `Allow` |
+| `Content-Type` no soportado | 500 | 415 `UNSUPPORTED_MEDIA_TYPE` |
+| Parámetro o cabecera obligatoria ausente | 500 | 400 `BAD_REQUEST` |
+| Path param mal formado (auth, vo) | 500 | 400 `BAD_REQUEST` (biz ya lo hacía) |
+| JSON ilegible (vo) | 500 | 400 `BAD_REQUEST` (auth y biz ya lo hacían) |
+
+El catch-all (500) dice ahora "Ocurrió un error inesperado. Inténtalo de nuevo.".
+
+Los 401/403 que corta el filtro de seguridad (sin token, token inválido, rol
+insuficiente en una regla de ruta) salen como `application/problem+json`:
+
+```json
+{ "type": "/errors/unauthorized", "title": "Unauthorized", "status": 401,
+  "detail": "Necesitas iniciar sesión para continuar.", "instance": "/api/v1/devices/me",
+  "errorCode": "UNAUTHORIZED", "timestamp": "2026-10-29T15:00:00Z" }
+```
+
+`DEVICE_UNLINKED`, `SESSION_REVOKED` y `STORE_CONTEXT_REQUIRED` siguen igual.
+
+### `GET /api/v1/catalog/count` (biz)
+
+```json
+{
+  "activeProducts": 58,
+  "visibleProducts": 52,
+  "hidden": { "outOfStock": 3, "lowStock": 1, "consult": 2, "noActiveCategory": 0 }
+}
+```
+
+`visibleProducts` = activo, con categoría activa y `AVAILABLE`: el mismo predicado y el
+mismo total que `GET /catalog/by-category`. Es el número de la card "Catálogo visible".
+`activeProducts` se mantiene (todos los activos, se vean o no).
+
+### `GET /api/v1/dashboard/ranking` (biz)
+
+| Campo nuevo | Qué es |
+|---|---|
+| `asOf` | instante del cálculo; para "Actualizado 09:31" |
+| `topSellers.periodRevenue` | ingreso confirmado de **toda la tienda** en el periodo (= total de ventas de Inicio) |
+| `topSellers.productsSold` | productos distintos con ventas en el periodo: "Top 3 de N" |
+| `topSellers.items[].active` | `false` si el producto se eliminó después de venderse |
+
+`topSellers.totalRevenue` sigue siendo la suma de los listados. Empates en el top: más
+unidades primero y luego por nombre. `needsAttention.totalCount` cuenta productos activos
+con `stock > 0` sin ventas confirmadas en `[periodStart, periodEnd)`; excluye "a consultar"
+y agotados, y cambia en cuanto se repone stock.
+
+### `GET` / `PUT /api/v1/notifications/preferences` (biz)
+
+```json
+{
+  "newOrder": true, "orderExpiring": true, "tabletDisconnected": true, "...": "...",
+  "activeCount": 7, "totalCount": 7,
+  "supported": { "newOrder": true, "orderExpiring": true, "tabletDisconnected": false,
+                 "productOutOfStock": false, "lowBattery": false, "weeklyReport": false,
+                 "sellingSuggestions": false },
+  "supportedCount": 2,
+  "supportedActiveCount": 2,
+  "orderExpiringWarningMinutes": 10
+}
+```
+
+Solo `newOrder` y `orderExpiring` tienen emisor. Los toggles con `supported=false` se
+guardan pero no envían nada. `activeCount` / `totalCount` no cambian, para la app actual.
+El aviso "por expirar" sale `orderExpiringWarningMinutes` antes del vencimiento
+(`ORDERS_EXPIRING_WARNING_MINUTES`, 10 por defecto).
+
+### Logs (biz)
+
+El celular sale como `51*******21` y el nombre como iniciales en los logs de pedidos,
+del publisher de notificaciones, del PDF y del envío a Meta. El mensaje de error de Meta
+se recorta a 200 caracteres.
+
+### Pendiente
+
+- Emisores de "Producto agotado", "Batería baja", "Tablet desconectada", "Reporte
+  semanal" y "Sugerencias para vender más": no implementados; `supported=false`.
+- `GET /notifications/tokens` para listar los tokens propios: no implementado (405).
+
+---
+
+## 43. JSON estricto del LLM y proveedor configurable (Fase 43)
+
+Regresión QA del 31/10 (F-103): en una hora, 26 de ~46 búsquedas por voz salieron por las reglas de respaldo
+(`degraded: true`) porque Groq respondía 400 `json_validate_failed` en los dos intentos. La causa estaba en la llamada,
+no en el modelo:
+
+| Antes | Por qué fallaba | Ahora |
+|---|---|---|
+| `response_format: json_object` | Solo valida al final; el modelo podía escribir texto, una cerca de markdown o nada | `json_schema` con `strict: true`: el proveedor restringe la generación al esquema |
+| `max_tokens: 1500` | En gpt-oss el razonamiento sale del mismo tope y dejaba el JSON a medias | `max_completion_tokens: 4096`; si una respuesta se corta (`finish_reason: length`), el reintento lleva el doble |
+| Reintento idéntico a temperatura 0 | Repetía la misma salida y el mismo fallo | El reintento va a `retry-temperature` (0.3) |
+| Un fallo dejaba `call failed outcome=JSON_INVALID status=400` | No se sabía si era truncamiento o el proveedor | El log trae `code`, `failedGenerationChars`, `finish_reason`, `completion_tokens`, `reasoning_tokens` y `fingerprint` |
+
+Esquemas (uno por llamada, constantes, sin `pattern`/`format`/`minimum`: sirven igual en Groq, Cerebras y OpenAI):
+`kiosk_search_intent` (los 13 campos de la intención; lo opcional es `null`, `attributes` es `[]`),
+`kiosk_spoken_response` (`spokenText`, `displayText`, `fallbackMessage`) y `kiosk_search_suggestions`
+(`{"suggestions": [...]}`; antes un array suelto, que ningún proveedor acepta como raíz con `strict`). Los rangos de
+precio, `confidence` y los tags permitidos se siguen validando en vo.
+
+### Configuración de vo (`.env` del VPS)
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `LLM_BASE_URL` | `https://api.groq.com/openai` | Cerebras: `https://api.cerebras.ai` (sin `/v1`: el gateway lo agrega) |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | Cerebras: `gpt-oss-120b` (sin `openai/`) |
+| `LLM_API_KEY` | — | La clave del proveedor elegido |
+| `LLM_MAX_TOKENS` | `4096` | Tope por llamada, incluye razonamiento. Si el `.env` trae 1500 de la Fase 41, bórralo |
+| `LLM_REASONING_EFFORT` | `low` | gpt-oss no permite apagar el razonamiento |
+| `LLM_STRUCTURED_OUTPUTS` | `true` | `false` vuelve a `json_object` |
+| `LLM_RETRY_TEMPERATURE` | `0.3` | Temperatura del segundo intento |
+| `LLM_INCLUDE_REASONING` | vacío | Solo Groq: `false` para que no devuelva el razonamiento. Vacío con Cerebras |
+
+`LLM_BASE_URL`, `LLM_MODEL` y `LLM_API_KEY` las comparte biz: cambiar de proveedor mueve a los dos servicios.
+
+### biz (mismo arreglo)
+
+biz usa el LLM de texto para **"Regenerar descripción"** (`POST /products/regenerate-description`, texto plano) y para las
+palabras clave de productos complementarios (`GET /products/{id}/suggestions`, apagado con `LLM_COMPLEMENTARY_ENABLED`).
+Pedía 500 tokens y no mandaba `reasoning_effort`: gpt-oss razona en "medium" por defecto y la paráfrasis podía llegar
+vacía o cortada (el celular veía que "no pasaba nada"), sin reintento. Ahora:
+
+- `max_completion_tokens` 4096, `reasoning_effort` desde `LLM_REASONING_EFFORT` (`low`), mismas variables que vo
+  (`LLM_MAX_TOKENS`, `LLM_STRUCTURED_OUTPUTS`, `LLM_INCLUDE_REASONING`).
+- Un reintento si la respuesta llega vacía, cortada (`finish_reason: length`, con el doble de tokens), con un 400 de
+  validación, 429 o 5xx; a temperatura 0.5 en vez de 0.1, dentro de 8 s.
+- Las palabras complementarias van con esquema estricto `complementary_keywords` (`{"keywords": [...]}`).
+- Sin cambios de contrato: si el LLM falla, "Regenerar descripción" sigue devolviendo la descripción original.
+
+### Visión de biz (borrador con IA y sugerencia de tags)
+
+`POST /products/draft-from-image` y `POST /products/{id}/suggest-tags` pedían `json_object` con 300–400 tokens a
+`qwen3.8-27b`, que razona por defecto: el borrador llegaba vacío. Ahora: esquemas estrictos `product_draft` y
+`product_image_tags`, `reasoning_effort: none`, `max_completion_tokens` 2048 y un reintento distinto. La foto viaja
+embebida en base64 con su tipo real (PNG o JPEG; otro formato se re-codifica a JPEG), porque Cerebras no acepta URLs de
+imagen; `suggest-tags` la descarga de R2. El campo `source` dice el proveedor real (`groq` o `cerebras`).
+
+Los tags que sugiere la visión salen del catálogo del (centro comercial × rubro); sin catálogo, `suggest-tags` responde
+vacío sin llamar a la IA. El catálogo de ferretería (33 tags en 6 grupos) está en `scripts/tag-catalog/tools-es.json` y se
+carga con `scripts/tag-catalog/load.sh` (admin, modo UPSERT). Lo comparten todas las ferreterías del centro comercial, y
+vo lo usa como vocabulario permitido en el prompt de la búsqueda: la evaluación lo incluye (`EVAL_WITH_TAGS=false` lo quita).
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `VISION_BASE_URL` | `https://api.groq.com/openai/v1` | Cerebras: `https://api.cerebras.ai/v1` (**con** `/v1`, a diferencia de `LLM_BASE_URL`) |
+| `VISION_MODEL` | `qwen/qwen3.8-27b` | Cerebras: `qwen-3.8-27b` |
+| `VISION_API_KEY` | — | La clave del proveedor (puede ser la misma de Cerebras que `LLM_API_KEY`) |
+| `VISION_MAX_TOKENS` | `2048` | Tope por llamada |
+| `VISION_REASONING_EFFORT` | `none` | Apaga el razonamiento de qwen3.8-27b |
+
+### Caché de interpretaciones (vo)
+
+La misma búsqueda ya no vuelve a llamar al LLM mientras su interpretación esté en Redis (`vo:intent:v1:*`, 6 h). La
+clave es el modelo + el hash del prompt completo (rubro, vocabulario y tags de la tienda) + el texto normalizado (sin
+mayúsculas, tildes ni puntuación; los precios se conservan): si cambia el catálogo, cambia la clave. Solo se guardan
+interpretaciones del LLM. `LLM_CACHE_ENABLED` (`true`) y `LLM_CACHE_TTL_MINUTES` (`360`).
+
+### Evaluación de la interpretación
+
+`services/vo-api-service/src/test/resources/eval/intents-es.jsonl` tiene 100 búsquedas en español (productos claros,
+errores del reconocimiento de voz, precios, búsquedas sin producto, fuera del rubro y otros rubros) con lo que la IA
+debería entender. `EVAL_LLM_API_KEY=... ./gradlew evalLlm` las corre contra el LLM real (no corre en `./gradlew test`) y
+deja el reporte en `build/reports/llm-eval/intents.md`. Exige 100 % de JSON válido y ≥ 90 % de acierto en producto,
+precios y rubro (umbrales con `EVAL_MIN_*`). Correrlo antes de cambiar de modelo, de proveedor o de prompt.
+
