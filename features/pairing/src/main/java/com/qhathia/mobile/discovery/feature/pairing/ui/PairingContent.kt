@@ -395,6 +395,12 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
             border = BorderStroke(1.dp, DiscoveryColors.Divider),
         ) {
             Column {
+                // The name the store gave this tablet in the staff app (F-59): matches its card there.
+                DetailRow(
+                    label = stringResource(R.string.pairing_device_name_label),
+                    value = device.deviceName,
+                )
+                RowDivider()
                 DetailRow(
                     label = stringResource(R.string.pairing_activity_label),
                     // The server leaves the sync time empty for now; the last heartbeat stands in.

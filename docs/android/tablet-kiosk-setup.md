@@ -1,8 +1,8 @@
 # Preparar una tablet para el modo kiosko
 
 Discovery bloquea la tablet con la **fijación de pantalla** de Android (change `kiosk-lock-mode`).
-Las tablets no se provisionan como Device Owner, así que hay que hacer estos pasos **una vez por
-tablet**, antes de dejarla en el stand.
+Las tablets todavía no se provisionan como Device Owner (paso 6, opcional), así que hay que hacer
+estos pasos **una vez por tablet**, antes de dejarla en el stand.
 
 ## 1. Bloqueo de pantalla
 
@@ -70,6 +70,23 @@ kiosko → bajar la barra de notificaciones → engranaje → *Aplicaciones pred
 
 En Android 9 o anterior la app también se abre sola al arrancar sin este paso, siempre que esté
 emparejada.
+
+## 6. Opcional: Device Owner (fijada sin diálogo)
+
+Sin Device Owner, Android pide confirmar "¿Fijar app?" (GOT IT). Si alguien toca **NO THANKS**,
+la vitrina vuelve a pedirlo sola cada 15 s mientras está en el inicio. Con Device Owner, la app se
+fija sola, sin diálogo, y queda como pantalla de inicio sin el paso 5.
+
+Solo se puede hacer en una tablet **recién restablecida y sin cuentas** (ni Google ni del
+fabricante), con Discovery instalada:
+
+```bash
+adb shell dpm set-device-owner com.qhathia.mobile.discovery/.kiosk.KioskDeviceAdminReceiver
+```
+
+Al abrir Discovery, la app se configura sola: fijación permitida sin diálogo, sin Inicio, Recientes
+ni notificaciones mientras está fijada, y Discovery como pantalla de inicio. *Salir del modo kiosko*
+sigue funcionando igual. Para quitarlo hay que restablecer la tablet de fábrica.
 
 ## Uso diario
 

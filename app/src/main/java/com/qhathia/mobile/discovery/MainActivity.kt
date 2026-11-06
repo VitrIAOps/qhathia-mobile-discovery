@@ -39,6 +39,11 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.delay
+import com.qhathia.mobile.discovery.kiosk.DeviceOwnerKiosk
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import android.util.Log
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.flowWithLifecycle
@@ -87,6 +92,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Device owner (F-10): pin without the "Pin app?" dialog and stay the home screen.
+        DeviceOwnerKiosk.configure(this)
         enableEdgeToEdge()
         setContent {
             DiscoveryAppRoot()
@@ -133,7 +140,12 @@ class MainActivity : ComponentActivity() {
         } else {
             pinningThrottle.record(now)
         }
-        runCatching { startLockTask() }
+        try {
+            startLockTask()
+        } catch (e: Exception) {
+            // API 26 rejects it while the task is not in the foreground; keep it visible in logcat.
+            Log.w(TAG, "startLockTask rejected", e)
+        }
     }
 
     /** Carries out a remote restart from inside the pinned task (design D7). */
@@ -143,6 +155,10 @@ class MainActivity : ComponentActivity() {
 
     private fun isPinned(): Boolean =
         getSystemService(ActivityManager::class.java).lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+
+    private companion object {
+        const val TAG = "MainActivity"
+    }
 }
 
 @Composable
@@ -277,10 +293,18 @@ private fun DiscoveryNavHost(
         if (currentRoute == HOME_ROUTE) mainViewModel.resumeKioskMode()
     }
 
-    // Kiosk (design D8): a refused "Pin app?" is asked again when the consumer is back on Home, and on
-    // touches on Home below, at most once every 15 s.
-    LaunchedEffect(currentRoute, kioskActive) {
-        if (kioskActive && currentRoute == HOME_ROUTE) activity?.requestPinning(throttled = true)
+    // Kiosk (design D8, F-10): while Home is shown and resumed, a refused "Pin app?" is asked again
+    // every 15 s without waiting for a touch, and on touches on Home below; the throttle keeps it to
+    // one request every 15 s, and requestPinning does nothing once pinned.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(currentRoute, kioskActive, lifecycleOwner) {
+        if (!kioskActive || currentRoute != HOME_ROUTE) return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                activity?.requestPinning(throttled = true)
+                delay(DeviceConstants.PINNING_REQUEST_MIN_INTERVAL)
+            }
+        }
     }
     val askPinningOnTouch by rememberUpdatedState(kioskActive && currentRoute == HOME_ROUTE)
 
@@ -388,6 +412,8 @@ private fun DiscoveryNavHost(
                     },
                     onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
+                    // Volver with no previous result: close-search dialog only when Home is below (F-38).
+                    previousIsHome = { navController.previousBackStackEntry?.destination?.route == HOME_ROUTE },
                 )
                 productDetailScreen(
                     onNavigateBack = goBack,

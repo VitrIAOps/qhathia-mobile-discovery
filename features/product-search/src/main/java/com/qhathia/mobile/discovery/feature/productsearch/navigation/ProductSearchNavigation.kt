@@ -24,7 +24,7 @@ fun productSearchRoute(query: String, source: SearchSource): String =
 
 /**
  * Registers the product-search destination. Navigation targets are hoisted as callbacks so the app
- * wires Home re-entry.
+ * wires Home re-entry; [previousIsHome] says whether the screen below this one is Home (F-38).
  */
 fun NavGraphBuilder.productSearchScreen(
     onNavigateHomeIdle: () -> Unit,
@@ -32,6 +32,7 @@ fun NavGraphBuilder.productSearchScreen(
     onNavigateToCatalog: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
+    previousIsHome: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     composable(
@@ -47,6 +48,7 @@ fun NavGraphBuilder.productSearchScreen(
             onNavigateToCatalog = onNavigateToCatalog,
             onNavigateToDetail = onNavigateToDetail,
             onOpenCart = onOpenCart,
+            previousIsHome = previousIsHome,
             modifier = modifier,
         )
     }

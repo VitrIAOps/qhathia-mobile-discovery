@@ -192,13 +192,34 @@ class ProductSearchViewModelTest {
     }
 
     @Test
-    fun given_no_previous_result_when_back_then_opens_dialog() = runTest(mainDispatcher.dispatcher) {
+    fun given_no_previous_result_when_back_then_asks_the_screen_to_exit() = runTest(mainDispatcher.dispatcher) {
         val vm = viewModel()
 
-        vm.onEvent(ProductSearchUiEvent.Back)
-
-        assertTrue(vm.uiState.value.showCloseConfirmDialog)
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.Back)
+            assertEquals(ProductSearchUiEffect.ExitRequested, awaitItem())
+        }
+        // The dialog is the screen's choice (only from Home), not the view model's.
+        assertFalse(vm.uiState.value.showCloseConfirmDialog)
     }
+
+    @Test
+    fun given_network_error_after_a_result_when_back_then_previous_result_shown() =
+        runTest(mainDispatcher.dispatcher) {
+            val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(displayText = "first")))
+            val vm = viewModel(repository = repository) // init settles on "first"
+            repository.result = Result.failure(SearchException(SearchErrorCategory.Network))
+            vm.onEvent(ProductSearchUiEvent.QueryChanged("foco"))
+            vm.onEvent(ProductSearchUiEvent.SubmitSearch)
+            assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
+
+            vm.uiEffect.test {
+                vm.onEvent(ProductSearchUiEvent.Back)
+                expectNoEvents()
+            }
+
+            assertEquals("first", (vm.uiState.value.phase as ProductSearchPhase.Results).displayText)
+        }
 
     @Test
     fun given_confirm_new_search_then_navigates_home_idle() = runTest(mainDispatcher.dispatcher) {
@@ -249,6 +270,48 @@ class ProductSearchViewModelTest {
             assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
             assertEquals(1, repository.callCount)
         }
+
+    @Test
+    fun given_no_network_when_mic_tapped_then_says_why_and_keeps_results() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(3))))
+        val stt = FakeLiveTranscriptionRepository(failure = SttException(SttErrorCategory.Network))
+        val vm = viewModel(repository = repository, stt = stt) // init settles on Results
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            assertEquals(ProductSearchUiEffect.VoiceFailed(SttErrorCategory.Network), awaitItem())
+        }
+        assertEquals(3, (vm.uiState.value.phase as ProductSearchPhase.Results).products.size)
+        assertEquals(1, repository.callCount)
+    }
+
+    @Test
+    fun given_voice_entry_without_network_then_says_why_before_going_back() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(
+            query = "",
+            source = SearchSource.Voice,
+            stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Network)),
+        )
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+            assertEquals(ProductSearchUiEffect.VoiceFailed(SttErrorCategory.Network), awaitItem())
+            assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
+        }
+    }
+
+    @Test
+    fun given_no_speech_failure_then_no_message() = runTest(mainDispatcher.dispatcher) {
+        val stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.EmptyAudio))
+        val vm = viewModel(stt = stt)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+            expectNoEvents()
+        }
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+    }
 
     @Test
     fun given_slow_final_transcript_then_voice_slow_response_phase() = runTest(mainDispatcher.dispatcher) {
@@ -440,6 +503,7 @@ class ProductSearchViewModelTest {
 
         vm.uiEffect.test {
             vm.onEvent(ProductSearchUiEvent.StopRecording)
+            assertEquals(ProductSearchUiEffect.VoiceFailed(SttErrorCategory.Network), awaitItem())
             assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
@@ -626,6 +690,8 @@ class ProductSearchViewModelTest {
 
         vm.uiEffect.test {
             vm.onEvent(ProductSearchUiEvent.Back)
+            assertEquals(ProductSearchUiEffect.ExitRequested, awaitItem())
+            vm.onEvent(ProductSearchUiEvent.NewSearch) // what the screen does when Home is below
             assertTrue(vm.uiState.value.showCloseConfirmDialog)
             vm.onEvent(ProductSearchUiEvent.ConfirmCloseSearch)
             assertEquals(ProductSearchUiEffect.NavigateHomeIdle, awaitItem())

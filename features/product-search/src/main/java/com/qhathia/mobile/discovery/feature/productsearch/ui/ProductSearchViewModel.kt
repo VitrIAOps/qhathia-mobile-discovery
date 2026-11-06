@@ -13,6 +13,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
@@ -55,8 +56,10 @@ import kotlinx.coroutines.launch
  * `noResults=false`, or `→ Unhappy` when `noResults=true` (rendering the up-to-3 store suggestions the
  * response already returned). A search (API) error settles `Unhappy` with no suggestions; a
  * connectivity failure settles `NetworkError` (screen kept). Each settled outcome is pushed onto an
- * in-memory history so Volver can return to the previous result; with no previous result Volver opens
- * the close-confirmation dialog. Confirming that dialog (from Nueva búsqueda or Volver) ends the
+ * in-memory history so Volver can return to the previous result; after a network error it returns to
+ * the result shown before it. With no previous result Volver emits [ProductSearchUiEffect.ExitRequested]:
+ * the screen goes back to Catalog or Detail, or opens the close-confirmation dialog when the search was
+ * opened from Home (F-38). Confirming that dialog (from Nueva búsqueda or Volver) ends the
  * customer session (basket and customer data), clears the history and returns Home idle. The 30s idle
  * timeout on the unhappy screen returns Home without ending the session. Ir al catálogo opens the
  * catalog and keeps the session. The microphone animation is retained
@@ -81,8 +84,10 @@ class ProductSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ProductSearchUiState(source = initialSource))
     val uiState: StateFlow<ProductSearchUiState> = _uiState.asStateFlow()
 
+    // Room for a few back-to-back effects (e.g. VoiceFailed then NavigateBack, F-17): with one slot
+    // the second would drop the first before the screen collects it.
     private val _uiEffect = MutableSharedFlow<ProductSearchUiEffect>(
-        extraBufferCapacity = 1,
+        extraBufferCapacity = EFFECT_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val uiEffect: SharedFlow<ProductSearchUiEffect> = _uiEffect.asSharedFlow()
@@ -236,10 +241,15 @@ class ProductSearchViewModel @Inject constructor(
                 performSearch(event.transcript, SearchSource.Voice)
             }
             // No speech or an STT error does NOT trigger an alternative search — restore the previous screen.
-            VoiceSessionEvent.NoAudio,
-            is VoiceSessionEvent.Failed,
-            -> {
+            VoiceSessionEvent.NoAudio -> {
                 cancelVoiceSlowResponseTimer()
+                restorePreVoicePhase()
+            }
+            // An error also says why (F-17), e.g. no network before "Escuchando" ever showed. No speech
+            // needs no message: the screen simply comes back.
+            is VoiceSessionEvent.Failed -> {
+                cancelVoiceSlowResponseTimer()
+                if (event.category != SttErrorCategory.EmptyAudio) emit(ProductSearchUiEffect.VoiceFailed(event.category))
                 restorePreVoicePhase()
             }
         }
@@ -455,11 +465,16 @@ class ProductSearchViewModel @Inject constructor(
             cancelVoiceCapture()
             return
         }
-        if (history.size > 1) {
-            history.removeAt(history.lastIndex)
-            showEntry(history.last())
-        } else {
-            _uiState.update { it.copy(showCloseConfirmDialog = true) }
+        when {
+            // The network error is an overlay, not a history entry: Volver returns to the result under
+            // it (BUS-052).
+            _uiState.value.phase is ProductSearchPhase.NetworkError && history.isNotEmpty() ->
+                showEntry(history.last())
+            history.size > 1 -> {
+                history.removeAt(history.lastIndex)
+                showEntry(history.last())
+            }
+            else -> emit(ProductSearchUiEffect.ExitRequested)
         }
     }
 
@@ -579,5 +594,6 @@ class ProductSearchViewModel @Inject constructor(
 
     private companion object {
         const val ONE_SECOND_MS = 1_000L
+        const val EFFECT_BUFFER = 8
     }
 }

@@ -21,6 +21,7 @@
     <string name="pairing_store_section">NOMBRE DEL COMERCIO</string>
     <string name="pairing_store_account_tag">Cuenta de gestión</string>
     <string name="pairing_device_section">ESTADO DEL DISPOSITIVO</string>
+    <string name="pairing_device_name_label">Nombre en la app del comercio</string>
     <string name="pairing_activity_label">Actividad</string>
     <string name="pairing_platform_label">Plataforma</string>
     <string name="pairing_code_used_label">Código usado</string>
