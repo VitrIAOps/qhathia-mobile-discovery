@@ -1,7 +1,9 @@
 package com.qhathia.mobile.discovery.core.data.di
 
+import com.qhathia.mobile.discovery.core.data.pairing.DataStorePendingPairingSessionStore
 import com.qhathia.mobile.discovery.core.data.pairing.DevicePairingRepositoryImpl
 import com.qhathia.mobile.discovery.core.data.pairing.HeldPairingCodeRepositoryImpl
+import com.qhathia.mobile.discovery.core.data.pairing.PendingPairingSessionStore
 import com.qhathia.mobile.discovery.core.domain.repository.DevicePairingRepository
 import com.qhathia.mobile.discovery.core.domain.repository.HeldPairingCodeRepository
 import dagger.Binds
@@ -25,4 +27,9 @@ abstract class DevicePairingDataModule {
     abstract fun bindHeldPairingCodeRepository(
         impl: HeldPairingCodeRepositoryImpl,
     ): HeldPairingCodeRepository
+
+    @Binds
+    abstract fun bindPendingPairingSessionStore(
+        impl: DataStorePendingPairingSessionStore,
+    ): PendingPairingSessionStore
 }

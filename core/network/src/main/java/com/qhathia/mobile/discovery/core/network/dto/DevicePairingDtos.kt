@@ -53,3 +53,12 @@ data class PairingStatusMessageDto(
     val status: String,
     val sessionId: String? = null,
 )
+
+/**
+ * Optional body of `POST /api/v1/devices/pairing-token` (api-contract.md §37): the session of the code
+ * the tablet showed before, so the backend cancels it.
+ */
+@Serializable
+data class GeneratePairingTokenRequestDto(
+    val replacesSessionId: String,
+)
