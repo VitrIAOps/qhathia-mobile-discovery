@@ -408,6 +408,8 @@ private fun DiscoveryNavHost(
                     },
                     onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
+                    // Volver with no previous result: close-search dialog only when Home is below (F-38).
+                    previousIsHome = { navController.previousBackStackEntry?.destination?.route == HOME_ROUTE },
                 )
                 productDetailScreen(
                     onNavigateBack = goBack,

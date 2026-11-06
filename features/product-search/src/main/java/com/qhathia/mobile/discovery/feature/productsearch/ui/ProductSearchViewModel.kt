@@ -55,8 +55,10 @@ import kotlinx.coroutines.launch
  * `noResults=false`, or `→ Unhappy` when `noResults=true` (rendering the up-to-3 store suggestions the
  * response already returned). A search (API) error settles `Unhappy` with no suggestions; a
  * connectivity failure settles `NetworkError` (screen kept). Each settled outcome is pushed onto an
- * in-memory history so Volver can return to the previous result; with no previous result Volver opens
- * the close-confirmation dialog. Confirming that dialog (from Nueva búsqueda or Volver) ends the
+ * in-memory history so Volver can return to the previous result; after a network error it returns to
+ * the result shown before it. With no previous result Volver emits [ProductSearchUiEffect.ExitRequested]:
+ * the screen goes back to Catalog or Detail, or opens the close-confirmation dialog when the search was
+ * opened from Home (F-38). Confirming that dialog (from Nueva búsqueda or Volver) ends the
  * customer session (basket and customer data), clears the history and returns Home idle. The 30s idle
  * timeout on the unhappy screen returns Home without ending the session. Ir al catálogo opens the
  * catalog and keeps the session. The microphone animation is retained
@@ -455,11 +457,16 @@ class ProductSearchViewModel @Inject constructor(
             cancelVoiceCapture()
             return
         }
-        if (history.size > 1) {
-            history.removeAt(history.lastIndex)
-            showEntry(history.last())
-        } else {
-            _uiState.update { it.copy(showCloseConfirmDialog = true) }
+        when {
+            // The network error is an overlay, not a history entry: Volver returns to the result under
+            // it (BUS-052).
+            _uiState.value.phase is ProductSearchPhase.NetworkError && history.isNotEmpty() ->
+                showEntry(history.last())
+            history.size > 1 -> {
+                history.removeAt(history.lastIndex)
+                showEntry(history.last())
+            }
+            else -> emit(ProductSearchUiEffect.ExitRequested)
         }
     }
 

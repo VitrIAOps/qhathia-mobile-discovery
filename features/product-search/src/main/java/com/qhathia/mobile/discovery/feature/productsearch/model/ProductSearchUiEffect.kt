@@ -12,6 +12,13 @@ sealed interface ProductSearchUiEffect {
      */
     data object NavigateBack : ProductSearchUiEffect
 
+    /**
+     * Volver (or system Back) with no previous result to show (F-38). The screen decides: opened from
+     * Home, it asks to close the search (the session ends); opened from any other screen (Catalog,
+     * Detail), it goes back there and keeps the cart.
+     */
+    data object ExitRequested : ProductSearchUiEffect
+
     /** Open the catalog ("Ir al catálogo"); the cart and the customer session are kept. */
     data object NavigateToCatalog : ProductSearchUiEffect
 

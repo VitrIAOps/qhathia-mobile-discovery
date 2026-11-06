@@ -192,13 +192,34 @@ class ProductSearchViewModelTest {
     }
 
     @Test
-    fun given_no_previous_result_when_back_then_opens_dialog() = runTest(mainDispatcher.dispatcher) {
+    fun given_no_previous_result_when_back_then_asks_the_screen_to_exit() = runTest(mainDispatcher.dispatcher) {
         val vm = viewModel()
 
-        vm.onEvent(ProductSearchUiEvent.Back)
-
-        assertTrue(vm.uiState.value.showCloseConfirmDialog)
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.Back)
+            assertEquals(ProductSearchUiEffect.ExitRequested, awaitItem())
+        }
+        // The dialog is the screen's choice (only from Home), not the view model's.
+        assertFalse(vm.uiState.value.showCloseConfirmDialog)
     }
+
+    @Test
+    fun given_network_error_after_a_result_when_back_then_previous_result_shown() =
+        runTest(mainDispatcher.dispatcher) {
+            val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(displayText = "first")))
+            val vm = viewModel(repository = repository) // init settles on "first"
+            repository.result = Result.failure(SearchException(SearchErrorCategory.Network))
+            vm.onEvent(ProductSearchUiEvent.QueryChanged("foco"))
+            vm.onEvent(ProductSearchUiEvent.SubmitSearch)
+            assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
+
+            vm.uiEffect.test {
+                vm.onEvent(ProductSearchUiEvent.Back)
+                expectNoEvents()
+            }
+
+            assertEquals("first", (vm.uiState.value.phase as ProductSearchPhase.Results).displayText)
+        }
 
     @Test
     fun given_confirm_new_search_then_navigates_home_idle() = runTest(mainDispatcher.dispatcher) {
@@ -626,6 +647,8 @@ class ProductSearchViewModelTest {
 
         vm.uiEffect.test {
             vm.onEvent(ProductSearchUiEvent.Back)
+            assertEquals(ProductSearchUiEffect.ExitRequested, awaitItem())
+            vm.onEvent(ProductSearchUiEvent.NewSearch) // what the screen does when Home is below
             assertTrue(vm.uiState.value.showCloseConfirmDialog)
             vm.onEvent(ProductSearchUiEvent.ConfirmCloseSearch)
             assertEquals(ProductSearchUiEffect.NavigateHomeIdle, awaitItem())
