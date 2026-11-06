@@ -303,15 +303,16 @@ private fun ResultsBody(
         ) {
             BrandDot(size = 14.dp)
             Text(
-                text = pluralStringResource(
-                    R.plurals.ps_results_headline,
-                    phase.products.size,
-                    phase.products.size,
-                ),
+                text = when {
+                    phase.noFilterMatch -> stringResource(R.string.ps_filters_no_match)
+                    phase.missingCategory != null -> stringResource(R.string.ps_alternatives_only, phase.missingCategory)
+                    else -> pluralStringResource(R.plurals.ps_results_headline, phase.products.size, phase.products.size)
+                },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
+        if (phase.noFilterMatch) return@Column
         HorizontalRowsGrid(
             items = phase.products,
             rows = 2,
@@ -810,6 +811,52 @@ private fun ResultsRefineSelectedDarkPreview() {
         )
     }
 }
+
+@Preview(name = "Results — no filter match — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsNoFilterMatchLightPreview() {
+    DiscoveryTheme(darkTheme = false) { ProductSearchContent(uiState = noFilterMatchState(), onEvent = {}) }
+}
+
+@Preview(name = "Results — no filter match — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsNoFilterMatchDarkPreview() {
+    DiscoveryTheme(darkTheme = true) { ProductSearchContent(uiState = noFilterMatchState(), onEvent = {}) }
+}
+
+private fun noFilterMatchState(): ProductSearchUiState = ProductSearchUiState(
+    source = SearchSource.Voice,
+    phase = ProductSearchPhase.Results(
+        products = kotlinx.collections.immutable.persistentListOf(),
+        displayText = "",
+        filters = sampleFilters().toImmutableList(),
+        suggestions = sampleSuggestions().toImmutableList(),
+        noFilterMatch = true,
+    ),
+    canGoBack = true,
+    selectedFilters = setOf(SearchFilterOption("Marca", "Bosch"), SearchFilterOption("Voltaje", "12V")).toImmutableSet(),
+)
+
+@Preview(name = "Results — alternatives only — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsAlternativesOnlyLightPreview() {
+    DiscoveryTheme(darkTheme = false) { ProductSearchContent(uiState = alternativesOnlyState(), onEvent = {}) }
+}
+
+@Preview(name = "Results — alternatives only — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsAlternativesOnlyDarkPreview() {
+    DiscoveryTheme(darkTheme = true) { ProductSearchContent(uiState = alternativesOnlyState(), onEvent = {}) }
+}
+
+private fun alternativesOnlyState(): ProductSearchUiState = ProductSearchUiState(
+    source = SearchSource.Text,
+    phase = ProductSearchPhase.Results(
+        products = sampleProducts(3).toImmutableList(),
+        displayText = "",
+        missingCategory = "ventilador",
+    ),
+)
 
 @Preview(name = "Searching (voice) — light", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable

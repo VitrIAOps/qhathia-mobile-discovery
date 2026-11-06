@@ -36,13 +36,21 @@ sealed interface ProductSearchPhase {
 
     /**
      * The search returned [products]; [displayText] is the results headline. [filters] and
-     * [suggestions] drive the refine-by-selection section (both empty hides it).
+     * [suggestions] drive the refine-by-selection section (both empty hides it); while refining they
+     * stay as the fresh search returned them.
+     *
+     * @property noFilterMatch the selected chips left no product: the grid is replaced by a message and
+     *   the chips stay selected (F-37).
+     * @property missingCategory the requested product the store does not sell, when the results are
+     *   alternatives only (`alternativesOnly`); `null` otherwise.
      */
     data class Results(
         val products: ImmutableList<Product>,
         val displayText: String,
         val filters: ImmutableList<SearchFilter> = persistentListOf(),
         val suggestions: ImmutableList<String> = persistentListOf(),
+        val noFilterMatch: Boolean = false,
+        val missingCategory: String? = null,
     ) : ProductSearchPhase
 
     /**

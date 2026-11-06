@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.core.testing
 
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.repository.ProductSearchRepository
 import kotlinx.coroutines.delay
 
@@ -19,11 +20,19 @@ class FakeProductSearchRepository(
 ) : ProductSearchRepository {
 
     val queries: MutableList<String> = mutableListOf()
+
+    /** The filters of each search, in order (`null` when the search had none). */
+    val filters: MutableList<StructuredSearchFilters?> = mutableListOf()
     var callCount: Int = 0
         private set
 
-    override suspend fun search(query: String, language: String): Result<ProductSearchResult> {
+    override suspend fun search(
+        query: String,
+        language: String,
+        filters: StructuredSearchFilters?,
+    ): Result<ProductSearchResult> {
         queries += query
+        this.filters += filters
         callCount++
         if (delayMillis > 0) delay(delayMillis)
         return if (callCount > 1 && alternativeResult != null) alternativeResult!! else result

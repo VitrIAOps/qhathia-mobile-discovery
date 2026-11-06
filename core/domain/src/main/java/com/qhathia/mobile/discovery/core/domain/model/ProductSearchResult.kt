@@ -23,4 +23,6 @@ data class ProductSearchResult(
     val suggestedFromCategory: String? = null,
     val filters: List<SearchFilter> = emptyList(),
     val suggestions: List<String> = emptyList(),
+    val alternativesOnly: Boolean = false,
+    val missingCategory: String? = null,
 )

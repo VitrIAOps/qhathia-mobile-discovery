@@ -10,8 +10,10 @@ import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
@@ -30,6 +32,7 @@ import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_QUERY
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_SOURCE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
@@ -87,8 +90,14 @@ class ProductSearchViewModel @Inject constructor(
     /** Settled outcomes visited so far; the last entry is the one currently displayed. */
     private val history = mutableListOf<HistoryEntry>()
 
-    /** Immutable raw query that started the current results view; the concatenation base for refinements. */
+    /** Immutable raw query that started the current results view; the text base for refinements. */
     private var baseQuery: String = ""
+
+    /** The chip panel of the fresh search that started the current results view; refinements keep it. */
+    private var baseFilters: List<SearchFilter> = emptyList()
+
+    /** The suggestions of the fresh search that started the current results view. */
+    private var baseSuggestions: List<String> = emptyList()
 
     /** Filter options currently selected (insertion-ordered); N may be active across criteria. */
     private val selectedFilters = LinkedHashSet<SearchFilterOption>()
@@ -165,10 +174,14 @@ class ProductSearchViewModel @Inject constructor(
         refineSearch()
     }
 
-    /** Re-query with the current selection concatenated onto the immutable [baseQuery]. */
+    /**
+     * Re-query with the original [baseQuery] (plus the suggestion, which is natural language) and the
+     * selected chips as structured filters (F-37): brands as labels, other criteria as their values.
+     */
     private fun refineSearch() {
-        val composed = composeSearchQuery(baseQuery, selectedFilters.toList(), selectedSuggestion)
-        performSearch(composed, _uiState.value.source, isRefinement = true)
+        val text = composeSearchQuery(baseQuery, selectedSuggestion)
+        val filters = StructuredSearchFilters.from(selectedFilters, baseFilters).takeUnless { it.isEmpty }
+        performSearch(text, _uiState.value.source, isRefinement = true, filters = filters)
     }
 
     private fun openDetail(productId: String) {
@@ -317,7 +330,12 @@ class ProductSearchViewModel @Inject constructor(
         cancelVoiceSlowResponseTimer()
     }
 
-    private fun performSearch(query: String, source: SearchSource, isRefinement: Boolean = false) {
+    private fun performSearch(
+        query: String,
+        source: SearchSource,
+        isRefinement: Boolean = false,
+        filters: StructuredSearchFilters? = null,
+    ) {
         cancelTimers()
         searchJob?.cancel()
         // A fresh (non-refinement) search starts a new results view, so it resets the selection.
@@ -333,16 +351,17 @@ class ProductSearchViewModel @Inject constructor(
         }
         startSlowSearchTimer()
         searchJob = viewModelScope.launch {
-            val result = searchProducts(query)
+            val result = searchProducts(query, filters = filters)
             slowSearchJob?.cancel()
             result.fold(
                 // The backend decides happy vs. unhappy via noResults, and on the unhappy path it
                 // already returns up to 3 store suggestions — no second (generalized) request.
                 onSuccess = { search ->
-                    if (!search.noResults) {
-                        settleResults(source, search, query, isRefinement)
-                    } else {
-                        settleUnhappy(source, search.products, search.suggestedFromCategory)
+                    when {
+                        !search.noResults -> settleResults(source, search, query, isRefinement)
+                        // Chips that leave no product keep the results view and the chips (F-37).
+                        isRefinement && filters != null -> settleNoFilterMatch(source)
+                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory)
                     }
                 },
                 onFailure = { error ->
@@ -362,13 +381,31 @@ class ProductSearchViewModel @Inject constructor(
         query: String,
         isRefinement: Boolean,
     ) {
-        // A fresh search settling into results fixes the immutable concatenation base for refinements.
-        if (!isRefinement) baseQuery = query
+        // A fresh search settling into results fixes the text base and the chip panel for refinements:
+        // the backend builds a refined response's panel from the filtered results, which would shrink it.
+        if (!isRefinement) {
+            baseQuery = query
+            baseFilters = result.filters
+            baseSuggestions = result.suggestions
+        }
         val phase = ProductSearchPhase.Results(
             products = result.products.toImmutableList(),
             displayText = result.displayText,
-            filters = result.filters.toImmutableList(),
-            suggestions = result.suggestions.toImmutableList(),
+            filters = baseFilters.toImmutableList(),
+            suggestions = baseSuggestions.toImmutableList(),
+            missingCategory = result.missingCategory?.takeIf { result.alternativesOnly && it.isNotBlank() },
+        )
+        settle(source, phase, baseQuery)
+    }
+
+    /** The selected chips left no product: stay on results with the chips and say so. */
+    private fun settleNoFilterMatch(source: SearchSource) {
+        val phase = ProductSearchPhase.Results(
+            products = persistentListOf(),
+            displayText = "",
+            filters = baseFilters.toImmutableList(),
+            suggestions = baseSuggestions.toImmutableList(),
+            noFilterMatch = true,
         )
         settle(source, phase, baseQuery)
     }
@@ -434,6 +471,10 @@ class ProductSearchViewModel @Inject constructor(
         selectedFilters.addAll(entry.filters)
         selectedSuggestion = entry.suggestion
         baseQuery = entry.query
+        (entry.phase as? ProductSearchPhase.Results)?.let {
+            baseFilters = it.filters
+            baseSuggestions = it.suggestions
+        }
         _uiState.update {
             it.copy(
                 source = entry.source,
@@ -468,6 +509,8 @@ class ProductSearchViewModel @Inject constructor(
         history.clear()
         clearSelection()
         baseQuery = ""
+        baseFilters = emptyList()
+        baseSuggestions = emptyList()
         cancelTimers()
         cancelVoiceJobs()
         searchJob?.cancel()

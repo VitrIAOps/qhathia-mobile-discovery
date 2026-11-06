@@ -3,24 +3,27 @@ package com.qhathia.mobile.discovery.feature.productsearch
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
+import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ComposeSearchQueryUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
-import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
+import com.qhathia.mobile.discovery.core.domain.usecase.SearchProductsUseCase
 import com.qhathia.mobile.discovery.core.testing.CartFixtures
+import com.qhathia.mobile.discovery.core.testing.FakeAudioRecorder
 import com.qhathia.mobile.discovery.core.testing.FakeCartRepository
 import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
-import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
 import com.qhathia.mobile.discovery.core.testing.FakeLiveTranscriptionRepository
+import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
 import com.qhathia.mobile.discovery.core.testing.MainDispatcherExtension
 import com.qhathia.mobile.discovery.core.testing.ProductFixtures
 import com.qhathia.mobile.discovery.feature.productsearch.model.ProductSearchPhase
@@ -487,14 +490,15 @@ class ProductSearchViewModelTest {
     }
 
     @Test
-    fun given_multiple_filters_selected_then_requeries_with_all_appended() = runTest(mainDispatcher.dispatcher) {
+    fun given_multiple_filters_selected_then_requeries_with_structured_filters() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
         val vm = viewModel(query = "taladro 20v", repository = repository)
 
         vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
         vm.onEvent(ProductSearchUiEvent.FilterToggled("Voltaje", "12V"))
 
-        assertEquals("taladro 20v marca bosch voltaje 12v", repository.queries.last())
+        assertEquals("taladro 20v", repository.queries.last())
+        assertEquals(StructuredSearchFilters(brands = listOf("Bosch"), tags = listOf("12V")), repository.filters.last())
         assertEquals(2, vm.uiState.value.selectedFilters.size)
     }
 
@@ -539,7 +543,9 @@ class ProductSearchViewModelTest {
 
         vm.onEvent(ProductSearchUiEvent.FilterCriterionCleared("Marca"))
 
-        assertEquals("taladro 20v voltaje 12v", repository.queries.last())
+        // The text stays the original query; the remaining chip travels as a structured filter (F-37).
+        assertEquals("taladro 20v", repository.queries.last())
+        assertEquals(StructuredSearchFilters(tags = listOf("12V")), repository.filters.last())
         assertEquals(setOf(SearchFilterOption("Voltaje", "12V")), vm.uiState.value.selectedFilters)
     }
 
@@ -671,5 +677,136 @@ class ProductSearchViewModelTest {
             advanceTimeBy(ProductSearchConstants.UNHAPPY_IDLE_TIMEOUT_SECONDS * 1_000 + 1)
             expectNoEvents()
         }
+    }
+
+    // --- search-structured-filters (F-37) ---
+
+    private val tagPanel = listOf(
+        SearchFilter("Marca", listOf("Bosch", "DeWalt", "Makita")),
+        SearchFilter("Tipo", listOf("Inalámbrico", "Con cable"), values = listOf("inalambrico", "con-cable")),
+    )
+
+    private fun searchWith(vararg results: ProductSearchResult) = FakeProductSearchRepository(Result.success(results.first())).apply {
+        if (results.size > 1) alternativeResult = Result.success(results[1])
+    }
+
+    @Test
+    fun filterToggled_sendsOriginalTextAndBrands() = runTest(mainDispatcher.dispatcher) {
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel))
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+
+        assertEquals(listOf("taladro", "taladro"), repository.queries)
+        assertEquals(listOf(null, StructuredSearchFilters(brands = listOf("Bosch"))), repository.filters)
+    }
+
+    @Test
+    fun tagChip_sendsValueNotLabel() = runTest(mainDispatcher.dispatcher) {
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel))
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Tipo", "Inalámbrico"))
+
+        assertEquals(StructuredSearchFilters(tags = listOf("inalambrico")), repository.filters.last())
+    }
+
+    @Test
+    fun suggestion_staysInTextWithFilters() = runTest(mainDispatcher.dispatcher) {
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel, suggestions = listOf("Para uso doméstico")))
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Para uso doméstico"))
+
+        assertEquals("taladro para uso doméstico", repository.queries.last())
+        assertEquals(StructuredSearchFilters(brands = listOf("Bosch")), repository.filters.last())
+    }
+
+    @Test
+    fun clearingAllChips_sendsBaseQueryWithoutFilters() = runTest(mainDispatcher.dispatcher) {
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel))
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+
+        assertEquals("taladro", repository.queries.last())
+        assertEquals(null, repository.filters.last())
+    }
+
+    @Test
+    fun refinement_keepsBasePanel() = runTest(mainDispatcher.dispatcher) {
+        val refined = ProductFixtures.result(
+            products = ProductFixtures.products(1),
+            filters = listOf(SearchFilter("Marca", listOf("Bosch"))),
+            suggestions = emptyList(),
+        )
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel), refined)
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Results
+        assertEquals(tagPanel, phase.filters)
+        assertEquals(ProductFixtures.suggestions(), phase.suggestions)
+        assertEquals(1, phase.products.size)
+    }
+
+    @Test
+    fun twoChips_noResults_keepsChipsAndPanel() = runTest(mainDispatcher.dispatcher) {
+        val noMatch = ProductFixtures.result(
+            products = ProductFixtures.products(3),
+            noResults = true,
+            fallbackMessage = "No hay productos con esos filtros",
+            filters = emptyList(),
+        )
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel), noMatch)
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Tipo", "Inalámbrico"))
+
+        val state = vm.uiState.value
+        val phase = state.phase as ProductSearchPhase.Results
+        assertTrue(phase.noFilterMatch)
+        assertTrue(phase.products.isEmpty()) // the 3 unfiltered results are not shown as matches
+        assertEquals(tagPanel, phase.filters)
+        assertEquals(
+            setOf(SearchFilterOption("Marca", "Bosch"), SearchFilterOption("Tipo", "Inalámbrico")),
+            state.selectedFilters,
+        )
+    }
+
+    @Test
+    fun freshSearch_noResults_stillUnhappy() = runTest(mainDispatcher.dispatcher) {
+        val repository = searchWith(ProductFixtures.result(products = ProductFixtures.products(2), noResults = true, filters = emptyList()))
+        val vm = viewModel(query = "ventilador", repository = repository)
+
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Unhappy)
+    }
+
+    @Test
+    fun alternativesOnly_setsMissingCategory() = runTest(mainDispatcher.dispatcher) {
+        val alternatives = ProductFixtures.result(products = ProductFixtures.products(3))
+            .copy(alternativesOnly = true, missingCategory = "ventilador")
+        val vm = viewModel(query = "ventilador", repository = searchWith(alternatives))
+
+        assertEquals("ventilador", (vm.uiState.value.phase as ProductSearchPhase.Results).missingCategory)
+    }
+
+    @Test
+    fun back_restoresPanelAndChips() = runTest(mainDispatcher.dispatcher) {
+        val refined = ProductFixtures.result(products = ProductFixtures.products(1), filters = emptyList())
+        val repository = searchWith(ProductFixtures.result(filters = tagPanel), refined)
+        val vm = viewModel(query = "taladro", repository = repository)
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+
+        vm.onEvent(ProductSearchUiEvent.Back)
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Tipo", "Inalámbrico"))
+
+        // After Back the first view's panel is the base again, so the tag is sent by its value.
+        assertEquals(StructuredSearchFilters(tags = listOf("inalambrico")), repository.filters.last())
+        assertEquals(tagPanel, (vm.uiState.value.phase as ProductSearchPhase.Results).filters)
     }
 }

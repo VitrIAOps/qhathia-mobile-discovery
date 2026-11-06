@@ -94,4 +94,22 @@ class ProductMappersTest {
         assertEquals(3, SearchProductDto(id = "p1", stock = 3).toDomain().stock)
         assertEquals(null, SearchProductDto(id = "p2").toDomain().stock)
     }
+
+    @Test
+    fun `given filter without values then values default to the options`() {
+        assertEquals(listOf("Bosch"), SearchFilterDto("Marca", listOf("Bosch")).toDomain().values)
+        assertEquals(listOf("inalambrico"), SearchFilterDto("Tipo", listOf("Inalámbrico"), listOf("inalambrico")).toDomain().values)
+    }
+
+    @Test
+    fun `given alternatives only then maps the missing category`() {
+        val domain = ConversationSearchResponseDto(
+            results = listOf(SearchProductDto(id = "p1")),
+            alternativesOnly = true,
+            missingCategory = "ventilador",
+        ).toDomain()
+
+        assertTrue(domain.alternativesOnly)
+        assertEquals("ventilador", domain.missingCategory)
+    }
 }

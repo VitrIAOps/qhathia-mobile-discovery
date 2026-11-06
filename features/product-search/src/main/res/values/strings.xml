@@ -10,6 +10,10 @@
         <item quantity="one">Encontré %1$d producto para ti:</item>
         <item quantity="other">Encontré %1$d productos para ti:</item>
     </plurals>
+    <!-- The selected chips left no product (F-37); the chips stay selected. -->
+    <string name="ps_filters_no_match">No hay productos con esos filtros. Quita alguno para ver más.</string>
+    <!-- The store does not sell the requested product; the results are alternatives. %1$s product. -->
+    <string name="ps_alternatives_only">No tenemos «%1$s»; te mostramos alternativas.</string>
 
     <!-- Filters & suggestions refine section (results screen). -->
     <string name="ps_refine_title">Afina tu búsqueda</string>
