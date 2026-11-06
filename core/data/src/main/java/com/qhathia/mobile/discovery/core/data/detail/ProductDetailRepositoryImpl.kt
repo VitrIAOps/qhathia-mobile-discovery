@@ -15,9 +15,8 @@ import javax.inject.Inject
 /**
  * Calls the Qhathia product API (`GET /api/v1/products/{id}`) and maps the result to a [ProductDetail].
  *
- * Obtains the session JWT via the shared [SessionTokenProvider] (the interim auth seam reused from the
- * STT/search pipeline). On a `401` the cached token is dropped and the call is retried once with a
- * fresh login. Failures surface as a failed [Result] carrying a [DetailException] tagged with the
+ * Obtains the DEVICE session JWT via the shared [SessionTokenProvider]. A `401` is not retried: an unlinked tablet ends its session through the HTTP client's unlink signal.
+ * Failures surface as a failed [Result] carrying a [DetailException] tagged with the
  * matching [DetailErrorCategory] so the presentation layer can pick the recovery UX (`404` →
  * [DetailErrorCategory.NotFound]).
  */
@@ -30,13 +29,7 @@ class ProductDetailRepositoryImpl @Inject constructor(
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(DetailErrorMapper.fromTokenFailure(it)) }
 
-        var response = productApiService.getProduct(token, id)
-        if (response is NetworkResult.HttpError && response.code == HTTP_UNAUTHORIZED) {
-            sessionTokenProvider.clear()
-            val refreshed = sessionTokenProvider.accessToken(forceRefresh = true)
-                .getOrElse { return failure(DetailErrorMapper.fromTokenFailure(it)) }
-            response = productApiService.getProduct(refreshed, id)
-        }
+        val response = productApiService.getProduct(token, id)
 
         return when (response) {
             is NetworkResult.Success -> success(response.data.toDomain())
@@ -51,13 +44,7 @@ class ProductDetailRepositoryImpl @Inject constructor(
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return Result.failure(DetailException(DetailErrorMapper.fromTokenFailure(it))) }
 
-        var response = productApiService.getSuggestions(token, id)
-        if (response is NetworkResult.HttpError && response.code == HTTP_UNAUTHORIZED) {
-            sessionTokenProvider.clear()
-            val refreshed = sessionTokenProvider.accessToken(forceRefresh = true)
-                .getOrElse { return Result.failure(DetailException(DetailErrorMapper.fromTokenFailure(it))) }
-            response = productApiService.getSuggestions(refreshed, id)
-        }
+        val response = productApiService.getSuggestions(token, id)
 
         return when (response) {
             is NetworkResult.Success -> {
@@ -83,7 +70,6 @@ class ProductDetailRepositoryImpl @Inject constructor(
 
     private companion object {
         const val TAG = "ProductDetail"
-        const val HTTP_UNAUTHORIZED = 401
         const val HTTP_NOT_FOUND = 404
         const val MAX_SUGGESTIONS = 5
     }

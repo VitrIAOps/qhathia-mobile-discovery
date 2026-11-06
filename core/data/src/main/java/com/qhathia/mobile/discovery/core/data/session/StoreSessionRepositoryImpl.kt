@@ -24,4 +24,8 @@ class StoreSessionRepositoryImpl @Inject constructor(
         localDataSource.saveDeviceSession(deviceAccessToken, deviceName, pairingCode)
 
     override suspend fun clearDeviceSession() = localDataSource.clearDeviceSession()
+
+    override suspend fun revokeDeviceSession() = localDataSource.revokeDeviceSession()
+
+    override suspend fun dismissUnlinkedNotice() = localDataSource.dismissUnlinkedNotice()
 }

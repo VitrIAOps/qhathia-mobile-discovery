@@ -12,6 +12,7 @@ import com.qhathia.mobile.discovery.core.network.dto.OrderItemResponseDto
 import com.qhathia.mobile.discovery.core.network.dto.OrderResponseDto
 import com.qhathia.mobile.discovery.core.network.service.OrderApiService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -51,7 +52,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_valid_order_when_created_then_maps_to_domain() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder("jwt", any()) } returns NetworkResult.Success(response())
 
         val order = repository().createOrder("Ana", "987654321", items).getOrNull()!!
@@ -63,7 +64,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_422_when_created_then_order_api_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(422, "Validation")
 
         val result = repository().createOrder("Ana", "987654321", items)
@@ -73,7 +74,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_400_when_created_then_unavailable_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(400, "Bad Request")
 
         val result = repository().createOrder("Ana", "987654321", items)
@@ -83,7 +84,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_409_product_not_sellable_when_created_then_unavailable_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(409, "Conflict")
 
         val result = repository().createOrder("Ana", "987654321", items)
@@ -93,7 +94,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_404_when_created_then_not_found_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(404, "Not Found")
 
         val result = repository().createOrder("Ana", "987654321", items)
@@ -103,7 +104,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_500_when_created_then_order_api_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.HttpError(500, "Server Error")
 
         val result = repository().createOrder("Ana", "987654321", items)
@@ -113,7 +114,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_connectivity_failure_when_created_then_network_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns
             NetworkResult.NetworkError(UnknownHostException("no dns"), NetworkErrorKind.Connectivity)
 
@@ -124,7 +125,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_timeout_when_created_then_order_api_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { orderApiService.createOrder(any(), any()) } returns
             NetworkResult.NetworkError(RuntimeException("slow"), NetworkErrorKind.Timeout)
 
@@ -135,7 +136,7 @@ class OrderRepositoryImplTest {
 
     @Test
     fun given_network_token_failure_when_created_then_network_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns
             Result.failure(SttException(SttErrorCategory.Network))
 
         val result = repository().createOrder("Ana", "987654321", items)
@@ -144,15 +145,13 @@ class OrderRepositoryImplTest {
     }
 
     @Test
-    fun given_401_when_created_then_clears_token_and_retries_once() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { orderApiService.createOrder("stale", any()) } returns NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { orderApiService.createOrder("fresh", any()) } returns NetworkResult.Success(response())
+    fun given_401_when_created_then_fails_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { orderApiService.createOrder("jwt", any()) } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val result = repository().createOrder("Ana", "987654321", items)
 
-        assertTrue(result.isSuccess)
-        assertEquals("o1", result.getOrNull()!!.id)
+        assertEquals(OrderErrorCategory.OrderApi, (result.exceptionOrNull() as OrderException).category)
+        coVerify(exactly = 1) { orderApiService.createOrder(any(), any()) }
     }
 }

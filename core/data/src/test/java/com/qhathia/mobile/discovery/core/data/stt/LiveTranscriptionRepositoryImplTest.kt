@@ -45,7 +45,7 @@ class LiveTranscriptionRepositoryImplTest {
     )
 
     private fun givenToken() {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { sttTokenApiService.getToken("jwt") } returns NetworkResult.Success(SttTokenResponseDto(token = "dg"))
     }
 
@@ -85,7 +85,7 @@ class LiveTranscriptionRepositoryImplTest {
 
     @Test
     fun given_token_server_error_then_transcription_response_and_no_stream() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { sttTokenApiService.getToken("jwt") } returns NetworkResult.HttpError(503, "Unavailable")
 
         assertEquals(SttErrorCategory.TranscriptionResponse, failureOf { repository().transcribe(audio).toList() })
@@ -94,7 +94,7 @@ class LiveTranscriptionRepositoryImplTest {
 
     @Test
     fun given_token_network_failure_then_network() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { sttTokenApiService.getToken("jwt") } returns
             NetworkResult.NetworkError(UnknownHostException(), NetworkErrorKind.Connectivity)
 
@@ -103,7 +103,7 @@ class LiveTranscriptionRepositoryImplTest {
 
     @Test
     fun given_device_not_paired_then_generic() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns
             Result.failure(SttException(SttErrorCategory.Generic))
 
         assertEquals(SttErrorCategory.Generic, failureOf { repository().transcribe(audio).toList() })

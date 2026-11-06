@@ -86,6 +86,23 @@ class MainViewModelTest {
     }
 
     @Test
+    fun revoked_session_routes_to_onboarding_and_releases_the_kiosk() = runTest(mainDispatcher.dispatcher) {
+        // A paired, pinned tablet that the merchant unlinks (F-101).
+        val storeSession = FakeStoreSessionRepository().apply { saveDeviceSession("device-jwt", "Tablet") }
+        val vm = viewModel(storeSession)
+        val locks = mutableListOf<KioskLockState?>()
+        backgroundScope.launch { vm.kioskLock.collect { locks += it } }
+        runCurrent()
+        assertEquals(StartDestination.Home, vm.startDestination.value)
+
+        storeSession.revokeDeviceSession()
+        runCurrent()
+
+        assertEquals(StartDestination.Onboarding, vm.startDestination.value)
+        assertEquals(KioskLockState(active = false), locks.last())
+    }
+
+    @Test
     fun given_off_home_when_idle_for_60s_then_session_ends() = runTest(mainDispatcher.dispatcher) {
         val vm = viewModel()
         val timeouts = countTimeouts(vm)

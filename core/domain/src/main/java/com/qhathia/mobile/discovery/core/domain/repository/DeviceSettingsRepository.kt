@@ -14,4 +14,7 @@ interface DeviceSettingsRepository {
 
     /** Reads the remote settings and stores them. Fails without a request when not paired. */
     suspend fun refresh(): Result<DeviceSettings>
+
+    /** Removes every stored setting (exit PIN hash included); [observe] then emits the defaults. */
+    suspend fun clear()
 }
