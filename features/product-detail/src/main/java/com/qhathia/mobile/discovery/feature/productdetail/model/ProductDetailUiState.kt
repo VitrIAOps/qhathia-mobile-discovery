@@ -72,8 +72,12 @@ data class ProductDetailUiState(
         /** The quote was sent — [summary] holds the shared product for the confirmation screen. */
         data class Success(val summary: ImmutableList<SubmissionLine>) : ShareSubmission
 
-        /** The share was rejected or failed after retrying — the simplified error screen is shown. */
-        data object Error : ShareSubmission
+        /**
+         * The share was rejected or failed after retrying — the simplified error screen is shown.
+         *
+         * @property network `true` when it failed for lack of connection, which the copy says (F-34).
+         */
+        data class Error(val network: Boolean = false) : ShareSubmission
 
         /**
          * The server answered but WhatsApp did not receive the quote (`FAILED` / `STUB`). Shown as an

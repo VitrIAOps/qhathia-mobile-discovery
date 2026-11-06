@@ -24,6 +24,8 @@ data class ProductDetailResponseDto(
     val discountEndsAt: String? = null,
     /** `false` once the merchant deactivated the product; `null` when absent. */
     val active: Boolean? = null,
+    /** Units in stock; `null` = "a consultar" (no stock count). */
+    val stock: Int? = null,
 )
 
 @Serializable

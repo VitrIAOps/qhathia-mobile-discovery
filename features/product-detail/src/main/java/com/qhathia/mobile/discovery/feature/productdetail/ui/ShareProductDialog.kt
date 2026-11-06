@@ -114,10 +114,12 @@ private fun ShareDialogContent(
                 modifier = modifier,
             )
 
-        ShareSubmission.Error ->
+        is ShareSubmission.Error ->
             SubmissionErrorContent(
                 title = stringResource(R.string.pd_share_error_title),
-                message = stringResource(R.string.pd_share_error_message),
+                message = stringResource(
+                    if (submission.network) R.string.pd_share_error_network_message else R.string.pd_share_error_message,
+                ),
                 primaryLabel = stringResource(R.string.pd_share_error_understood),
                 onPrimary = { onEvent(ProductDetailUiEvent.DismissShareError) },
                 secondaryLabel = stringResource(R.string.pd_share_error_cancel),
@@ -256,12 +258,24 @@ private fun ShareSuccessDarkPreview() {
     }
 }
 
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — no network (dark)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareNetworkErrorDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.Error(network = true)),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
 @androidx.compose.ui.tooling.preview.Preview(name = "Share — error (light)", showBackground = true, widthDp = 640, heightDp = 720)
 @Composable
 private fun ShareErrorLightPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
         ShareDialogContent(
-            state = ShareUiState(visible = true, submission = ShareSubmission.Error),
+            state = ShareUiState(visible = true, submission = ShareSubmission.Error()),
             onEvent = {},
             modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
         )

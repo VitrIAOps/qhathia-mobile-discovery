@@ -11,7 +11,7 @@ enum class AddToCartResult {
     /** The product was added, or merged into its existing line (quantity capped by stock). */
     Added,
 
-    /** The product is not `AVAILABLE`; nothing was added. */
+    /** The product is not `AVAILABLE` or has no stock left; nothing was added. */
     NotOrderable,
 
     /** The basket already has [CartConstants.MAX_DISTINCT_LINES] other products; nothing was added. */
@@ -34,7 +34,7 @@ class AddToCartUseCase @Inject constructor(
      * basket are always accepted.
      */
     suspend operator fun invoke(item: CartItem): AddToCartResult {
-        if (!IsOrderableUseCase.isOrderable(item.availability)) return AddToCartResult.NotOrderable
+        if (!IsOrderableUseCase.isOrderable(item.availability, stock = item.stock)) return AddToCartResult.NotOrderable
         val lines = repository.observe().first().items
         val isNewLine = lines.none { it.productId == item.productId }
         if (isNewLine && lines.size >= CartConstants.MAX_DISTINCT_LINES) return AddToCartResult.LineLimitReached

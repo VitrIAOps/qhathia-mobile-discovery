@@ -34,4 +34,6 @@ data class CatalogProductDto(
     val discountEndsAt: String? = null,
     @SerialName("primaryImageUrl") val primaryImageUrl: String? = null,
     val brand: String? = null,
+    /** Units in stock; `null` = "a consultar" (no stock count). */
+    val stock: Int? = null,
 )

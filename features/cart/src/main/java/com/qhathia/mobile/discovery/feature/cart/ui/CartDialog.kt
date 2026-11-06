@@ -44,6 +44,9 @@ fun CartDialog(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // The dialog is composed only while shown: refresh the basket once per opening (order-price-check D1).
+    LaunchedEffect(Unit) { viewModel.onEvent(CartUiEvent.Opened) }
+
     LaunchedEffect(viewModel) {
         viewModel.uiEffect.collect { effect ->
             when (effect) {

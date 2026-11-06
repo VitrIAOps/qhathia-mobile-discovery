@@ -15,7 +15,7 @@ import javax.inject.Inject
  *
  * Obtains the DEVICE session JWT via the shared [SessionTokenProvider]. A `401` is not retried: an unlinked tablet ends its session through the HTTP client's unlink signal.
  * Failures surface as a failed [Result] carrying an [OrderException] tagged with
- * the matching [OrderErrorCategory]; the cart collapses every category to one simplified message.
+ * the matching [OrderErrorCategory] and, when the server named them, the failure details.
  */
 class OrderRepositoryImpl @Inject constructor(
     private val sessionTokenProvider: SessionTokenProvider,
@@ -36,7 +36,7 @@ class OrderRepositoryImpl @Inject constructor(
 
         return when (response) {
             is NetworkResult.Success -> Result.success(response.data.toDomain())
-            is NetworkResult.HttpError -> failure(OrderErrorMapper.fromHttpError(response.code))
+            is NetworkResult.HttpError -> Result.failure(OrderErrorMapper.fromHttpError(response.code, response.problem))
             is NetworkResult.NetworkError -> failure(OrderErrorMapper.fromNetworkError(response.kind))
         }
     }

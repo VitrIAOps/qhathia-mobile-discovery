@@ -28,4 +28,5 @@ data class ProductDetail(
     val discountedPrice: Double? = null,
     val discountEndsAt: String? = null,
     val active: Boolean? = null,
+    val stock: Int? = null,
 )

@@ -7,6 +7,7 @@ import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
+import com.qhathia.mobile.discovery.core.domain.model.CartShareErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
@@ -139,7 +140,7 @@ class ProductDetailViewModel @Inject constructor(
     private fun onShareDismissRequest() {
         when (_uiState.value.share.submission) {
             ProductDetailUiState.ShareSubmission.Submitting -> Unit
-            ProductDetailUiState.ShareSubmission.Error, ProductDetailUiState.ShareSubmission.NotDelivered ->
+            is ProductDetailUiState.ShareSubmission.Error, ProductDetailUiState.ShareSubmission.NotDelivered ->
                 updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
             else -> closeShareDialog()
         }
@@ -150,7 +151,9 @@ class ProductDetailViewModel @Inject constructor(
         updateShare { ProductDetailUiState.ShareUiState() }
     }
 
-    private fun onShareNameChanged(name: String) {
+    /** The server accepts at most [CartConstants.MAX_CONSUMER_NAME_CHARS]: longer input is not entered. */
+    private fun onShareNameChanged(raw: String) {
+        val name = raw.take(CartConstants.MAX_CONSUMER_NAME_CHARS)
         val error = validateName(name)
         updateShare { it.copy(name = name, nameError = error, isShareEnabled = error == null && it.phoneError == null) }
     }
@@ -178,10 +181,12 @@ class ProductDetailViewModel @Inject constructor(
 
         updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Submitting) }
         viewModelScope.launch {
-            val submission = when (shareQuote(share.name, share.phone, listOf(item))) {
+            val submission = when (val outcome = shareQuote(share.name, share.phone, listOf(item))) {
                 is ShareOutcome.Delivered -> ProductDetailUiState.ShareSubmission.Success(summary)
                 is ShareOutcome.NotDelivered -> ProductDetailUiState.ShareSubmission.NotDelivered
-                is ShareOutcome.Rejected, is ShareOutcome.Failed -> ProductDetailUiState.ShareSubmission.Error
+                is ShareOutcome.Failed ->
+                    ProductDetailUiState.ShareSubmission.Error(network = outcome.category == CartShareErrorCategory.Network)
+                is ShareOutcome.Rejected -> ProductDetailUiState.ShareSubmission.Error()
             }
             updateShare { it.copy(submission = submission) }
         }
@@ -206,7 +211,7 @@ class ProductDetailViewModel @Inject constructor(
 
     private fun adjustQuantity(delta: Int) {
         val detail = orderableDetail() ?: return
-        val max = CartConstants.maxQuantityFor(detail.availability)
+        val max = CartConstants.maxQuantityFor(detail.availability, detail.stock)
         _uiState.update { it.copy(quantity = (it.quantity + delta).coerceIn(1, max)) }
     }
 
@@ -215,7 +220,7 @@ class ProductDetailViewModel @Inject constructor(
 
     /** The loaded detail when it can be added or shared; `null` for an inactive or non-AVAILABLE one. */
     private fun orderableDetail(): ProductDetail? =
-        loadedDetail()?.takeIf { isOrderable(it.availability, it.active) }
+        loadedDetail()?.takeIf { isOrderable(it.availability, it.active, it.stock) }
 
     private fun onSubmitSearch() {
         val query = _uiState.value.query.trim()

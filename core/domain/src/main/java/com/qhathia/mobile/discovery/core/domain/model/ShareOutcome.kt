@@ -18,8 +18,17 @@ sealed interface ShareOutcome {
      */
     data class NotDelivered(val pdfUrl: String, val status: String) : ShareOutcome
 
-    /** A deterministic `4xx` answer. Final, never retried. */
-    data class Rejected(val kind: ShareRejection) : ShareOutcome
+    /**
+     * A deterministic `4xx` answer. Final, never retried. When the server named the product
+     * (`PRODUCT_NOT_SELLABLE`, `STOCK_INSUFFICIENT`), [productId], [productName] and, for a stock
+     * shortage, [available] carry it.
+     */
+    data class Rejected(
+        val kind: ShareRejection,
+        val productId: String? = null,
+        val productName: String? = null,
+        val available: Int? = null,
+    ) : ShareOutcome
 
     /** Connectivity loss, timeout or `5xx`. The only outcome that is retried. */
     data class Failed(val category: CartShareErrorCategory) : ShareOutcome
@@ -35,6 +44,9 @@ enum class ShareRejection {
 
     /** `422`: the request failed validation (for example more than 20 lines). */
     Invalid,
+
+    /** `422 STOCK_INSUFFICIENT`: a line asks for more units than the stock. */
+    StockInsufficient,
 
     /** Any other `4xx`. */
     Other,

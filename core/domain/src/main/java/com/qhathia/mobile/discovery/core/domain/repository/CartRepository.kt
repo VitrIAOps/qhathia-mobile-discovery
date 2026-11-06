@@ -2,6 +2,9 @@ package com.qhathia.mobile.discovery.core.domain.repository
 
 import com.qhathia.mobile.discovery.core.domain.model.Cart
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.CartPriceChange
+import com.qhathia.mobile.discovery.core.domain.model.CartRefresh
+import com.qhathia.mobile.discovery.core.domain.model.ProductSnapshot
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -25,4 +28,13 @@ interface CartRepository {
 
     /** Empties the basket. */
     suspend fun clear()
+
+    /**
+     * Refreshes the basket against [snapshots] in one atomic step ([Cart.refreshedWith]), so a change
+     * made meanwhile is never lost. Does not end the customer session.
+     */
+    suspend fun refresh(snapshots: Map<String, ProductSnapshot>): CartRefresh
+
+    /** Sets each changed line to its new unit price in one atomic step. Does not end the customer session. */
+    suspend fun updatePrices(changes: List<CartPriceChange>)
 }

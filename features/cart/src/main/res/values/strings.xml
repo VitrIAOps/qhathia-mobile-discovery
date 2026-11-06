@@ -75,4 +75,28 @@
     <string name="cart_error_message">Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos.</string>
     <string name="cart_error_understood">Entendido</string>
     <string name="cart_error_cancel">Cancelar orden</string>
+    <!-- Order error by cause (order-price-check). -->
+    <string name="cart_error_network_message">No pudimos enviar tu pedido porque la tablet no tiene internet. Tu carrito sigue guardado; inténtalo de nuevo en un momento.</string>
+    <string name="cart_error_back_to_cart">Volver al carrito</string>
+    <string name="cart_error_timeout_message">No pudimos confirmar si tu pedido se registró. Pregúntale al vendedor antes de intentarlo de nuevo.</string>
+    <string name="cart_error_validation_name">Revisa tu nombre (máximo 200 caracteres).</string>
+    <string name="cart_error_validation_phone">Revisa tu número de celular.</string>
+    <string name="cart_error_validation_items">Tu carrito está vacío o tiene demasiados productos.</string>
+
+    <!-- Share without network (order-price-check). -->
+    <string name="cart_share_error_network_message">No pudimos enviar la cotización porque la tablet no tiene internet. Tu carrito sigue guardado; inténtalo de nuevo en un momento.</string>
+
+    <!-- Basket changes made on the customer's behalf (order-price-check). %1$s product, %2$s old price, %3$s new price. -->
+    <string name="cart_notice_price_changed">El precio de «%1$s» cambió de %2$s a %3$s. Revisa el total antes de hacer tu pedido.</string>
+    <plurals name="cart_notice_price_more">
+        <item quantity="one">y %d producto más cambió de precio.</item>
+        <item quantity="other">y %d productos más cambiaron de precio.</item>
+    </plurals>
+    <string name="cart_notice_items_removed">Quitamos de tu carrito lo que ya no está disponible: %1$s.</string>
+    <!-- %1$d units left, %2$s product. -->
+    <string name="cart_notice_quantity_capped">Solo quedan %1$d de «%2$s»; ajustamos la cantidad.</string>
+
+    <!-- Success with what the store recorded (order-price-check). %1$s formatted amount. -->
+    <string name="cart_success_total_label">Total del pedido  %1$s</string>
+    <string name="cart_success_total_mismatch">El total registrado por la tienda es %1$s, distinto del que viste en el carrito. Confírmalo con el vendedor.</string>
 </resources>

@@ -88,4 +88,10 @@ class ProductMappersTest {
 
         assertNull(dto.toDomain().suggestedFromCategory)
     }
+
+    @Test
+    fun `given result with stock then maps it`() {
+        assertEquals(3, SearchProductDto(id = "p1", stock = 3).toDomain().stock)
+        assertEquals(null, SearchProductDto(id = "p2").toDomain().stock)
+    }
 }

@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.cart.model
 
+import com.qhathia.mobile.discovery.core.domain.model.ConsumerField
 import kotlinx.collections.immutable.ImmutableList
 
 /**
@@ -9,12 +10,29 @@ import kotlinx.collections.immutable.ImmutableList
  * @property imageUrl the product's primary image URL, or empty when none.
  * @property name the product display name.
  * @property quantity the ordered quantity.
+ * @property lineTotal the line total the server recorded, or `null` for a quote-only share.
  */
 data class OrderedLine(
     val imageUrl: String,
     val name: String,
     val quantity: Int,
+    val lineTotal: Double? = null,
 )
+
+/** Why an order failed, which decides the error screen's copy and actions. */
+sealed interface OrderFailure {
+    /** No connection: the order surely was not created; "Reintentar" is offered. */
+    data object Network : OrderFailure
+
+    /** No answer in time: the order may exist, so it is never retried; ask the seller. */
+    data object Timeout : OrderFailure
+
+    /** `422 VALIDATION_ERROR`: the server rejected [fields]. */
+    data class Validation(val fields: Set<ConsumerField>) : OrderFailure
+
+    /** Any other failure: the simplified message with "Cancelar orden". */
+    data object Generic : OrderFailure
+}
 
 /**
  * The order-submission phase overlaid on the cart dialog. The stateless content renders purely from
@@ -38,15 +56,19 @@ sealed interface OrderSubmission {
      *   Always `true` for a quote-only success. For "Realizar pedido", `false` means the order was
      *   created but the quote was not delivered, which switches the copy to the "go to the seller and
      *   give your name" fallback instead of "check your phone".
+     * @property total the order total the server recorded, or `null` for a quote-only share.
+     * @property totalMismatch whether [total] differs from the total the cart showed (by S/ 0.01 or more).
      */
     data class Success(
         val summary: ImmutableList<OrderedLine>,
         val isQuoteOnly: Boolean = false,
         val shareDelivered: Boolean = true,
+        val total: Double? = null,
+        val totalMismatch: Boolean = false,
     ) : OrderSubmission
 
-    /** The order failed — the simplified error screen with "Entendido" / "Cancelar orden" is shown. */
-    data object Error : OrderSubmission
+    /** The order failed; [reason] decides the copy and the recovery actions. */
+    data class Error(val reason: OrderFailure = OrderFailure.Generic) : OrderSubmission
 
     /**
      * "Compartir por WhatsApp" got an answer, but WhatsApp did not receive the quote (`FAILED` /
@@ -57,6 +79,8 @@ sealed interface OrderSubmission {
     /**
      * "Compartir por WhatsApp" was rejected or failed after its retries. Shown with share copy and a
      * single "Entendido" that returns to the cart; a failed quote never empties the basket (CAR-033).
+     *
+     * @property network `true` when it failed for lack of connection, which says so (F-34).
      */
-    data object ShareError : OrderSubmission
+    data class ShareError(val network: Boolean = false) : OrderSubmission
 }

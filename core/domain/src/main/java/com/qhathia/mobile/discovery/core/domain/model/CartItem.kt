@@ -10,6 +10,7 @@ package com.qhathia.mobile.discovery.core.domain.model
  * @property availability availability status as returned by the API (e.g. `AVAILABLE`).
  * @property quantity the selected quantity (always ≥ 1 while the line exists).
  * @property maxQuantity the maximum selectable quantity, derived from inventory stock.
+ * @property stock units in stock, or `null` when the product has no stock count ("a consultar").
  */
 data class CartItem(
     val productId: String,
@@ -19,6 +20,7 @@ data class CartItem(
     val availability: String,
     val quantity: Int,
     val maxQuantity: Int,
+    val stock: Int? = null,
 ) {
     /** This line's subtotal: [priceUnit] × [quantity]. */
     val lineSubtotal: Double get() = priceUnit * quantity

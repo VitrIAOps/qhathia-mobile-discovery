@@ -14,7 +14,8 @@ object CartFixtures {
         imageUrl: String = "https://example.com/taladro.jpg",
         availability: String = "AVAILABLE",
         quantity: Int = 1,
-        maxQuantity: Int = CartConstants.maxQuantityFor(availability),
+        stock: Int? = null,
+        maxQuantity: Int = CartConstants.maxQuantityFor(availability, stock),
     ): CartItem = CartItem(
         productId = productId,
         name = name,
@@ -23,6 +24,7 @@ object CartFixtures {
         availability = availability,
         quantity = quantity,
         maxQuantity = maxQuantity,
+        stock = stock,
     )
 
     fun cart(

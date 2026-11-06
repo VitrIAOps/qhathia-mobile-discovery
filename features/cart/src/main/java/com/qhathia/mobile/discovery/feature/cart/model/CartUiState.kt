@@ -21,7 +21,9 @@ import kotlinx.collections.immutable.persistentSetOf
  * @property isOrderEnabled whether the consumer data is complete and valid (gates "Realizar pedido").
  * @property submission the order-submission phase overlaid on the dialog (loading / success / error).
  * @property unavailableIds products the server no longer accepts, found by the recheck after a
- *   `400` / `404`. Their lines show "No disponible" and block the order and share actions.
+ *   `400` / `404` or named by a `409 PRODUCT_NOT_SELLABLE`. Their lines show "No disponible" and block
+ *   the order and share actions.
+ * @property notice what changed in the basket on the customer's behalf, or `null`.
  */
 data class CartUiState(
     val items: ImmutableList<CartItem> = persistentListOf(),
@@ -34,6 +36,7 @@ data class CartUiState(
     val isOrderEnabled: Boolean = false,
     val submission: OrderSubmission = OrderSubmission.Idle,
     val unavailableIds: ImmutableSet<String> = persistentSetOf(),
+    val notice: CartNotice? = null,
 ) {
     /** True when the basket has no lines. */
     val isEmpty: Boolean get() = items.isEmpty()

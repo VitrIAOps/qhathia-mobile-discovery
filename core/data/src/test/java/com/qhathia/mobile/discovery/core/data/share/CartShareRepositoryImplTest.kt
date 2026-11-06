@@ -11,6 +11,7 @@ import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.ShareCartResponseDto
 import com.qhathia.mobile.discovery.core.network.service.CartShareApiService
+import com.qhathia.mobile.discovery.core.network.dto.ProblemDetailDto
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -146,5 +147,29 @@ class CartShareRepositoryImplTest {
 
         assertEquals(ShareOutcome.Rejected(ShareRejection.Other), outcome)
         coVerify(exactly = 1) { cartShareApiService.shareCart(any(), any()) }
+    }
+
+    @Test
+    fun not_sellable_share_names_the_product() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.Unavailable, productId = "p1", productName = "Taladro"),
+            CartShareErrorMapper.fromHttpError(409, ProblemDetailDto(errorCode = "PRODUCT_NOT_SELLABLE", productId = "p1", productName = "Taladro")),
+        )
+    }
+
+    @Test
+    fun stock_insufficient_share_carries_the_units_left() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.StockInsufficient, productId = "p1", productName = "Taladro", available = 2),
+            CartShareErrorMapper.fromHttpError(422, ProblemDetailDto(errorCode = "STOCK_INSUFFICIENT", productId = "p1", productName = "Taladro", available = 2)),
+        )
+    }
+
+    @Test
+    fun unknown_code_falls_back_to_the_status() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.Invalid),
+            CartShareErrorMapper.fromHttpError(422, ProblemDetailDto(errorCode = "VALIDATION_ERROR")),
+        )
     }
 }
