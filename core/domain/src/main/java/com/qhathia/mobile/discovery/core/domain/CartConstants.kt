@@ -7,12 +7,19 @@ package com.qhathia.mobile.discovery.core.domain
 object CartConstants {
 
     /**
-     * The customer session ends after this many seconds without activity (customer-session capability):
-     * on any screen other than Home and onboarding, and on Home while the basket is not empty. Ending
-     * the session clears the basket and the consumer forms, closes the overlays and returns Home.
-     * Touches inside dialogs and typing count as activity.
+     * The customer session ends after this many seconds without activity while the cart dialog is
+     * closed (customer-session capability): on any screen other than Home and onboarding, and on Home
+     * while the basket is not empty. Ending the session clears the basket and the consumer forms,
+     * closes the overlays and returns Home. Touches inside dialogs and typing count as activity.
      */
     const val INACTIVITY_TIMEOUT_SECONDS: Long = 60
+
+    /**
+     * The inactivity budget while the cart dialog is open (cart, consumer form, or an order or share
+     * result): a customer reviewing the basket or reading the confirmation is given longer, while an
+     * abandoned cart still resets (F-35).
+     */
+    const val CART_DIALOG_INACTIVITY_SECONDS: Long = 180
 
     /**
      * Most distinct products the basket holds: the limit `POST /orders` and `POST /carts/share-pdf`

@@ -194,4 +194,70 @@ class MainViewModelTest {
         assertTrue(isSessionTimed(HOME_ROUTE, basketHasItems = true))
         assertTrue(isSessionTimed(offHomeRoute, basketHasItems = false))
     }
+
+    // --- cart-inactivity-budget (F-35) ---
+
+    @Test
+    fun cartDialogOpen_usesLongerBudget() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        val timeouts = countTimeouts(vm)
+        vm.onRouteChanged(offHomeRoute)
+        vm.onCartDialogVisibilityChanged(true)
+
+        wait(60)
+        assertEquals(0, timeouts())
+        assertFalse(cartRepository.current.isEmpty)
+
+        wait(119)
+        assertEquals(0, timeouts())
+
+        wait(1)
+        assertEquals(1, timeouts())
+        assertTrue(cartRepository.current.isEmpty)
+    }
+
+    @Test
+    fun cartDialogClosed_uses60s() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        val timeouts = countTimeouts(vm)
+        vm.onRouteChanged(offHomeRoute)
+        vm.onCartDialogVisibilityChanged(false)
+
+        wait(60)
+
+        assertEquals(1, timeouts())
+    }
+
+    @Test
+    fun cartActivity_restartsTheLongBudget() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        val timeouts = countTimeouts(vm)
+        vm.onRouteChanged(offHomeRoute)
+        vm.onCartDialogVisibilityChanged(true)
+
+        // A customer typing one letter every 30 s (D:CAR-042) never loses the basket.
+        repeat(10) {
+            wait(30)
+            vm.onUserActivity()
+        }
+
+        assertEquals(0, timeouts())
+        assertFalse(cartRepository.current.isEmpty)
+    }
+
+    @Test
+    fun closingTheCart_backTo60s() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        val timeouts = countTimeouts(vm)
+        vm.onRouteChanged(offHomeRoute)
+        vm.onCartDialogVisibilityChanged(true)
+        wait(100)
+
+        vm.onCartDialogVisibilityChanged(false)
+        wait(59)
+        assertEquals(0, timeouts())
+
+        wait(1)
+        assertEquals(1, timeouts())
+    }
 }

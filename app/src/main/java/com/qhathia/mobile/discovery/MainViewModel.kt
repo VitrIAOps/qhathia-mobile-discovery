@@ -42,10 +42,11 @@ import javax.inject.Inject
  *
  * **Inactivity (design D2, `customer-session`).** The shell reports the current route
  * ([onRouteChanged]) and every interaction ([onUserActivity]), including touches inside dialogs and
- * typing. After [CartConstants.INACTIVITY_TIMEOUT_SECONDS] without activity the session ends: the
- * basket and the consumer forms are cleared and [sessionTimeout] asks the shell to close its overlays
- * and return Home. The timer runs on every screen except Home and the onboarding flow; on Home it runs
- * only while the basket is not empty.
+ * typing. After [CartConstants.INACTIVITY_TIMEOUT_SECONDS] without activity, or
+ * [CartConstants.CART_DIALOG_INACTIVITY_SECONDS] while the cart dialog is open
+ * ([onCartDialogVisibilityChanged]), the session ends: the basket and the consumer forms are cleared
+ * and [sessionTimeout] asks the shell to close its overlays and return Home. The timer runs on every
+ * screen except Home and the onboarding flow; on Home it runs only while the basket is not empty.
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -96,6 +97,9 @@ class MainViewModel @Inject constructor(
     /** Bumped on every interaction; each change restarts the countdown. */
     private val activityTick = MutableStateFlow(0L)
 
+    /** Whether the cart dialog is shown; it gets the longer inactivity budget. */
+    private val cartDialogOpen = MutableStateFlow(false)
+
     private val _sessionTimeout = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -121,6 +125,12 @@ class MainViewModel @Inject constructor(
         activityTick.update { it + 1 }
     }
 
+    /** The shell opened or closed the cart dialog; either is an interaction. */
+    fun onCartDialogVisibilityChanged(open: Boolean) {
+        cartDialogOpen.value = open
+        onUserActivity()
+    }
+
     /** Ends a temporary exit from kiosk mode (the merchant is back on Home). */
     fun resumeKioskMode() {
         resumeKioskModeUseCase()
@@ -128,12 +138,16 @@ class MainViewModel @Inject constructor(
 
     private fun startInactivityTimer(basketHasItems: Flow<Boolean>) {
         viewModelScope.launch {
-            // Every route, basket or activity change re-evaluates and restarts the countdown.
-            combine(currentRoute, basketHasItems, activityTick) { route, hasItems, _ ->
-                isSessionTimed(route, hasItems)
-            }.collectLatest { timed ->
-                if (!timed) return@collectLatest
-                delay(CartConstants.INACTIVITY_TIMEOUT_SECONDS * 1_000L)
+            // Every route, basket, activity or cart-dialog change re-evaluates and restarts the countdown.
+            combine(currentRoute, basketHasItems, activityTick, cartDialogOpen) { route, hasItems, _, cartOpen ->
+                when {
+                    !isSessionTimed(route, hasItems) -> null
+                    cartOpen -> CartConstants.CART_DIALOG_INACTIVITY_SECONDS
+                    else -> CartConstants.INACTIVITY_TIMEOUT_SECONDS
+                }
+            }.collectLatest { budgetSeconds ->
+                if (budgetSeconds == null) return@collectLatest
+                delay(budgetSeconds * 1_000L)
                 endCustomerSession()
                 _sessionTimeout.emit(Unit)
             }

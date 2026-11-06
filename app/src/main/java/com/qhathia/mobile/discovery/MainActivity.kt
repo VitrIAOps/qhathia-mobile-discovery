@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -311,9 +313,17 @@ private fun DiscoveryNavHost(
     // Customer session (design D2): the ViewModel runs the inactivity timer from the current route.
     LaunchedEffect(currentRoute) { mainViewModel.onRouteChanged(currentRoute) }
 
-    // The session ended on inactivity and its data is already cleared: close every overlay and go Home.
+    // The cart dialog gets the longer inactivity budget while it is shown (F-35).
+    LaunchedEffect(showCart) { mainViewModel.onCartDialogVisibilityChanged(showCart) }
+
+    // The session ended on inactivity and its data is already cleared: hide the keyboard (it would
+    // stay over Home, CAR-042), close every overlay and go Home.
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(Unit) {
         mainViewModel.sessionTimeout.collect {
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
             showCart = false
             showSettingsGate = false
             navController.popBackStack(HOME_ROUTE, inclusive = false)
