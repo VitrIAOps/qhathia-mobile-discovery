@@ -13,6 +13,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
@@ -83,8 +84,10 @@ class ProductSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ProductSearchUiState(source = initialSource))
     val uiState: StateFlow<ProductSearchUiState> = _uiState.asStateFlow()
 
+    // Room for a few back-to-back effects (e.g. VoiceFailed then NavigateBack, F-17): with one slot
+    // the second would drop the first before the screen collects it.
     private val _uiEffect = MutableSharedFlow<ProductSearchUiEffect>(
-        extraBufferCapacity = 1,
+        extraBufferCapacity = EFFECT_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val uiEffect: SharedFlow<ProductSearchUiEffect> = _uiEffect.asSharedFlow()
@@ -238,10 +241,15 @@ class ProductSearchViewModel @Inject constructor(
                 performSearch(event.transcript, SearchSource.Voice)
             }
             // No speech or an STT error does NOT trigger an alternative search — restore the previous screen.
-            VoiceSessionEvent.NoAudio,
-            is VoiceSessionEvent.Failed,
-            -> {
+            VoiceSessionEvent.NoAudio -> {
                 cancelVoiceSlowResponseTimer()
+                restorePreVoicePhase()
+            }
+            // An error also says why (F-17), e.g. no network before "Escuchando" ever showed. No speech
+            // needs no message: the screen simply comes back.
+            is VoiceSessionEvent.Failed -> {
+                cancelVoiceSlowResponseTimer()
+                if (event.category != SttErrorCategory.EmptyAudio) emit(ProductSearchUiEffect.VoiceFailed(event.category))
                 restorePreVoicePhase()
             }
         }
@@ -586,5 +594,6 @@ class ProductSearchViewModel @Inject constructor(
 
     private companion object {
         const val ONE_SECOND_MS = 1_000L
+        const val EFFECT_BUFFER = 8
     }
 }

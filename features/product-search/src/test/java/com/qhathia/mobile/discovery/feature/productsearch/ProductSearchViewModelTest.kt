@@ -272,6 +272,48 @@ class ProductSearchViewModelTest {
         }
 
     @Test
+    fun given_no_network_when_mic_tapped_then_says_why_and_keeps_results() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(3))))
+        val stt = FakeLiveTranscriptionRepository(failure = SttException(SttErrorCategory.Network))
+        val vm = viewModel(repository = repository, stt = stt) // init settles on Results
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            assertEquals(ProductSearchUiEffect.VoiceFailed(SttErrorCategory.Network), awaitItem())
+        }
+        assertEquals(3, (vm.uiState.value.phase as ProductSearchPhase.Results).products.size)
+        assertEquals(1, repository.callCount)
+    }
+
+    @Test
+    fun given_voice_entry_without_network_then_says_why_before_going_back() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(
+            query = "",
+            source = SearchSource.Voice,
+            stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.Network)),
+        )
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+            assertEquals(ProductSearchUiEffect.VoiceFailed(SttErrorCategory.Network), awaitItem())
+            assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
+        }
+    }
+
+    @Test
+    fun given_no_speech_failure_then_no_message() = runTest(mainDispatcher.dispatcher) {
+        val stt = FakeLiveTranscriptionRepository(finalFailure = SttException(SttErrorCategory.EmptyAudio))
+        val vm = viewModel(stt = stt)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.ActivateMic)
+            vm.onEvent(ProductSearchUiEvent.StopRecording)
+            expectNoEvents()
+        }
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+    }
+
+    @Test
     fun given_slow_final_transcript_then_voice_slow_response_phase() = runTest(mainDispatcher.dispatcher) {
         val stt = FakeLiveTranscriptionRepository(finalText = "martillo", finalDelayMillis = 40_000)
         val vm = viewModel(stt = stt)
@@ -461,6 +503,7 @@ class ProductSearchViewModelTest {
 
         vm.uiEffect.test {
             vm.onEvent(ProductSearchUiEvent.StopRecording)
+            assertEquals(ProductSearchUiEffect.VoiceFailed(SttErrorCategory.Network), awaitItem())
             assertEquals(ProductSearchUiEffect.NavigateBack, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
