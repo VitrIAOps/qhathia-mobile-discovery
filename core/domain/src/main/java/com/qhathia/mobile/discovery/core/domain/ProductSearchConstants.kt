@@ -8,6 +8,9 @@ object ProductSearchConstants {
     /** Maximum length of a search query, in characters (business rule; may change in the future). */
     const val MAX_QUERY_CHARS: Int = 500
 
+    /** The search criterion whose options are brands (vo's fixed name); its chips go into `filters.brands`. */
+    const val BRAND_CRITERION: String = "Marca"
+
     /** Maximum wait for a search response before treating it as failed, in seconds (technical rule). */
     const val SEARCH_TIMEOUT_SECONDS: Long = 30
 

@@ -4,6 +4,7 @@ import android.util.Log
 import com.qhathia.mobile.discovery.core.data.BuildConfig
 import com.qhathia.mobile.discovery.core.data.stt.SessionTokenProvider
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
 import com.qhathia.mobile.discovery.core.domain.repository.ProductSearchRepository
@@ -23,13 +24,17 @@ class ProductSearchRepositoryImpl @Inject constructor(
     private val searchApiService: ConversationSearchApiService,
 ) : ProductSearchRepository {
 
-    override suspend fun search(query: String, language: String): Result<ProductSearchResult> {
+    override suspend fun search(
+        query: String,
+        language: String,
+        filters: StructuredSearchFilters?,
+    ): Result<ProductSearchResult> {
         logQuery(query)
 
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(SearchErrorMapper.fromTokenFailure(it)) }
 
-        val response = searchApiService.search(token, query, language)
+        val response = searchApiService.search(token, query, language, filters = filters?.toDto())
 
         return when (response) {
             is NetworkResult.Success -> success(response.data.toDomain())

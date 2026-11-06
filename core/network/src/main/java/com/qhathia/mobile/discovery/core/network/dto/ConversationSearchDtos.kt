@@ -6,13 +6,26 @@ import kotlinx.serialization.Serializable
 /**
  * Request body for `POST /api/v1/conversations/search`. [transcribedText] carries the query (voice
  * transcript or typed text, ≤500 chars); [sessionId] is optional multi-turn traceability and
- * [language] is an optional ISO 639-1 code (defaults to "es" server-side).
+ * [language] is an optional ISO 639-1 code (defaults to "es" server-side). [filters] carries the
+ * selected chips as structured filters next to the original text (api-contract §41); `null` sends no
+ * `filters` key.
  */
 @Serializable
 data class ConversationSearchRequestDto(
     val transcribedText: String,
     val sessionId: String? = null,
     val language: String? = null,
+    val filters: SearchFiltersDto? = null,
+)
+
+/**
+ * Structured search filters (api-contract §41): [brands] in OR; [tags] in OR within a criterion and
+ * AND between criteria. A `null` list is not sent.
+ */
+@Serializable
+data class SearchFiltersDto(
+    val brands: List<String>? = null,
+    val tags: List<String>? = null,
 )
 
 /**
@@ -34,6 +47,9 @@ data class ConversationSearchResponseDto(
     val fallbackMessage: String? = null,
     val filters: List<SearchFilterDto> = emptyList(),
     val suggestions: List<String> = emptyList(),
+    /** The requested product is not sold here; [results] are alternatives ([missingCategory] names it). */
+    val alternativesOnly: Boolean = false,
+    val missingCategory: String? = null,
 )
 
 /**
@@ -45,6 +61,8 @@ data class ConversationSearchResponseDto(
 data class SearchFilterDto(
     val criterion: String = "",
     val options: List<String> = emptyList(),
+    /** The value to send for each option (`values[i]` ↔ `options[i]`); empty on older responses. */
+    val values: List<String> = emptyList(),
 )
 
 /**

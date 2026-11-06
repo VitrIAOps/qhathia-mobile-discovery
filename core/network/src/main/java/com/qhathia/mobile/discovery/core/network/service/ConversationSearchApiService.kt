@@ -4,6 +4,7 @@ import com.qhathia.mobile.discovery.core.network.BuildConfig
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.ConversationSearchRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.ConversationSearchResponseDto
+import com.qhathia.mobile.discovery.core.network.dto.SearchFiltersDto
 import com.qhathia.mobile.discovery.core.network.toNetworkResult
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -29,6 +30,7 @@ class ConversationSearchApiService @Inject constructor(
         query: String,
         language: String,
         sessionId: String? = null,
+        filters: SearchFiltersDto? = null,
     ): NetworkResult<ConversationSearchResponseDto> =
         runCatching {
             client.post("${BuildConfig.QHATHIA_BASE_URL}/api/v1/conversations/search") {
@@ -39,6 +41,7 @@ class ConversationSearchApiService @Inject constructor(
                         transcribedText = query,
                         sessionId = sessionId,
                         language = language,
+                        filters = filters,
                     ),
                 )
                 timeout { requestTimeoutMillis = SEARCH_REQUEST_TIMEOUT_MS }
