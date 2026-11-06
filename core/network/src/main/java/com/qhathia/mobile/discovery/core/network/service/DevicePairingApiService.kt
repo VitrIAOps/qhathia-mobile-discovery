@@ -4,6 +4,7 @@ import com.qhathia.mobile.discovery.core.network.BuildConfig
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.DeviceInfoResponseDto
 import com.qhathia.mobile.discovery.core.network.dto.DeviceTokenResponseDto
+import com.qhathia.mobile.discovery.core.network.dto.GeneratePairingTokenRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.PairingTokenResponseDto
 import com.qhathia.mobile.discovery.core.network.readProblemDetail
 import com.qhathia.mobile.discovery.core.network.toNetworkErrorKind
@@ -14,6 +15,10 @@ import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.http.encodeURLPathPart
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
@@ -25,11 +30,25 @@ import javax.inject.Inject
 class DevicePairingApiService @Inject constructor(
     private val client: HttpClient,
 ) {
-    /** `POST /api/v1/devices/pairing-token` — generates a code + opaque session (public). */
-    suspend fun generatePairingToken(): NetworkResult<PairingTokenResponseDto> =
+    /**
+     * `POST /api/v1/devices/pairing-token` — generates a code + opaque session (public). With
+     * [replacesSessionId], the backend also cancels that earlier session (§37); without it, no body.
+     */
+    suspend fun generatePairingToken(replacesSessionId: String? = null): NetworkResult<PairingTokenResponseDto> =
         runCatching {
-            client.post("${BuildConfig.QHATHIA_BASE_URL}$PAIRING_TOKEN_PATH")
-                .body<PairingTokenResponseDto>()
+            client.post("${BuildConfig.QHATHIA_BASE_URL}$PAIRING_TOKEN_PATH") {
+                if (replacesSessionId != null) {
+                    contentType(ContentType.Application.Json)
+                    setBody(GeneratePairingTokenRequestDto(replacesSessionId))
+                }
+            }.body<PairingTokenResponseDto>()
+        }.toNetworkResult()
+
+    /** `POST /api/v1/devices/pairing-session/{sessionId}/cancel` — public, idempotent: 204, or 404. */
+    suspend fun cancelPairingSession(sessionId: String): NetworkResult<Unit> =
+        runCatching {
+            client.post("${BuildConfig.QHATHIA_BASE_URL}$PAIRING_SESSION_PATH/${sessionId.encodeURLPathPart()}/cancel")
+            Unit
         }.toNetworkResult()
 
     /**

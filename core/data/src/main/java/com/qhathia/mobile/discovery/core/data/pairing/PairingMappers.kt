@@ -54,7 +54,8 @@ internal fun PairingStatusMessageDto.toDomainOrNull(): PairingStatus? = when (st
     "WAITING" -> PairingStatus.Waiting
     "APPROVED" -> PairingStatus.Approved
     "REJECTED" -> PairingStatus.Rejected
-    "EXPIRED" -> PairingStatus.Expired
+    // A cancelled code (replaced by another instance, §37) is dead on screen like an expired one.
+    "EXPIRED", "CANCELLED" -> PairingStatus.Expired
     else -> null
 }
 

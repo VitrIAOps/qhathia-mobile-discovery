@@ -2,6 +2,7 @@ package com.qhathia.mobile.discovery
 
 import android.app.Application
 import android.os.Build
+import com.qhathia.mobile.discovery.core.domain.usecase.CancelAbandonedPairingUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.HandleDeviceUnlinkedUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ProcessDeviceCommandsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunDeviceHeartbeatUseCase
@@ -18,7 +19,8 @@ import javax.inject.Inject
  * Application shell — Hilt's dependency graph root for the Discovery app. Starts the device
  * heartbeat (runs while the tablet is paired), the processor of the remote commands it delivers, and
  * the remote-settings sync it drives, and the handler that revokes the session when the backend reports
- * the tablet as unlinked — all for the process lifetime.
+ * the tablet as unlinked — all for the process lifetime. It also cancels a pairing code a previous
+ * process left on screen (F-02).
  *
  * Only the main process runs them. The short-lived `:restart` process ([RestartActivity]) also
  * creates this Application; the use cases are injected lazily so it builds none of them.
@@ -42,6 +44,9 @@ class DiscoveryApp : Application() {
     @Inject
     lateinit var handleDeviceUnlinked: Lazy<HandleDeviceUnlinkedUseCase>
 
+    @Inject
+    lateinit var cancelAbandonedPairing: Lazy<CancelAbandonedPairingUseCase>
+
     override fun onCreate() {
         super.onCreate()
         if (!isMainProcess()) return
@@ -50,6 +55,7 @@ class DiscoveryApp : Application() {
         applicationScope.launch { runDeviceHeartbeat.get()() }
         applicationScope.launch { processDeviceCommands.get()() }
         applicationScope.launch { syncDeviceSettings.get()() }
+        applicationScope.launch { cancelAbandonedPairing.get()() }
     }
 
     private fun isMainProcess(): Boolean {

@@ -12,8 +12,17 @@ import kotlinx.coroutines.flow.Flow
  */
 interface DevicePairingRepository {
 
-    /** Generates a fresh code + session (`POST /devices/pairing-token`). */
+    /**
+     * Generates a fresh code + session (`POST /devices/pairing-token`). The session of the code shown
+     * before, kept across restarts, is sent so the backend cancels it (F-02).
+     */
     suspend fun generateCode(): Result<PairingCode>
+
+    /**
+     * Cancels the code a previous process left on screen, if any, and forgets it (F-02). When the
+     * tablet is paired it only forgets it. Best-effort: a failure keeps it for the next [generateCode].
+     */
+    suspend fun cancelAbandonedSession(): Result<Unit>
 
     /** Streams pairing status for [sessionId]; completes when the server closes the channel. */
     fun observeStatus(sessionId: String): Flow<PairingStatus>

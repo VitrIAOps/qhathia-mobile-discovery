@@ -46,6 +46,14 @@ class FakeDevicePairingRepository(
         return generateResult
     }
 
+    var cancelAbandonedCount: Int = 0
+        private set
+
+    override suspend fun cancelAbandonedSession(): Result<Unit> {
+        cancelAbandonedCount++
+        return Result.success(Unit)
+    }
+
     override fun observeStatus(sessionId: String): Flow<PairingStatus> {
         lastObservedSession = sessionId
         return statusStreamError?.let { error -> flow { throw error } } ?: statusFlow
