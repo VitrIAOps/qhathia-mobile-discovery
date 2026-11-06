@@ -18,7 +18,7 @@ class SettingsPinAttemptsRepositoryImplTest {
     @TempDir
     lateinit var tempDir: File
 
-    private val locked = PinAttempts(failedCount = 5, lockedAt = Instant.parse("2026-10-29T12:00:00Z"))
+    private val locked = PinAttempts(failedCount = 5, lockedAt = Instant.parse("2026-10-29T12:00:00Z"), lockCount = 3)
 
     private fun file() = File(tempDir, "store_session.preferences_pb")
 
@@ -83,5 +83,29 @@ class SettingsPinAttemptsRepositoryImplTest {
 
         repository.set(PinAttempts.NONE)
         assertEquals(PinAttempts.NONE, repository.get())
+    }
+
+    @Test
+    fun ended_lock_keeps_its_level_on_disk() = runTest {
+        val store = backgroundScope.dataStore()
+        store.storePinHash("hash-A")
+        val repository = repositoryOver(store)
+        val ended = PinAttempts(lockCount = 2)
+
+        repository.set(ended)
+
+        assertEquals(ended, repository.get())
+    }
+
+    @Test
+    fun new_pin_also_resets_the_lock_level() = runTest {
+        val store = backgroundScope.dataStore()
+        store.storePinHash("hash-A")
+        val repository = repositoryOver(store)
+        repository.set(PinAttempts(lockCount = 4))
+
+        store.storePinHash("hash-B")
+
+        assertEquals(0, repository.get().lockCount)
     }
 }

@@ -71,7 +71,7 @@ fun SettingsPasswordDialogContent(
                 isError = uiState.showError,
                 isInputEnabled = uiState.isInputEnabled,
                 isLocked = uiState.isLocked,
-                lockedMinutesLeft = uiState.lockedMinutesLeft,
+                lockedSecondsLeft = uiState.lockedSecondsLeft,
                 isSubmitEnabled = uiState.isSubmitEnabled,
                 onSubmit = { onEvent(SettingsUiEvent.SubmitPassword) },
                 onDigit = { digit ->
@@ -132,7 +132,7 @@ private fun Keypad(
     isError: Boolean,
     isInputEnabled: Boolean,
     isLocked: Boolean,
-    lockedMinutesLeft: Long?,
+    lockedSecondsLeft: Long?,
     isSubmitEnabled: Boolean,
     onSubmit: () -> Unit,
     onDigit: (String) -> Unit,
@@ -169,9 +169,9 @@ private fun Keypad(
             }
         }
 
-        if (isLocked && lockedMinutesLeft != null) {
+        if (isLocked && lockedSecondsLeft != null) {
             Text(
-                text = stringResource(R.string.settings_password_locked, formatHoursMinutes(lockedMinutesLeft)),
+                text = stringResource(R.string.settings_password_locked, formatMinutesSeconds(lockedSecondsLeft)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
@@ -277,11 +277,11 @@ private fun RowScope.KeyCell(
     }
 }
 
-/** Time left on the lock as "HH:mm" (e.g. 1439 → "23:59"). */
-private fun formatHoursMinutes(totalMinutes: Long): String =
-    String.format(Locale.ROOT, "%02d:%02d", totalMinutes / MINUTES_PER_HOUR, totalMinutes % MINUTES_PER_HOUR)
+/** Time left on the lock as "m:ss" (e.g. 30 → "0:30", 900 → "15:00"). */
+internal fun formatMinutesSeconds(totalSeconds: Long): String =
+    String.format(Locale.ROOT, "%d:%02d", totalSeconds / SECONDS_PER_MINUTE, totalSeconds % SECONDS_PER_MINUTE)
 
-private const val MINUTES_PER_HOUR = 60L
+private const val SECONDS_PER_MINUTE = 60L
 private val KEY_HEIGHT = 56.dp
 private const val DISABLED_ALPHA = 0.38f
 
@@ -336,7 +336,7 @@ private fun SettingsPasswordErrorPreview() {
 private fun SettingsPasswordLockedLightPreview() {
     DiscoveryTheme(darkTheme = false) {
         SettingsPasswordDialogContent(
-            uiState = SettingsUiState(isResolvingAccess = false, lockedMinutesLeft = 23 * 60 + 59),
+            uiState = SettingsUiState(isResolvingAccess = false, lockedSecondsLeft = 30),
             onEvent = {},
         )
     }
@@ -347,7 +347,7 @@ private fun SettingsPasswordLockedLightPreview() {
 private fun SettingsPasswordLockedDarkPreview() {
     DiscoveryTheme(darkTheme = true) {
         SettingsPasswordDialogContent(
-            uiState = SettingsUiState(isResolvingAccess = false, lockedMinutesLeft = 75),
+            uiState = SettingsUiState(isResolvingAccess = false, lockedSecondsLeft = 15 * 60),
             onEvent = {},
         )
     }

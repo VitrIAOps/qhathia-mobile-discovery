@@ -1,6 +1,9 @@
 package com.qhathia.mobile.discovery.core.data.settings
 
 import com.qhathia.mobile.discovery.core.domain.repository.SettingsAccessRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 /**
@@ -13,6 +16,9 @@ class SettingsAccessRepositoryImpl @Inject constructor(
 ) : SettingsAccessRepository {
 
     override suspend fun isPinRequired(): Boolean = !localDataSource.exitPinHash().isNullOrBlank()
+
+    override fun observePinRequired(): Flow<Boolean> =
+        localDataSource.observeExitPinHash().map { !it.isNullOrBlank() }.distinctUntilChanged()
 
     override suspend fun validatePassword(input: String): Result<Boolean> = runCatching {
         val hash = localDataSource.exitPinHash()

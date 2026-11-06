@@ -13,7 +13,7 @@ import javax.inject.Inject
 /**
  * Streams the settings PIN gate state. While locked it emits again every
  * [SettingsConstants.PIN_LOCK_REFRESH_INTERVAL] with the time left, and emits
- * [PinLockState.Open] once the lock has lasted its 24 h (the stored lock is cleared then). A clock
+ * [PinLockState.Open] once the lock has lasted its duration (the stored lock ends then, keeping its level). A clock
  * moved back restarts the lock from the current time (design D9).
  */
 class ObservePinLockUseCase @Inject constructor(
