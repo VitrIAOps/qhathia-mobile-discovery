@@ -59,6 +59,19 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <!-- Device owner component (F-10): lets the app pin without the "Pin app?" dialog once
+             operation runs `dpm set-device-owner`. Exported, guarded by BIND_DEVICE_ADMIN. -->
+        <receiver
+            android:name=".kiosk.KioskDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
         <!-- Opens the showcase after a reboot on Android 9 and earlier (boot-autostart D2). -->
         <receiver
             android:name=".boot.BootCompletedReceiver"
