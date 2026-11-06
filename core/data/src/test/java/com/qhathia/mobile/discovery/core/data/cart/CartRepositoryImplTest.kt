@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.core.data.cart
 
+import com.qhathia.mobile.discovery.core.domain.model.ProductSnapshot
+import com.qhathia.mobile.discovery.core.domain.model.CartPriceChange
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.model.Cart
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
@@ -76,5 +78,43 @@ class CartRepositoryImplTest {
             assertEquals(Cart.EMPTY, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `refresh updates prices and caps in one step`() = runTest {
+        val repository = repository()
+        repository.addProduct(item("p1", qty = 6))
+
+        val refresh = repository.refresh(
+            mapOf("p1" to ProductSnapshot("p1", unitPrice = 8.0, availability = "AVAILABLE", stock = 3)),
+        )
+
+        val line = repository.observe().first().items.single()
+        assertEquals(8.0, line.priceUnit)
+        assertEquals(3, line.quantity)
+        assertEquals(1, refresh.priceChanges.size)
+        assertEquals(1, refresh.capped.size)
+    }
+
+    @Test
+    fun `refresh keeps a line added meanwhile out of the removed list`() = runTest {
+        val repository = repository()
+        repository.addProduct(item("p1"))
+        repository.addProduct(item("p2"))
+
+        repository.refresh(mapOf("p1" to ProductSnapshot("p1", 10.0, "AVAILABLE", null)))
+
+        assertEquals(listOf("p1"), repository.observe().first().items.map { it.productId })
+    }
+
+    @Test
+    fun `update prices changes only the listed lines`() = runTest {
+        val repository = repository()
+        repository.addProduct(item("p1"))
+        repository.addProduct(item("p2"))
+
+        repository.updatePrices(listOf(CartPriceChange("p2", "Product p2", 10.0, 7.5)))
+
+        assertEquals(listOf(10.0, 7.5), repository.observe().first().items.map { it.priceUnit })
     }
 }

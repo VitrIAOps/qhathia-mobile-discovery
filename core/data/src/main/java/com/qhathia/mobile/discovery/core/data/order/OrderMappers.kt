@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.core.data.order
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.Order
 import com.qhathia.mobile.discovery.core.domain.model.OrderItem
+import com.qhathia.mobile.discovery.core.domain.model.toMoney
 import com.qhathia.mobile.discovery.core.network.dto.CreateOrderRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.OrderItemRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.OrderItemResponseDto
@@ -19,7 +20,11 @@ internal fun String.toApiMobileNumber(): String =
         .removePrefix("+")
         .removePrefix("51")
 
-/** Builds the `POST /api/v1/orders` request from the consumer data and the basket lines. */
+/**
+ * Builds the `POST /api/v1/orders` request from the consumer data and the basket lines. Each line
+ * carries the unit price the customer saw (`expectedUnitPrice`, 2 decimals half up), so the server
+ * answers `409 PRICE_CHANGED` instead of recording a price the customer never saw.
+ */
 internal fun buildCreateOrderRequest(
     name: String,
     phone: String,
@@ -27,7 +32,13 @@ internal fun buildCreateOrderRequest(
 ): CreateOrderRequestDto = CreateOrderRequestDto(
     customerName = name.trim(),
     customerPhone = phone.toApiMobileNumber(),
-    items = items.map { OrderItemRequestDto(productId = it.productId, quantity = it.quantity) },
+    items = items.map {
+        OrderItemRequestDto(
+            productId = it.productId,
+            quantity = it.quantity,
+            expectedUnitPrice = it.priceUnit.toMoney().toDouble(),
+        )
+    },
 )
 
 /** Maps the created-order response DTO to the domain [Order]. */

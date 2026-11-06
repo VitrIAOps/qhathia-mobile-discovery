@@ -1,6 +1,8 @@
 package com.qhathia.mobile.discovery.core.data.di
 
+import com.qhathia.mobile.discovery.core.data.cart.CartPricingRepositoryImpl
 import com.qhathia.mobile.discovery.core.data.cart.CartRepositoryImpl
+import com.qhathia.mobile.discovery.core.domain.repository.CartPricingRepository
 import com.qhathia.mobile.discovery.core.domain.repository.CartRepository
 import dagger.Binds
 import dagger.Module
@@ -19,4 +21,8 @@ abstract class CartDataModule {
     @Binds
     @Singleton
     abstract fun bindCartRepository(impl: CartRepositoryImpl): CartRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCartPricingRepository(impl: CartPricingRepositoryImpl): CartPricingRepository
 }

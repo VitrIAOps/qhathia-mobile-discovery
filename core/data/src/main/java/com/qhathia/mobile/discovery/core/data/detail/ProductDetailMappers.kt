@@ -33,6 +33,7 @@ internal fun ProductDetailResponseDto.toDomain(): ProductDetail = ProductDetail(
     discountedPrice = discountedPrice,
     discountEndsAt = discountEndsAt,
     active = active,
+    stock = stock,
 )
 
 /**
@@ -50,4 +51,5 @@ internal fun SuggestedProductDto.toDomain(): Product = Product(
     allowDiscountInquiry = allowDiscountInquiry,
     discountedPrice = discountedPrice,
     discountEndsAt = discountEndsAt,
+    stock = stock,
 )

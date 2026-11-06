@@ -65,4 +65,6 @@ data class SearchProductDto(
     val relevanceScore: Int = 0,
     val discountedPrice: Double? = null,
     val discountEndsAt: String? = null,
+    /** Units in stock; `null` = "a consultar" (no stock count). */
+    val stock: Int? = null,
 )

@@ -37,7 +37,7 @@ class CartShareRepositoryImpl @Inject constructor(
 
         return when (response) {
             is NetworkResult.Success -> response.data.toOutcome()
-            is NetworkResult.HttpError -> CartShareErrorMapper.fromHttpError(response.code)
+            is NetworkResult.HttpError -> CartShareErrorMapper.fromHttpError(response.code, response.problem)
             is NetworkResult.NetworkError -> CartShareErrorMapper.fromNetworkError(response.kind)
         }
     }

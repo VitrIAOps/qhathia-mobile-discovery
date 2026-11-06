@@ -9,6 +9,12 @@
     <string name="pd_availability_available">Disponible</string>
     <string name="pd_availability_low_stock">Pocas unidades</string>
     <string name="pd_availability_consult">Consultar disponibilidad</string>
+    <!-- Stock-aware labels (order-price-check): the stock count wins over the availability. -->
+    <plurals name="pd_availability_low_stock_count">
+        <item quantity="one">Pocas unidades (queda %d)</item>
+        <item quantity="other">Pocas unidades (quedan %d)</item>
+    </plurals>
+    <string name="pd_availability_out_of_stock">Agotado</string>
     <!-- Shown when the product is inactive or not AVAILABLE: it cannot be added or shared. -->
     <string name="pd_not_orderable_note">No disponible por ahora</string>
 
@@ -54,6 +60,7 @@
     <!-- Share-quote dialog — error. -->
     <string name="pd_share_error_title">Algo salió mal</string>
     <string name="pd_share_error_message">No pudimos enviar la cotización. Inténtalo de nuevo en unos momentos.</string>
+    <string name="pd_share_error_network_message">No pudimos enviar la cotización porque la tablet no tiene internet. Inténtalo de nuevo en un momento.</string>
     <string name="pd_share_error_understood">Entendido</string>
     <string name="pd_share_error_cancel">Cancelar</string>
 

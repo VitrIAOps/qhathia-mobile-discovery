@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -264,7 +265,7 @@ private fun ProductInfo(
             style = MaterialTheme.typography.titleSmall,
             color = DiscoveryColors.CatalogText,
         )
-        StockRow(availability = detail.availability)
+        StockRow(availability = detail.availability, stock = detail.stock)
         // An inactive or non-AVAILABLE product is still shown, but cannot be added or shared (DET-013).
         if (!detail.isOrderable) NotOrderableNote()
         DetailPrice(price = detail.price, discountedPrice = detail.discountedPrice)
@@ -277,7 +278,7 @@ private fun ProductInfo(
         Spacer(modifier = Modifier.size(Spacing.xs))
         ActionRow(
             quantity = quantity,
-            maxQuantity = CartConstants.maxQuantityFor(detail.availability),
+            maxQuantity = CartConstants.maxQuantityFor(detail.availability, detail.stock),
             orderable = detail.isOrderable,
             onEvent = onEvent,
         )
@@ -285,8 +286,8 @@ private fun ProductInfo(
 }
 
 @Composable
-private fun StockRow(availability: String) {
-    val (dotColor, label) = availabilityDisplay(availability) ?: return
+private fun StockRow(availability: String, stock: Int?) {
+    val (dotColor, label) = availabilityDisplay(availability, stock) ?: return
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -540,6 +541,20 @@ private fun CloseConfirmDialog(
     )
 }
 
+/**
+ * Maps the availability and stock to a (dot color, label) pair, or null when unknown/absent. The stock
+ * wins when known: 0 (or `OUT_OF_STOCK`) is "Agotado", and up to [CartConstants.LOW_STOCK_LABEL_MAX]
+ * units is "Pocas unidades (quedan N)" even when the server says `AVAILABLE` (order-price-check D8).
+ */
+@Composable
+private fun availabilityDisplay(availability: String, stock: Int?): Pair<Color, String>? = when {
+    stock == 0 || availability.equals("OUT_OF_STOCK", ignoreCase = true) ->
+        MaterialTheme.colorScheme.error to stringResource(R.string.pd_availability_out_of_stock)
+    stock != null && stock <= CartConstants.LOW_STOCK_LABEL_MAX ->
+        DiscoveryColors.MicGradientEnd to pluralStringResource(R.plurals.pd_availability_low_stock_count, stock, stock)
+    else -> availabilityDisplay(availability)
+}
+
 /** Maps an API availability status to a (dot color, label) pair, or null when unknown/absent. */
 @Composable
 private fun availabilityDisplay(availability: String): Pair<Color, String>? = when (availability.uppercase()) {
@@ -587,6 +602,7 @@ private fun sampleDetail(
     discountedPrice: Double? = null,
     availability: String = "AVAILABLE",
     active: Boolean? = true,
+    stock: Int? = null,
 ): ProductDetail = ProductDetail(
     id = "p1",
     name = "Taladro Percutor Bosch GSB 13 RE Professional 12V",
@@ -600,6 +616,7 @@ private fun sampleDetail(
     images = (0 until imageCount).map { ProductImage("img$it.jpg", it, it == 0) },
     discountedPrice = discountedPrice,
     active = active,
+    stock = stock,
 )
 
 private fun sampleRelated(): ImmutableList<Product> = listOf(
@@ -615,8 +632,9 @@ private fun loadedState(
     discountedPrice: Double? = null,
     active: Boolean? = true,
     cartItemCount: Int = 0,
+    stock: Int? = null,
 ): ProductDetailUiState = ProductDetailUiState(
-    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice, active = active)),
+    status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice, active = active, stock = stock)),
     relatedProducts = related,
     showCloseConfirmDialog = showCloseConfirmDialog,
     cartItemCount = cartItemCount,
@@ -635,6 +653,38 @@ private fun DetailLoadedLightPreview() {
 private fun DetailLoadedDarkPreview() {
     DiscoveryTheme(darkTheme = true) {
         ProductDetailContent(uiState = loadedState(imageCount = 4), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail few units left — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailLowStockLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, stock = 3), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail few units left — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailLowStockDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, stock = 3), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail sold out — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailSoldOutLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, stock = 0), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail sold out — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailSoldOutDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(uiState = loadedState(imageCount = 4, stock = 0), onEvent = {})
     }
 }
 

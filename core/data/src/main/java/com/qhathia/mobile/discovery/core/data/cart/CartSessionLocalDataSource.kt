@@ -2,6 +2,9 @@ package com.qhathia.mobile.discovery.core.data.cart
 
 import com.qhathia.mobile.discovery.core.domain.model.Cart
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.CartPriceChange
+import com.qhathia.mobile.discovery.core.domain.model.CartRefresh
+import com.qhathia.mobile.discovery.core.domain.model.ProductSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,4 +33,14 @@ class CartSessionLocalDataSource @Inject constructor() {
     fun removeProduct(productId: String) = state.update { it.withProductRemoved(productId) }
 
     fun clear() = state.update { Cart.EMPTY }
+
+    /** Refreshes the basket against [snapshots] in one atomic update and returns what changed. */
+    fun refresh(snapshots: Map<String, ProductSnapshot>): CartRefresh {
+        var result: CartRefresh? = null
+        state.update { cart -> cart.refreshedWith(snapshots).also { result = it }.cart }
+        return checkNotNull(result)
+    }
+
+    /** Sets each changed line to its new unit price in one atomic update. */
+    fun updatePrices(changes: List<CartPriceChange>) = state.update { it.withPricesUpdated(changes) }
 }

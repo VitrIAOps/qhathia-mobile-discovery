@@ -17,6 +17,7 @@ internal fun CatalogProductDto.toDomain(): Product = Product(
     allowDiscountInquiry = allowDiscountInquiry,
     discountedPrice = discountedPrice,
     discountEndsAt = discountEndsAt,
+    stock = stock,
 )
 
 /** Maps a catalog category DTO to the domain [CatalogCategory]. */

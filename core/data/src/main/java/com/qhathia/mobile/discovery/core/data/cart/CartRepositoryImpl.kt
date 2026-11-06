@@ -2,6 +2,9 @@ package com.qhathia.mobile.discovery.core.data.cart
 
 import com.qhathia.mobile.discovery.core.domain.model.Cart
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.CartPriceChange
+import com.qhathia.mobile.discovery.core.domain.model.CartRefresh
+import com.qhathia.mobile.discovery.core.domain.model.ProductSnapshot
 import com.qhathia.mobile.discovery.core.domain.repository.CartRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -24,4 +27,9 @@ class CartRepositoryImpl @Inject constructor(
     override suspend fun removeProduct(productId: String) = localDataSource.removeProduct(productId)
 
     override suspend fun clear() = localDataSource.clear()
+
+    override suspend fun refresh(snapshots: Map<String, ProductSnapshot>): CartRefresh =
+        localDataSource.refresh(snapshots)
+
+    override suspend fun updatePrices(changes: List<CartPriceChange>) = localDataSource.updatePrices(changes)
 }

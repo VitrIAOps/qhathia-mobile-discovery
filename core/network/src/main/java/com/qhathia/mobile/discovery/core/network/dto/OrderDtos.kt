@@ -16,10 +16,15 @@ data class CreateOrderRequestDto(
     val customerNote: String? = null,
 )
 
+/**
+ * One order line. [expectedUnitPrice] is the unit price the customer saw (2 decimals); when it differs
+ * from the current price the server answers `409 PRICE_CHANGED` and creates nothing (api-contract §38).
+ */
 @Serializable
 data class OrderItemRequestDto(
     val productId: String,
     val quantity: Int,
+    val expectedUnitPrice: Double? = null,
 )
 
 /**
