@@ -33,6 +33,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 fun NetworkSettingsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String? = null,
     viewModel: NetworkSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -74,7 +75,7 @@ fun NetworkSettingsScreen(
         }
     }
 
-    NetworkSettingsContent(uiState = uiState, onEvent = viewModel::onEvent, modifier = modifier)
+    NetworkSettingsContent(uiState = uiState, onEvent = viewModel::onEvent, modifier = modifier, title = title)
 
     val selected = uiState.selectedSecuredNetwork
     if (selected != null) {

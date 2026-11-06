@@ -48,7 +48,8 @@ import javax.inject.Singleton
  *
  * On a successful exchange the DEVICE token is persisted in the store session, with the code that was
  * used, so the paired view can show "Código usado" after a restart (`/devices/me` does not return it).
- * When `/devices/me` sends the store name, it is saved in the session for Home and Settings.
+ * When the exchange or `/devices/me` sends the store name, it is saved in the session for Home and
+ * Settings (F-05: right after pairing, without opening Settings).
  *
  * The session of the code on screen is kept in [pendingSession] (F-02): each new code replaces it on
  * the backend, a successful exchange forgets it, and [cancelAbandonedSession] cancels the one a
@@ -207,6 +208,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
                         deviceName = dto.deviceName,
                         pairingCode = lastGeneratedCode,
                     )
+                    dto.storeName?.takeIf { it.isNotBlank() }?.let { storeSessionRepository.updateStoreName(it) }
                     pendingSession.clearIf(sessionId)
                     return Result.success(dto.toPairedDevice(lastGeneratedCode))
                 }

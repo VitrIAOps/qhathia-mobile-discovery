@@ -35,6 +35,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.domain.model.WifiNetwork
@@ -51,7 +52,7 @@ import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
  * Stateless Network settings UI — a pure function of [NetworkSettingsUiState], following the Figma DS
- * "Red Wifi" node main panel: a toolbar ("TIENDA" + "Buscar redes"), heading, the kept mobile-data /
+ * "Red Wifi" node main panel: a toolbar ([title], "TIENDA" when `null`, + "Buscar redes"), heading, the kept mobile-data /
  * Wi-Fi controls, and the accessible-network list (connected network highlighted with a badge +
  * "CONECTADO" chip). The shared dark side menu is hosted by `SettingsScreen`, not here. The
  * airplane-mode, not-permitted, Wi-Fi-off and location-required states use the shared design system.
@@ -61,10 +62,12 @@ fun NetworkSettingsContent(
     uiState: NetworkSettingsUiState,
     onEvent: (NetworkSettingsUiEvent) -> Unit,
     modifier: Modifier = Modifier,
+    title: String? = null,
 ) {
     MainPanel(
         uiState = uiState,
         onEvent = onEvent,
+        title = title ?: storeToolbarFallback(),
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
@@ -77,6 +80,7 @@ fun NetworkSettingsContent(
 private fun MainPanel(
     uiState: NetworkSettingsUiState,
     onEvent: (NetworkSettingsUiEvent) -> Unit,
+    title: String,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -86,7 +90,7 @@ private fun MainPanel(
             .padding(top = 40.dp, bottom = Spacing.xl),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        Toolbar(onSearch = { onEvent(NetworkSettingsUiEvent.RefreshNetworks) })
+        Toolbar(title = title, onSearch = { onEvent(NetworkSettingsUiEvent.RefreshNetworks) })
 
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Text(
@@ -134,16 +138,18 @@ private fun MainPanel(
 }
 
 @Composable
-private fun Toolbar(onSearch: () -> Unit) {
+private fun Toolbar(title: String, onSearch: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = stringResource(R.string.network_toolbar_title),
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             Row(
@@ -533,6 +539,7 @@ private fun NetworkSettingsLocationMissingPreview() {
                 simAvailable = true,
             ),
             onEvent = {},
+            title = "QA DISCOVERY — FERRETERÍA",
         )
     }
 }
@@ -567,3 +574,7 @@ private fun NetworkSettingsAirplanePreview() {
         )
     }
 }
+
+/** The panel title while the store name is unknown ("TIENDA"). */
+@Composable
+internal fun storeToolbarFallback(): String = stringResource(R.string.network_toolbar_title)

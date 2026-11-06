@@ -18,7 +18,10 @@ data class PairingTokenResponseDto(
     val expiresInSeconds: Long? = null,
 )
 
-/** Response of `GET /api/v1/devices/pairing-session/{sessionId}/token` (one-shot DEVICE JWT exchange). */
+/**
+ * Response of `GET /api/v1/devices/pairing-session/{sessionId}/token` (one-shot DEVICE JWT exchange).
+ * [storeName] arrives since backend phase 37 (§37); optional so an older backend still parses.
+ */
 @Serializable
 data class DeviceTokenResponseDto(
     val deviceId: String,
@@ -27,6 +30,7 @@ data class DeviceTokenResponseDto(
     val deviceName: String,
     val platform: String,
     val status: String,
+    val storeName: String? = null,
 )
 
 /**
