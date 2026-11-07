@@ -21,11 +21,10 @@ class SessionTokenProvider @Inject constructor(
     /**
      * Returns the persisted DEVICE access token, or a failure when the device is not paired.
      *
-     * [forceRefresh] is retained for call-site compatibility (repositories re-request a token after a
-     * 401). Because the device token is the only source and cannot be silently renewed without
-     * re-pairing, a refresh simply re-reads the persisted token.
+     * The token cannot be renewed without pairing again, so a `401` is never retried with it. When the
+     * backend reports the tablet as unlinked, the HTTP client's unlink signal ends the session.
      */
-    suspend fun accessToken(forceRefresh: Boolean = false): Result<String> {
+    suspend fun accessToken(): Result<String> {
         val token = storeSessionRepository.deviceAccessToken()
         return if (!token.isNullOrBlank()) {
             Result.success(token)
@@ -33,10 +32,4 @@ class SessionTokenProvider @Inject constructor(
             Result.failure(SttException(SttErrorCategory.Generic))
         }
     }
-
-    /**
-     * Retained for call-site compatibility after a 401. There is no in-memory token to drop anymore
-     * (the device token lives in the persisted session), so this is a no-op.
-     */
-    fun clear() = Unit
 }

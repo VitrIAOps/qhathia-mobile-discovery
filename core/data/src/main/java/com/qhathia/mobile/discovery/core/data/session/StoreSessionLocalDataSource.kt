@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.core.data.session
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
@@ -51,6 +52,25 @@ class StoreSessionLocalDataSource @Inject constructor(
         }
     }
 
+    /**
+     * Revokes the device session after an unlink: one write that removes the token, device name,
+     * pairing code and store name, and marks the unlink notice as pending.
+     */
+    suspend fun revokeDeviceSession() {
+        dataStore.edit { preferences ->
+            preferences.remove(KEY_DEVICE_TOKEN)
+            preferences.remove(KEY_DEVICE_NAME)
+            preferences.remove(KEY_PAIRING_CODE)
+            preferences.remove(KEY_STORE_NAME)
+            preferences[KEY_UNLINKED_NOTICE] = true
+        }
+    }
+
+    /** Clears the pending unlink notice and nothing else. */
+    suspend fun dismissUnlinkedNotice() {
+        dataStore.edit { preferences -> preferences.remove(KEY_UNLINKED_NOTICE) }
+    }
+
     private fun MutablePreferences.putOrRemove(key: Preferences.Key<String>, value: String?) {
         if (value.isNullOrBlank()) remove(key) else this[key] = value
     }
@@ -60,6 +80,7 @@ class StoreSessionLocalDataSource @Inject constructor(
         deviceAccessToken = this[KEY_DEVICE_TOKEN],
         deviceName = this[KEY_DEVICE_NAME],
         pairingCode = this[KEY_PAIRING_CODE],
+        unlinkedNotice = this[KEY_UNLINKED_NOTICE] == true,
     )
 
     private companion object {
@@ -67,5 +88,6 @@ class StoreSessionLocalDataSource @Inject constructor(
         val KEY_DEVICE_TOKEN = stringPreferencesKey("device_access_token")
         val KEY_DEVICE_NAME = stringPreferencesKey("device_name")
         val KEY_PAIRING_CODE = stringPreferencesKey("pairing_code")
+        val KEY_UNLINKED_NOTICE = booleanPreferencesKey("unlinked_notice")
     }
 }

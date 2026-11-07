@@ -2,6 +2,7 @@ package com.qhathia.mobile.discovery.core.network.service
 
 import com.qhathia.mobile.discovery.core.network.BuildConfig
 import com.qhathia.mobile.discovery.core.network.NetworkResult
+import com.qhathia.mobile.discovery.core.network.dto.CatalogProductDto
 import com.qhathia.mobile.discovery.core.network.dto.ProductDetailResponseDto
 import com.qhathia.mobile.discovery.core.network.dto.ProductSuggestionsResponseDto
 import com.qhathia.mobile.discovery.core.network.toNetworkResult
@@ -48,8 +49,24 @@ class ProductApiService @Inject constructor(
             }.body<ProductSuggestionsResponseDto>()
         }.toNetworkResult()
 
+    /**
+     * Calls `GET /api/v1/products` (DEVICE token): every active product of the store with its current
+     * `price`, `discountedPrice`, `availability` and `stock`. Used to refresh the basket in one request;
+     * unlike `GET /products/{id}` it does not count a product view.
+     */
+    suspend fun listProducts(accessToken: String): NetworkResult<List<CatalogProductDto>> =
+        runCatching {
+            client.get("${BuildConfig.QHATHIA_BASE_URL}/api/v1/products") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                timeout { requestTimeoutMillis = LIST_REQUEST_TIMEOUT_MS }
+            }.body<List<CatalogProductDto>>()
+        }.toNetworkResult()
+
     private companion object {
         // Business rule: ≤30s for a detail response.
         const val DETAIL_REQUEST_TIMEOUT_MS = 30_000L
+
+        // The basket refresh runs while the customer looks at the cart: keep it short.
+        const val LIST_REQUEST_TIMEOUT_MS = 15_000L
     }
 }

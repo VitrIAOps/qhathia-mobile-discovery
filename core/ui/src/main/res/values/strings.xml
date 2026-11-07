@@ -52,6 +52,10 @@
     <string name="discovery_voice_listening">Escuchando</string>
     <string name="discovery_voice_organizing">Organizando ideas</string>
     <string name="discovery_voice_slow_response">Está tardando más de lo que esperaba</string>
+    <!-- Product with no photo at all, under the placeholder of the detail's main image (F-43). -->
+    <string name="discovery_image_missing">Sin foto</string>
+    <!-- Voice search failed for a reason other than the network (F-17). -->
+    <string name="discovery_voice_failed">No pude usar el micrófono. Escribe tu búsqueda o inténtalo otra vez.</string>
     <!-- Microphone permission (home + product-search) -->
     <string name="discovery_mic_permission_required">Necesitamos acceso al micrófono para la búsqueda por voz</string>
     <!-- Basket limit (catalog, product-search, product-detail) -->

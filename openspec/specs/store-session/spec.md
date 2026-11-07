@@ -68,3 +68,50 @@ The session SHALL expose whether the device is currently paired, so screens can 
 - **WHEN** a device token is persisted or cleared
 - **THEN** observers of the session receive the updated paired state
 
+### Requirement: Revocable device session
+
+The store session SHALL support revoking the device session after the tablet is unlinked. Revoking SHALL remove the device access token, the device name, the pairing code and the store name in a single write, and SHALL record a pending unlink notice. Observers SHALL see the session become unpaired.
+
+#### Scenario: Revoke clears the session and the store name
+
+- **WHEN** a paired session with a store name is revoked
+- **THEN** the session has no device token, device name, pairing code or store name, it is not paired, and the unlink notice is pending
+
+#### Scenario: Revocation survives a restart
+
+- **WHEN** the session is revoked and the app is restarted
+- **THEN** the session is still unpaired and the unlink notice is still pending
+
+### Requirement: Dismissable unlink notice
+
+The store session SHALL expose whether an unlink notice is pending, and SHALL allow dismissing it. Dismissing SHALL clear only the notice, nothing else. A session that was never revoked SHALL have no pending notice.
+
+#### Scenario: Notice dismissed
+
+- **WHEN** the unlink notice is pending and it is dismissed
+- **THEN** the session reports no pending notice
+
+#### Scenario: No notice by default
+
+- **WHEN** the app starts with a session that was never revoked
+- **THEN** the session reports no pending notice
+
+### Requirement: Store name known right after pairing
+
+When the pairing exchange returns a store name, the tablet SHALL save it in the store session at once, so Home shows it without opening Settings. The Settings area SHALL title the Wi-Fi and pairing panels with the store name in capitals and the side menu with the store name, and SHALL fall back to "TIENDA" / "Tienda" while the name is unknown.
+
+#### Scenario: Home right after pairing
+
+- **WHEN** the tablet is paired and the exchange returned "QA Discovery — Ferretería"
+- **THEN** Home shows the store name without opening Settings
+
+#### Scenario: Settings titles
+
+- **WHEN** the store name is known and the merchant opens Settings
+- **THEN** the Red Wifi and Vincular toolbars show "QA DISCOVERY — FERRETERÍA" and the side menu shows "QA Discovery — Ferretería"
+
+#### Scenario: Name unknown
+
+- **WHEN** no store name is known (older backend, or not paired)
+- **THEN** the titles show "TIENDA" and "Tienda"
+

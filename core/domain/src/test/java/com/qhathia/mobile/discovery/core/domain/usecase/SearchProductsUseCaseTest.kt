@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.core.domain.usecase
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.testing.FakeProductSearchRepository
 import com.qhathia.mobile.discovery.core.testing.ProductFixtures
 import kotlinx.coroutines.test.runTest
@@ -53,5 +54,15 @@ class SearchProductsUseCaseTest {
             SearchErrorCategory.SearchApi,
             (result.exceptionOrNull() as SearchException).category,
         )
+    }
+
+    @Test
+    fun filters_are_passed_through_and_empty_ones_dropped() = runTest {
+        val useCase = SearchProductsUseCase(repository)
+
+        useCase("taladro", filters = StructuredSearchFilters(brands = listOf("Bosch")))
+        useCase("taladro", filters = StructuredSearchFilters())
+
+        assertEquals(listOf(StructuredSearchFilters(brands = listOf("Bosch")), null), repository.filters)
     }
 }

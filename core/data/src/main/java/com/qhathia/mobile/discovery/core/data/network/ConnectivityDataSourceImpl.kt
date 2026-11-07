@@ -85,6 +85,8 @@ class ConnectivityDataSourceImpl @Inject constructor(
             connectedSsid = if (onWifi) connectedSsid() else null,
             wifiActive = onWifi,
             hasInternet = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true,
+            internetValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
             simAvailable = simAvailable,
             mobileDataEnabled = simAvailable && (onCellular || isMobileDataSettingOn()),
         )

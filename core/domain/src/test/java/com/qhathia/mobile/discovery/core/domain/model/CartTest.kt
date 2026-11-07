@@ -90,4 +90,69 @@ class CartTest {
 
         assertEquals(listOf("p2"), cart.items.map { it.productId })
     }
+
+    // --- refreshedWith / withPricesUpdated (order-price-check D2) ---
+
+    private fun snapshot(id: String, price: Double, availability: String = "AVAILABLE", stock: Int? = null) =
+        ProductSnapshot(id = id, unitPrice = price, availability = availability, stock = stock)
+
+    @Test
+    fun `refresh updates a changed price and reports it`() {
+        val refresh = Cart(listOf(item("p1", 210.0, 1))).refreshedWith(mapOf("p1" to snapshot("p1", 199.0)))
+
+        assertEquals(199.0, refresh.cart.items.single().priceUnit)
+        assertEquals(listOf(CartPriceChange("p1", "Product p1", 210.0, 199.0)), refresh.priceChanges)
+        assertTrue(refresh.hasChanges)
+    }
+
+    @Test
+    fun `refresh ignores a difference below one cent`() {
+        val refresh = Cart(listOf(item("p1", 80.0, 1))).refreshedWith(mapOf("p1" to snapshot("p1", 80.004)))
+
+        assertTrue(refresh.priceChanges.isEmpty())
+        assertFalse(refresh.hasChanges)
+    }
+
+    @Test
+    fun `refresh removes absent, unavailable and sold-out lines`() {
+        val cart = Cart(listOf(item("gone", 10.0, 1), item("low", 10.0, 1), item("zero", 10.0, 1), item("ok", 10.0, 1)))
+
+        val refresh = cart.refreshedWith(
+            mapOf(
+                "low" to snapshot("low", 10.0, availability = "LOW_STOCK"),
+                "zero" to snapshot("zero", 10.0, stock = 0),
+                "ok" to snapshot("ok", 10.0),
+            ),
+        )
+
+        assertEquals(listOf("ok"), refresh.cart.items.map { it.productId })
+        assertEquals(listOf("Product gone", "Product low", "Product zero"), refresh.removedNames)
+    }
+
+    @Test
+    fun `refresh caps the quantity to the stock`() {
+        val refresh = Cart(listOf(item("p1", 10.0, 6))).refreshedWith(mapOf("p1" to snapshot("p1", 10.0, stock = 3)))
+
+        val line = refresh.cart.items.single()
+        assertEquals(3, line.quantity)
+        assertEquals(3, line.maxQuantity)
+        assertEquals(3, line.stock)
+        assertEquals(listOf(CartQuantityCap("p1", "Product p1", 3)), refresh.capped)
+    }
+
+    @Test
+    fun `refresh without stock keeps the availability cap`() {
+        val refresh = Cart(listOf(item("p1", 10.0, 2))).refreshedWith(mapOf("p1" to snapshot("p1", 10.0)))
+
+        assertEquals(99, refresh.cart.items.single().maxQuantity)
+        assertTrue(refresh.capped.isEmpty())
+    }
+
+    @Test
+    fun `prices updated only on the changed lines`() {
+        val cart = Cart(listOf(item("p1", 210.0, 1), item("p2", 50.0, 1)))
+            .withPricesUpdated(listOf(CartPriceChange("p1", "Product p1", 210.0, 199.0)))
+
+        assertEquals(listOf(199.0, 50.0), cart.items.map { it.priceUnit })
+    }
 }

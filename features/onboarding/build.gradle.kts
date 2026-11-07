@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -23,6 +25,7 @@ android {
 
 dependencies {
     implementation(project(":features:pairing"))
+    implementation(project(":core:domain"))
     implementation(project(":core:ui"))
     implementation(project(":core:common"))
 
@@ -30,8 +33,20 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.lifecycle.viewmodel)
     implementation(libs.lifecycle.runtime)
     implementation(libs.navigation.compose)
+    implementation(libs.hilt.android)
+    implementation(libs.hilt.navigation.compose)
+    ksp(libs.hilt.compiler)
+    ksp(libs.kotlin.metadata.jvm)
+
+    testImplementation(project(":core:testing"))
+    testImplementation(libs.junit5.api)
+    testImplementation(libs.turbine)
+    testImplementation(libs.coroutines.test)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit5.launcher)
 
     debugImplementation(libs.compose.ui.tooling)
 }

@@ -14,6 +14,8 @@
     <!-- Android 12+ requires COARSE alongside FINE; either grant lets us read Wi-Fi scan results. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Boot autostart (boot-autostart, F-12): open the showcase when the tablet finishes booting. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".DiscoveryApp"
@@ -47,7 +49,37 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Selectable as the device home screen (boot-autostart D1): on Android 10+ this is how
+                 the showcase comes back after a reboot. Keep the default launchMode: the RESTART_APP
+                 trampoline relies on it (F-09). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+        <!-- Device owner component (F-10): lets the app pin without the "Pin app?" dialog once
+             operation runs `dpm set-device-owner`. Exported, guarded by BIND_DEVICE_ADMIN. -->
+        <receiver
+            android:name=".kiosk.KioskDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+        <!-- Opens the showcase after a reboot on Android 9 and earlier (boot-autostart D2). -->
+        <receiver
+            android:name=".boot.BootCompletedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <!-- RESTART_APP trampoline (design D7): own process, joins the pinned task, kills the main
              process and starts MainActivity again. Opaque theme: a translucent activity cannot fix
              its orientation on API 26. -->

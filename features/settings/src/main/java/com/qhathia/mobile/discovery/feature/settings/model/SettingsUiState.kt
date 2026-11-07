@@ -10,19 +10,20 @@ import com.qhathia.mobile.discovery.core.domain.SettingsConstants
  * @property isResolvingAccess whether the gate is still checking if a PIN is required; the dialog is
  *   not shown meanwhile (and never, when no PIN is set).
  * @property isValidating a PIN is being checked; the keypad ignores input meanwhile.
- * @property lockedMinutesLeft minutes left on the lock after too many wrong PINs (rounded up), or
- *   `null` when not locked. While set, the keypad is disabled (design D9).
+ * @property lockedSecondsLeft seconds left on the lock after too many wrong PINs (rounded up, at
+ *   least 1), or `null` when not locked. While set, the keypad is disabled and the dialog shows the
+ *   time as m:ss (settings-pin-lockout D3).
  */
 data class SettingsUiState(
     val passwordInput: String = "",
     val showError: Boolean = false,
     val isResolvingAccess: Boolean = true,
     val isValidating: Boolean = false,
-    val lockedMinutesLeft: Long? = null,
+    val lockedSecondsLeft: Long? = null,
 ) {
     /** Too many wrong PINs: the keypad does not accept input. */
     val isLocked: Boolean
-        get() = lockedMinutesLeft != null
+        get() = lockedSecondsLeft != null
 
     /** The keypad accepts digits. */
     val isInputEnabled: Boolean

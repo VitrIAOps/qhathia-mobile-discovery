@@ -65,12 +65,22 @@ A share SHALL be treated as successful only when the share endpoint answers with
 
 ### Requirement: Share error recovery
 
-On any share failure (rejected or failed after its retries) the app SHALL show a share error state with a single simplified share message ("No pudimos enviar la cotización" / "Hubo un problema enviando la cotización. Inténtalo de nuevo en unos momentos.") regardless of the underlying cause. The share error state, and the not-delivered state, SHALL present a single action, **"Entendido"**, which SHALL return to the cart summary dialog in its prior state (basket and entered data preserved) so the consumer can retry. A share failure SHALL NOT offer "Cancelar orden" and SHALL NOT clear the basket or the consumer data. The order error state keeps its own copy and its "Cancelar orden" action.
+On a share failure (rejected or failed after its retries) the app SHALL show a share error state, never the order message:
 
-#### Scenario: All failures show the same simplified share message
+- **No connection:** "No pudimos enviar la cotización" with a message saying the tablet has no internet and the basket is kept.
+- **Any other cause:** "No pudimos enviar la cotización" / "Hubo un problema enviando la cotización. Inténtalo de nuevo en unos momentos."
 
-- **WHEN** the share request fails for any reason (validation, not found, server, PDF generation, or connectivity)
-- **THEN** the app shows the single simplified share error message rather than the raw cause or the order message
+The share error state, and the not-delivered state, SHALL present a single action, **"Entendido"**, which SHALL return to the cart summary dialog in its prior state (basket and entered data preserved) so the consumer can retry. A share failure SHALL NOT offer "Cancelar orden" and SHALL NOT clear the basket or the consumer data. The order error state keeps its own copy and actions. Product rejections that name the product are handled by "Share rejections decided by error code".
+
+#### Scenario: Share without network says so
+
+- **WHEN** the tablet has no connection and the customer taps "Compartir por WhatsApp"
+- **THEN** the share error state says the quote could not be sent because the tablet has no internet
+
+#### Scenario: Other failures show the simplified share message
+
+- **WHEN** the share request fails for another reason (validation, server, PDF generation)
+- **THEN** the app shows the simplified share error message rather than the raw cause or the order message
 
 #### Scenario: Entendido returns to the cart summary
 
@@ -82,10 +92,10 @@ On any share failure (rejected or failed after its retries) the app SHALL show a
 - **WHEN** the share error state or the not-delivered state is shown
 - **THEN** no "Cancelar orden" action is offered, and the basket and consumer data are kept
 
-#### Scenario: Order error keeps its cancel action
+#### Scenario: Order error keeps its own copy
 
 - **WHEN** a "Realizar pedido" request fails
-- **THEN** the order error state shows its order message with "Entendido" and "Cancelar orden"
+- **THEN** the order error state shows its order copy and actions, not the share message
 
 ### Requirement: Share phase reset on session clear
 
@@ -163,4 +173,18 @@ The app SHALL retry a share only after a connectivity error, a timeout, or a 5xx
 
 - **WHEN** the first two share attempts time out and the third answers `SENT`
 - **THEN** three share requests are sent and the success screen is shown
+
+### Requirement: Share rejections decided by error code
+
+A share rejected with `409 PRODUCT_NOT_SELLABLE` naming a product in the basket SHALL flag that line "No disponible" directly, without a recheck. A share rejected with `422 STOCK_INSUFFICIENT` naming a product SHALL lower that line to `available` units (removing it at 0), show the stock notice, and return to the cart. Neither SHALL be retried.
+
+#### Scenario: Not sellable share flags the line
+
+- **WHEN** "Compartir por WhatsApp" answers `409 PRODUCT_NOT_SELLABLE` for a product in the basket
+- **THEN** that line is shown as "No disponible", exactly one share request was sent, and no product request is sent
+
+#### Scenario: Stock shortage on share
+
+- **WHEN** "Compartir por WhatsApp" answers `422 STOCK_INSUFFICIENT` with `available` 2 for a line with 4 units
+- **THEN** the line has 2 units, the stock notice is shown, and the cart is shown again
 

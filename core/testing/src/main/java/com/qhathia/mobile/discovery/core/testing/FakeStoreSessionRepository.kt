@@ -35,4 +35,26 @@ class FakeStoreSessionRepository(
     override suspend fun clearDeviceSession() {
         state.value = state.value.copy(deviceAccessToken = null, deviceName = null, pairingCode = null)
     }
+
+    /** Number of [revokeDeviceSession] calls. */
+    var revokeCount: Int = 0
+        private set
+
+    override suspend fun revokeDeviceSession() {
+        revokeCount++
+        state.value = state.value.copy(
+            storeName = null,
+            deviceAccessToken = null,
+            deviceName = null,
+            pairingCode = null,
+            unlinkedNotice = true,
+        )
+    }
+
+    override suspend fun dismissUnlinkedNotice() {
+        state.value = state.value.copy(unlinkedNotice = false)
+    }
+
+    /** Test helper: the current session. */
+    val current: StoreSession get() = state.value
 }

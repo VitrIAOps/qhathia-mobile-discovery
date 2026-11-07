@@ -3,6 +3,7 @@ package com.qhathia.mobile.discovery.feature.productdetail
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.CartConstants
+import com.qhathia.mobile.discovery.core.domain.model.CartShareErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
@@ -435,7 +436,7 @@ class ProductDetailViewModelTest {
 
         vm.onEvent(ProductDetailUiEvent.ConfirmShare)
 
-        assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
+        assertEquals(ProductDetailUiState.ShareSubmission.Error(), vm.uiState.value.share.submission)
         assertEquals(3, shareRepository.callCount) // retried up to the max
     }
 
@@ -536,7 +537,7 @@ class ProductDetailViewModelTest {
 
         vm.onEvent(ProductDetailUiEvent.ConfirmShare)
 
-        assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
+        assertEquals(ProductDetailUiState.ShareSubmission.Error(), vm.uiState.value.share.submission)
         assertEquals(1, shareRepository.callCount)
     }
 
@@ -573,7 +574,7 @@ class ProductDetailViewModelTest {
         val vm = loadedViewModel(FakeCartShareRepository().apply { failWith() })
         vm.openShareWithValidData()
         vm.onEvent(ProductDetailUiEvent.ConfirmShare)
-        assertEquals(ProductDetailUiState.ShareSubmission.Error, vm.uiState.value.share.submission)
+        assertEquals(ProductDetailUiState.ShareSubmission.Error(), vm.uiState.value.share.submission)
 
         vm.onEvent(ProductDetailUiEvent.DismissShareError)
 
@@ -611,5 +612,54 @@ class ProductDetailViewModelTest {
 
         assertEquals(3, cartRepository.current.totalItemCount)
         assertEquals(0, sessionRepository.endCount)
+    }
+
+    // --- order-price-check ---
+
+    private fun stockedViewModel(stock: Int?, cartRepository: FakeCartRepository = FakeCartRepository()) = viewModel(
+        repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1", stock = stock))),
+        cartRepository = cartRepository,
+    )
+
+    @Test
+    fun stepper_stops_at_the_stock() = runTest(mainDispatcher.dispatcher) {
+        val vm = stockedViewModel(stock = 3)
+
+        repeat(5) { vm.onEvent(ProductDetailUiEvent.IncreaseQuantity) }
+
+        assertEquals(3, vm.uiState.value.quantity)
+    }
+
+    @Test
+    fun stock_zero_blocks_add_and_share() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository()
+        val vm = stockedViewModel(stock = 0, cartRepository = cartRepository)
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        assertTrue(cartRepository.current.isEmpty)
+        assertFalse(vm.uiState.value.share.visible)
+    }
+
+    @Test
+    fun share_without_network_says_so() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel(shareRepository = FakeCartShareRepository(ShareOutcome.Failed(CartShareErrorCategory.Network)))
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertEquals(ProductDetailUiState.ShareSubmission.Error(network = true), vm.uiState.value.share.submission)
+    }
+
+    @Test
+    fun share_name_truncated_at_200() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel()
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+
+        vm.onEvent(ProductDetailUiEvent.ShareNameChanged("A".repeat(262)))
+
+        assertEquals(CartConstants.MAX_CONSUMER_NAME_CHARS, vm.uiState.value.share.name.length)
     }
 }

@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.core.domain.repository
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Port for the settings-unlock PIN, which is the tablet's remote exit PIN ("PIN de salida"). Validation
  * is local and offline against the stored hash.
@@ -8,6 +10,9 @@ interface SettingsAccessRepository {
 
     /** Whether an exit PIN is set. When `false` the settings open without asking for a PIN. */
     suspend fun isPinRequired(): Boolean
+
+    /** [isPinRequired] now and again whenever it changes (the staff app sets or removes the PIN). */
+    fun observePinRequired(): Flow<Boolean>
 
     /**
      * Validates [input] against the exit PIN.

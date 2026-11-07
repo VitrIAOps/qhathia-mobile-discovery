@@ -1,11 +1,15 @@
 package com.qhathia.mobile.discovery.core.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -36,6 +41,8 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
  * @param contentDescription accessible label of the photo, also kept on the placeholder; `null` when a
  *   nearby text already names the product.
  * @param contentScale how the loaded image fits its area.
+ * @param showMissingLabel shows "Sin foto" under the placeholder glyph (F-43); for a product that has
+ *   no photo at all, not for one whose photo failed to load.
  */
 @Composable
 fun ProductImage(
@@ -43,6 +50,7 @@ fun ProductImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
+    showMissingLabel: Boolean = false,
 ) {
     var failed by remember(url) { mutableStateOf(false) }
     val showPlaceholder = url.isNullOrBlank() || failed
@@ -51,23 +59,35 @@ fun ProductImage(
         contentAlignment = Alignment.Center,
     ) {
         if (showPlaceholder) {
-            Icon(
-                painter = painterResource(R.drawable.ic_image),
-                contentDescription = null,
-                tint = DiscoveryColors.Neutral300,
-                modifier = Modifier
-                    .size(PLACEHOLDER_ICON_SIZE)
-                    .then(
-                        if (contentDescription != null) {
-                            Modifier.semantics {
-                                this.contentDescription = contentDescription
-                                role = Role.Image
-                            }
-                        } else {
-                            Modifier
-                        },
-                    ),
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(PLACEHOLDER_LABEL_GAP),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_image),
+                    contentDescription = null,
+                    tint = DiscoveryColors.Neutral300,
+                    modifier = Modifier
+                        .size(PLACEHOLDER_ICON_SIZE)
+                        .then(
+                            if (contentDescription != null) {
+                                Modifier.semantics {
+                                    this.contentDescription = contentDescription
+                                    role = Role.Image
+                                }
+                            } else {
+                                Modifier
+                            },
+                        ),
+                )
+                if (showMissingLabel && url.isNullOrBlank()) {
+                    Text(
+                        text = stringResource(R.string.discovery_image_missing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DiscoveryColors.Neutral500,
+                    )
+                }
+            }
         } else {
             AsyncImage(
                 model = url,
@@ -81,6 +101,7 @@ fun ProductImage(
 }
 
 private val PLACEHOLDER_ICON_SIZE = 32.dp
+private val PLACEHOLDER_LABEL_GAP = 4.dp
 
 @Preview(name = "ProductImage placeholder — light", showBackground = true)
 @Composable
@@ -102,6 +123,7 @@ private fun ProductImagePlaceholderDarkPreview() {
             url = "",
             contentDescription = null,
             modifier = Modifier.size(140.dp).clip(RoundedCornerShape(8.dp)),
+            showMissingLabel = true,
         )
     }
 }

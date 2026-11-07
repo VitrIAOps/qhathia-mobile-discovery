@@ -9,6 +9,7 @@ import com.qhathia.mobile.discovery.core.network.dto.CatalogCategoryDto
 import com.qhathia.mobile.discovery.core.network.dto.CatalogProductDto
 import com.qhathia.mobile.discovery.core.network.service.CatalogApiService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -43,7 +44,7 @@ class ProductCatalogRepositoryImplTest {
 
     @Test
     fun given_catalog_when_load_then_maps_to_domain() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { catalogApiService.getCatalog("jwt") } returns NetworkResult.Success(catalogDto())
 
         val result = repository().getCatalog()
@@ -60,7 +61,7 @@ class ProductCatalogRepositoryImplTest {
 
     @Test
     fun given_connectivity_failure_when_load_then_network_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { catalogApiService.getCatalog(any()) } returns
             NetworkResult.NetworkError(UnknownHostException("no dns"), NetworkErrorKind.Connectivity)
 
@@ -71,7 +72,7 @@ class ProductCatalogRepositoryImplTest {
 
     @Test
     fun given_timeout_when_load_then_generic_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { catalogApiService.getCatalog(any()) } returns
             NetworkResult.NetworkError(RuntimeException("slow"), NetworkErrorKind.Timeout)
 
@@ -82,7 +83,7 @@ class ProductCatalogRepositoryImplTest {
 
     @Test
     fun given_http_error_when_load_then_generic_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
         coEvery { catalogApiService.getCatalog(any()) } returns NetworkResult.HttpError(500, "Server Error")
 
         val result = repository().getCatalog()
@@ -91,15 +92,13 @@ class ProductCatalogRepositoryImplTest {
     }
 
     @Test
-    fun given_401_when_load_then_clears_token_and_retries_once() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { catalogApiService.getCatalog("stale") } returns NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { catalogApiService.getCatalog("fresh") } returns NetworkResult.Success(catalogDto())
+    fun given_401_when_load_then_fails_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { catalogApiService.getCatalog("jwt") } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val result = repository().getCatalog()
 
-        assertTrue(result.isSuccess)
-        assertEquals(1, result.getOrNull()!!.size)
+        assertEquals(CatalogErrorCategory.Generic, (result.exceptionOrNull() as CatalogException).category)
+        coVerify(exactly = 1) { catalogApiService.getCatalog(any()) }
     }
 }

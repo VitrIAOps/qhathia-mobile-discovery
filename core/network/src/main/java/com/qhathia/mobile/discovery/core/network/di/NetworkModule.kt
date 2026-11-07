@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.core.network.di
 
 import com.qhathia.mobile.discovery.core.network.BuildConfig
+import com.qhathia.mobile.discovery.core.network.DeviceUnlinkedSignal
 import com.qhathia.mobile.discovery.core.network.KtorClientFactory
 import dagger.Module
 import dagger.Provides
@@ -19,8 +20,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideHttpClient(): HttpClient =
+    fun provideHttpClient(deviceUnlinkedSignal: DeviceUnlinkedSignal): HttpClient =
         // Debug builds always log; a non-debuggable build can opt in via ENABLE_NETWORK_LOGGING
         // (set on the `profile` build type) so API call logs survive in QA/profiling APKs.
-        KtorClientFactory.create(enableLogging = BuildConfig.DEBUG || BuildConfig.ENABLE_NETWORK_LOGGING)
+        KtorClientFactory.create(
+            enableLogging = BuildConfig.DEBUG || BuildConfig.ENABLE_NETWORK_LOGGING,
+            onDeviceUnlinked = deviceUnlinkedSignal::notifyUnlinked,
+        )
 }

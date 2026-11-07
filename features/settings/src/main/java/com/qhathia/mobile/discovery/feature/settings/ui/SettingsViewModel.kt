@@ -6,7 +6,9 @@ import com.qhathia.mobile.discovery.core.domain.SettingsConstants
 import com.qhathia.mobile.discovery.core.domain.model.PinLockState
 import com.qhathia.mobile.discovery.core.domain.usecase.IsSettingsPinRequiredUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePinLockUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveSettingsPinRequiredUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RegisterPinFailureUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ReportPinLockoutUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ResetPinAttemptsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateSettingsPasswordUseCase
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEffect
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,10 +35,12 @@ import javax.inject.Inject
  * the 6th digit validates automatically. A correct PIN emits [SettingsUiEffect.Unlocked]; a wrong one
  * clears the entry and shows an inline error.
  *
- * **Lockout (design D9, AJU-011).** The 5th wrong PIN in a row locks the gate for 24 hours: the keypad
- * is disabled and the time left is shown, refreshed every minute. The lock is persisted, so it holds
- * across closing the dialog and restarts. A correct PIN resets the count; a check that could not run
- * (an error, not a wrong PIN) is not counted.
+ * **Lockout (design D9, settings-pin-lockout).** The 5th wrong PIN in a row locks the gate: 30 s the
+ * first time, then 1, 2, 4, 8 and 15 min. The keypad is disabled and the time left is shown as m:ss,
+ * refreshed every second. The lock is persisted, so it holds across closing the dialog and restarts.
+ * Each new lock is reported to the backend once, fire-and-forget. A correct PIN resets the count and
+ * the level; a check that could not run (an error, not a wrong PIN) is not counted. If the staff app
+ * removes the PIN while the dialog is open, the gate opens.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -44,6 +49,8 @@ class SettingsViewModel @Inject constructor(
     private val observePinLock: ObservePinLockUseCase,
     private val registerPinFailure: RegisterPinFailureUseCase,
     private val resetPinAttempts: ResetPinAttemptsUseCase,
+    private val observePinRequired: ObserveSettingsPinRequiredUseCase,
+    private val reportPinLockout: ReportPinLockoutUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -82,11 +89,20 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Keeps the lock and its time left on screen while the gate is open. */
+    /**
+     * Keeps the lock and its time left on screen while the gate is open, and opens the gate if the
+     * staff app removes the PIN meanwhile (settings-pin-lockout D5).
+     */
     private fun followLock() {
         lockJob?.cancel()
         lockJob = viewModelScope.launch {
-            observePinLock().collect { lock -> _uiState.update { it.copy(lockedMinutesLeft = lock.minutesLeft()) } }
+            launch {
+                observePinLock().collect { lock -> _uiState.update { it.copy(lockedSecondsLeft = lock.secondsLeft()) } }
+            }
+            launch {
+                observePinRequired().first { required -> !required }
+                leave(SettingsUiEffect.Unlocked)
+            }
         }
     }
 
@@ -111,13 +127,14 @@ class SettingsViewModel @Inject constructor(
                         leave(SettingsUiEffect.Unlocked)
                     } else {
                         val lock = registerPinFailure()
+                        if (lock is PinLockState.Locked && !_uiState.value.isLocked) reportLockout(lock)
                         // Clear the entry so the merchant can retype the PIN (unless now locked).
                         _uiState.update {
                             it.copy(
                                 passwordInput = "",
                                 showError = lock is PinLockState.Open,
                                 isValidating = false,
-                                lockedMinutesLeft = lock.minutesLeft(),
+                                lockedSecondsLeft = lock.secondsLeft(),
                             )
                         }
                     }
@@ -126,6 +143,13 @@ class SettingsViewModel @Inject constructor(
                     // The PIN could not be checked: not a wrong PIN, so it is not counted.
                     _uiState.update { it.copy(passwordInput = "", showError = true, isValidating = false) }
                 }
+        }
+    }
+
+    /** Tells the backend about a new lock, in its own coroutine; a failure changes nothing on screen. */
+    private fun reportLockout(lock: PinLockState.Locked) {
+        viewModelScope.launch {
+            reportPinLockout(failedAttempts = SettingsConstants.PIN_MAX_ATTEMPTS, lockDuration = lock.remaining)
         }
     }
 
@@ -138,16 +162,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { _uiEffect.emit(effect) }
     }
 
-    /** Minutes left on a lock, rounded up so "00:00" is never shown while still locked. */
-    private fun PinLockState.minutesLeft(): Long? = when (this) {
+    /** Seconds left on a lock, rounded up so "0:00" is never shown while still locked. */
+    private fun PinLockState.secondsLeft(): Long? = when (this) {
         is PinLockState.Open -> null
         is PinLockState.Locked -> {
-            val minutes = (remaining.inWholeSeconds + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE
-            minutes.coerceAtLeast(1)
+            val millis = remaining.inWholeMilliseconds
+            ((millis + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).coerceAtLeast(1)
         }
     }
 
     private companion object {
-        const val SECONDS_PER_MINUTE = 60L
+        const val MILLIS_PER_SECOND = 1_000L
     }
 }

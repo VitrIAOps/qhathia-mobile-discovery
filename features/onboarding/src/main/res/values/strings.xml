@@ -5,6 +5,8 @@
     <string name="onboarding_app_name">Qhathia</string>
     <string name="onboarding_welcome_message">Configura tu tablet para comenzar a usar la aplicación. Presiona continuar para iniciar la configuración inicial.</string>
     <string name="onboarding_continue">Continuar</string>
+    <!-- Shown on Welcome after the merchant unlinked this tablet from the staff app. -->
+    <string name="onboarding_unlinked_notice">Esta tablet se desvinculó de la tienda. Para volver a usarla, vincúlala de nuevo desde la app del comercio.</string>
 
     <!-- Initial configuration screen — pairing header title (replaces "TIENDA"). -->
     <string name="onboarding_pairing_title">QHATHIA</string>

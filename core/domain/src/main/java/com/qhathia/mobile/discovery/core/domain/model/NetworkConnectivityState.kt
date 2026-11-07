@@ -8,6 +8,7 @@ package com.qhathia.mobile.discovery.core.domain.model
  * @property simAvailable whether the tablet can use mobile data (telephony and a ready SIM).
  * @property airplaneModeActive whether airplane mode is active (blocks selecting/changing a network).
  * @property connectedSsid the SSID of the connected Wi-Fi network, or `null` when not connected.
+ * @property hasInternet whether the active network reaches the internet (validated by Android).
  */
 data class NetworkConnectivityState(
     val wifiEnabled: Boolean = false,
@@ -15,6 +16,7 @@ data class NetworkConnectivityState(
     val airplaneModeActive: Boolean = false,
     val connectedSsid: String? = null,
     val simAvailable: Boolean = false,
+    val hasInternet: Boolean = false,
 ) {
     companion object {
         /** Well-defined default, emitted before the platform reports any real state. */

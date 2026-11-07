@@ -29,10 +29,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
+import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * One product row for a submission summary (order-placed or share-sent confirmation), captured at
@@ -41,11 +44,14 @@ import kotlinx.collections.immutable.ImmutableList
  * @property imageUrl the product's primary image URL, or empty when none.
  * @property name the product display name.
  * @property quantity the submitted quantity.
+ * @property priceText the line total as the server recorded it, already formatted ("S/ 160.00"), or
+ *   `null` to show only the quantity.
  */
 data class SubmissionLine(
     val imageUrl: String,
     val name: String,
     val quantity: Int,
+    val priceText: String? = null,
 )
 
 /**
@@ -91,6 +97,8 @@ fun SubmittingOverlay(
  * "check your phone" prompt — pass `null` to hide it), and a single accept action.
  *
  * @param quantityLabel maps a line quantity to its localized label (the caller owns the plural copy).
+ * @param totalText the recorded total row, already formatted ("Total del pedido  S/ 80.00"), or `null`.
+ * @param note a warning shown under the total (e.g. the recorded total differs from the cart), or `null`.
  */
 @Composable
 fun SubmissionSuccessContent(
@@ -102,6 +110,8 @@ fun SubmissionSuccessContent(
     onAction: () -> Unit,
     quantityLabel: @Composable (Int) -> String,
     modifier: Modifier = Modifier,
+    totalText: String? = null,
+    note: String? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -130,6 +140,24 @@ fun SubmissionSuccessContent(
                 modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
             )
             SubmissionSummaryList(summary = summary, quantityLabel = quantityLabel)
+            if (totalText != null) {
+                Text(
+                    text = totalText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH).fillMaxWidth(),
+                )
+            }
+            if (note != null) {
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(max = PANEL_MAX_WIDTH),
+                )
+            }
             if (footnote != null) {
                 Text(
                     text = footnote,
@@ -203,6 +231,13 @@ private fun SubmissionLineRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (line.priceText != null) {
+                Text(
+                    text = line.priceText,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
     }
 }
@@ -272,3 +307,35 @@ fun SubmissionErrorContent(
 private val PANEL_MAX_WIDTH = 480.dp
 private val SUMMARY_MAX_HEIGHT = 260.dp
 private const val SCRIM_ALPHA = 0.45f
+
+@Preview(name = "Success with total — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun SubmissionSuccessTotalLightPreview() {
+    DiscoveryTheme(darkTheme = false) { SubmissionSuccessTotalSample(note = null) }
+}
+
+@Preview(name = "Success with total and note — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun SubmissionSuccessTotalDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        SubmissionSuccessTotalSample(note = "El total registrado es S/ 80.00 (en tu carrito viste S/ 100.00). Confírmalo con el vendedor.")
+    }
+}
+
+@Composable
+private fun SubmissionSuccessTotalSample(note: String?) {
+    SubmissionSuccessContent(
+        title = "¡Pedido generado con éxito!",
+        subtitle = "Acércate al vendedor para recibir tu pedido y realizar el pago.",
+        summary = persistentListOf(
+            SubmissionLine(imageUrl = "", name = "Pulidora angular 4 1/2\"", quantity = 2, priceText = "S/ 160.00"),
+            SubmissionLine(imageUrl = "", name = "Disco de corte", quantity = 1, priceText = "S/ 12.50"),
+        ),
+        footnote = "Revisa tu celular para ver la cotización.",
+        actionLabel = "Aceptar",
+        onAction = {},
+        quantityLabel = { "Cantidad: $it" },
+        totalText = "Total del pedido  S/ 172.50",
+        note = note,
+    )
+}

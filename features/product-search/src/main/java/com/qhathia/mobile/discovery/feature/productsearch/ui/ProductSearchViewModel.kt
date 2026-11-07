@@ -10,8 +10,11 @@ import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
+import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
@@ -30,6 +33,7 @@ import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_QUERY
 import com.qhathia.mobile.discovery.feature.productsearch.navigation.ARG_SOURCE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
@@ -52,8 +56,10 @@ import kotlinx.coroutines.launch
  * `noResults=false`, or `→ Unhappy` when `noResults=true` (rendering the up-to-3 store suggestions the
  * response already returned). A search (API) error settles `Unhappy` with no suggestions; a
  * connectivity failure settles `NetworkError` (screen kept). Each settled outcome is pushed onto an
- * in-memory history so Volver can return to the previous result; with no previous result Volver opens
- * the close-confirmation dialog. Confirming that dialog (from Nueva búsqueda or Volver) ends the
+ * in-memory history so Volver can return to the previous result; after a network error it returns to
+ * the result shown before it. With no previous result Volver emits [ProductSearchUiEffect.ExitRequested]:
+ * the screen goes back to Catalog or Detail, or opens the close-confirmation dialog when the search was
+ * opened from Home (F-38). Confirming that dialog (from Nueva búsqueda or Volver) ends the
  * customer session (basket and customer data), clears the history and returns Home idle. The 30s idle
  * timeout on the unhappy screen returns Home without ending the session. Ir al catálogo opens the
  * catalog and keeps the session. The microphone animation is retained
@@ -78,8 +84,10 @@ class ProductSearchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ProductSearchUiState(source = initialSource))
     val uiState: StateFlow<ProductSearchUiState> = _uiState.asStateFlow()
 
+    // Room for a few back-to-back effects (e.g. VoiceFailed then NavigateBack, F-17): with one slot
+    // the second would drop the first before the screen collects it.
     private val _uiEffect = MutableSharedFlow<ProductSearchUiEffect>(
-        extraBufferCapacity = 1,
+        extraBufferCapacity = EFFECT_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val uiEffect: SharedFlow<ProductSearchUiEffect> = _uiEffect.asSharedFlow()
@@ -87,8 +95,14 @@ class ProductSearchViewModel @Inject constructor(
     /** Settled outcomes visited so far; the last entry is the one currently displayed. */
     private val history = mutableListOf<HistoryEntry>()
 
-    /** Immutable raw query that started the current results view; the concatenation base for refinements. */
+    /** Immutable raw query that started the current results view; the text base for refinements. */
     private var baseQuery: String = ""
+
+    /** The chip panel of the fresh search that started the current results view; refinements keep it. */
+    private var baseFilters: List<SearchFilter> = emptyList()
+
+    /** The suggestions of the fresh search that started the current results view. */
+    private var baseSuggestions: List<String> = emptyList()
 
     /** Filter options currently selected (insertion-ordered); N may be active across criteria. */
     private val selectedFilters = LinkedHashSet<SearchFilterOption>()
@@ -165,10 +179,14 @@ class ProductSearchViewModel @Inject constructor(
         refineSearch()
     }
 
-    /** Re-query with the current selection concatenated onto the immutable [baseQuery]. */
+    /**
+     * Re-query with the original [baseQuery] (plus the suggestion, which is natural language) and the
+     * selected chips as structured filters (F-37): brands as labels, other criteria as their values.
+     */
     private fun refineSearch() {
-        val composed = composeSearchQuery(baseQuery, selectedFilters.toList(), selectedSuggestion)
-        performSearch(composed, _uiState.value.source, isRefinement = true)
+        val text = composeSearchQuery(baseQuery, selectedSuggestion)
+        val filters = StructuredSearchFilters.from(selectedFilters, baseFilters).takeUnless { it.isEmpty }
+        performSearch(text, _uiState.value.source, isRefinement = true, filters = filters)
     }
 
     private fun openDetail(productId: String) {
@@ -223,10 +241,15 @@ class ProductSearchViewModel @Inject constructor(
                 performSearch(event.transcript, SearchSource.Voice)
             }
             // No speech or an STT error does NOT trigger an alternative search — restore the previous screen.
-            VoiceSessionEvent.NoAudio,
-            is VoiceSessionEvent.Failed,
-            -> {
+            VoiceSessionEvent.NoAudio -> {
                 cancelVoiceSlowResponseTimer()
+                restorePreVoicePhase()
+            }
+            // An error also says why (F-17), e.g. no network before "Escuchando" ever showed. No speech
+            // needs no message: the screen simply comes back.
+            is VoiceSessionEvent.Failed -> {
+                cancelVoiceSlowResponseTimer()
+                if (event.category != SttErrorCategory.EmptyAudio) emit(ProductSearchUiEffect.VoiceFailed(event.category))
                 restorePreVoicePhase()
             }
         }
@@ -317,7 +340,12 @@ class ProductSearchViewModel @Inject constructor(
         cancelVoiceSlowResponseTimer()
     }
 
-    private fun performSearch(query: String, source: SearchSource, isRefinement: Boolean = false) {
+    private fun performSearch(
+        query: String,
+        source: SearchSource,
+        isRefinement: Boolean = false,
+        filters: StructuredSearchFilters? = null,
+    ) {
         cancelTimers()
         searchJob?.cancel()
         // A fresh (non-refinement) search starts a new results view, so it resets the selection.
@@ -333,16 +361,17 @@ class ProductSearchViewModel @Inject constructor(
         }
         startSlowSearchTimer()
         searchJob = viewModelScope.launch {
-            val result = searchProducts(query)
+            val result = searchProducts(query, filters = filters)
             slowSearchJob?.cancel()
             result.fold(
                 // The backend decides happy vs. unhappy via noResults, and on the unhappy path it
                 // already returns up to 3 store suggestions — no second (generalized) request.
                 onSuccess = { search ->
-                    if (!search.noResults) {
-                        settleResults(source, search, query, isRefinement)
-                    } else {
-                        settleUnhappy(source, search.products, search.suggestedFromCategory)
+                    when {
+                        !search.noResults -> settleResults(source, search, query, isRefinement)
+                        // Chips that leave no product keep the results view and the chips (F-37).
+                        isRefinement && filters != null -> settleNoFilterMatch(source)
+                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory)
                     }
                 },
                 onFailure = { error ->
@@ -362,13 +391,31 @@ class ProductSearchViewModel @Inject constructor(
         query: String,
         isRefinement: Boolean,
     ) {
-        // A fresh search settling into results fixes the immutable concatenation base for refinements.
-        if (!isRefinement) baseQuery = query
+        // A fresh search settling into results fixes the text base and the chip panel for refinements:
+        // the backend builds a refined response's panel from the filtered results, which would shrink it.
+        if (!isRefinement) {
+            baseQuery = query
+            baseFilters = result.filters
+            baseSuggestions = result.suggestions
+        }
         val phase = ProductSearchPhase.Results(
             products = result.products.toImmutableList(),
             displayText = result.displayText,
-            filters = result.filters.toImmutableList(),
-            suggestions = result.suggestions.toImmutableList(),
+            filters = baseFilters.toImmutableList(),
+            suggestions = baseSuggestions.toImmutableList(),
+            missingCategory = result.missingCategory?.takeIf { result.alternativesOnly && it.isNotBlank() },
+        )
+        settle(source, phase, baseQuery)
+    }
+
+    /** The selected chips left no product: stay on results with the chips and say so. */
+    private fun settleNoFilterMatch(source: SearchSource) {
+        val phase = ProductSearchPhase.Results(
+            products = persistentListOf(),
+            displayText = "",
+            filters = baseFilters.toImmutableList(),
+            suggestions = baseSuggestions.toImmutableList(),
+            noFilterMatch = true,
         )
         settle(source, phase, baseQuery)
     }
@@ -418,11 +465,16 @@ class ProductSearchViewModel @Inject constructor(
             cancelVoiceCapture()
             return
         }
-        if (history.size > 1) {
-            history.removeAt(history.lastIndex)
-            showEntry(history.last())
-        } else {
-            _uiState.update { it.copy(showCloseConfirmDialog = true) }
+        when {
+            // The network error is an overlay, not a history entry: Volver returns to the result under
+            // it (BUS-052).
+            _uiState.value.phase is ProductSearchPhase.NetworkError && history.isNotEmpty() ->
+                showEntry(history.last())
+            history.size > 1 -> {
+                history.removeAt(history.lastIndex)
+                showEntry(history.last())
+            }
+            else -> emit(ProductSearchUiEffect.ExitRequested)
         }
     }
 
@@ -434,6 +486,10 @@ class ProductSearchViewModel @Inject constructor(
         selectedFilters.addAll(entry.filters)
         selectedSuggestion = entry.suggestion
         baseQuery = entry.query
+        (entry.phase as? ProductSearchPhase.Results)?.let {
+            baseFilters = it.filters
+            baseSuggestions = it.suggestions
+        }
         _uiState.update {
             it.copy(
                 source = entry.source,
@@ -468,6 +524,8 @@ class ProductSearchViewModel @Inject constructor(
         history.clear()
         clearSelection()
         baseQuery = ""
+        baseFilters = emptyList()
+        baseSuggestions = emptyList()
         cancelTimers()
         cancelVoiceJobs()
         searchJob?.cancel()
@@ -536,5 +594,6 @@ class ProductSearchViewModel @Inject constructor(
 
     private companion object {
         const val ONE_SECOND_MS = 1_000L
+        const val EFFECT_BUFFER = 8
     }
 }

@@ -220,7 +220,17 @@ While the pairing section shows a pairing code, the screen SHALL stay on, in onb
 
 ### Requirement: Paired details show real values
 
-On a paired tablet, "Actividad" SHALL show the last sync time, or the last time the tablet was seen by the server when no sync time is known. "Código usado" SHALL show the code saved when the tablet paired, also after a restart; when no code was saved it SHALL show "No disponible". When the device-info endpoint returns a store name, the section SHALL show it and save it for Home.
+On a paired tablet, "Nombre en la app del comercio" SHALL show the device name the server returns, so it matches the tablet's card in the staff app. "Actividad" SHALL show the last sync time, or the last time the tablet was seen by the server when no sync time is known. "Código usado" SHALL show the code saved when the tablet paired, also after a restart; when no code was saved it SHALL show "No disponible". When the device-info endpoint returns a store name, the section SHALL show it and save it for Home.
+
+#### Scenario: Device name
+
+- **WHEN** the device info has `deviceName` "Tablet 3"
+- **THEN** "Nombre en la app del comercio" shows "Tablet 3"
+
+#### Scenario: Renamed from the staff app
+
+- **WHEN** the tablet was renamed to "Mostrador" from the staff app and Vincular is opened again
+- **THEN** "Nombre en la app del comercio" shows "Mostrador"
 
 #### Scenario: No sync time
 
@@ -236,4 +246,33 @@ On a paired tablet, "Actividad" SHALL show the last sync time, or the last time 
 
 - **WHEN** the device info includes `storeName` "El Martillo"
 - **THEN** the section shows "El Martillo" and Home shows it instead of "TIENDA"
+
+### Requirement: Abandoned pairing codes are cancelled
+
+The tablet SHALL keep the session of the code it shows across restarts. Each new code request SHALL ask the backend to replace that session. When the app process starts and the tablet is not paired, the kept session SHALL be cancelled on the backend and forgotten; a failed cancel SHALL NOT block the pairing screen. A successful exchange SHALL forget the kept session. Going back and continuing within the same process SHALL keep reusing the code on screen. A code the backend reports as cancelled SHALL be replaced by a new one on screen.
+
+#### Scenario: Code abandoned by a force-stop
+
+- **WHEN** a code A is shown, the app is force-stopped and opened again
+- **THEN** the tablet cancels A on the backend, and approving A from the staff app fails
+
+#### Scenario: New code replaces the old one
+
+- **WHEN** a code A is shown and a new code B is requested (expiry or "Generar nuevo código")
+- **THEN** the request for B asks the backend to replace A
+
+#### Scenario: Back and continue reuses the code
+
+- **WHEN** a code is shown, the merchant taps Volver and then Continuar in the same process
+- **THEN** the same code is shown and no new code is requested
+
+#### Scenario: Cancelled code on screen
+
+- **WHEN** the pairing status reports the shown code as cancelled
+- **THEN** the tablet requests and shows a new code
+
+#### Scenario: Paired tablet
+
+- **WHEN** the exchange succeeds
+- **THEN** the kept session is forgotten and nothing is cancelled on the next start
 

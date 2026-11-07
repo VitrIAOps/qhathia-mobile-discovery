@@ -48,7 +48,12 @@ import javax.inject.Singleton
  *
  * On a successful exchange the DEVICE token is persisted in the store session, with the code that was
  * used, so the paired view can show "Código usado" after a restart (`/devices/me` does not return it).
- * When `/devices/me` sends the store name, it is saved in the session for Home and Settings.
+ * When the exchange or `/devices/me` sends the store name, it is saved in the session for Home and
+ * Settings (F-05: right after pairing, without opening Settings).
+ *
+ * The session of the code on screen is kept in [pendingSession] (F-02): each new code replaces it on
+ * the backend, a successful exchange forgets it, and [cancelAbandonedSession] cancels the one a
+ * previous process left behind.
  */
 @Singleton
 class DevicePairingRepositoryImpl @Inject constructor(
@@ -56,6 +61,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
     private val socketClient: PairingSocketClient,
     private val storeSessionRepository: StoreSessionRepository,
     private val connectivityDataSource: ConnectivityDataSource,
+    private val pendingSession: PendingPairingSessionStore,
 ) : DevicePairingRepository {
 
     @Volatile
@@ -65,15 +71,37 @@ class DevicePairingRepositoryImpl @Inject constructor(
     private var exchanged: Pair<String, PairedDevice>? = null
 
     override suspend fun generateCode(): Result<PairingCode> =
-        when (val result = apiService.generatePairingToken()) {
+        when (val result = apiService.generatePairingToken(replacesSessionId = pendingSession.get())) {
             is NetworkResult.Success -> {
                 val code = result.data.toDomain()
                 lastGeneratedCode = code.code
+                pendingSession.set(code.sessionId)
                 Result.success(code)
             }
             is NetworkResult.HttpError -> Result.failure(httpError(result))
             is NetworkResult.NetworkError -> Result.failure(result.cause)
         }
+
+    override suspend fun cancelAbandonedSession(): Result<Unit> {
+        val pending = pendingSession.get() ?: return Result.success(Unit)
+        if (!storeSessionRepository.deviceAccessToken().isNullOrBlank()) {
+            pendingSession.clearIf(pending)
+            return Result.success(Unit)
+        }
+        val result = apiService.cancelPairingSession(pending)
+        // 404: unknown to the backend, so there is nothing left to cancel.
+        val done = result is NetworkResult.Success ||
+            (result is NetworkResult.HttpError && result.code == HTTP_NOT_FOUND)
+        if (done) {
+            pendingSession.clearIf(pending)
+            return Result.success(Unit)
+        }
+        return when (result) {
+            is NetworkResult.HttpError -> Result.failure(httpError(result))
+            is NetworkResult.NetworkError -> Result.failure(result.cause)
+            is NetworkResult.Success -> Result.success(Unit)
+        }
+    }
 
     override fun observeStatus(sessionId: String): Flow<PairingStatus> = channelFlow {
         // Offline → online transitions, conflated: one pending signal is enough to skip the backoff.
@@ -180,6 +208,8 @@ class DevicePairingRepositoryImpl @Inject constructor(
                         deviceName = dto.deviceName,
                         pairingCode = lastGeneratedCode,
                     )
+                    dto.storeName?.takeIf { it.isNotBlank() }?.let { storeSessionRepository.updateStoreName(it) }
+                    pendingSession.clearIf(sessionId)
                     return Result.success(dto.toPairedDevice(lastGeneratedCode))
                 }
                 is PairingExchangeResponse.HttpError ->
@@ -227,6 +257,8 @@ class DevicePairingRepositoryImpl @Inject constructor(
     internal companion object {
         /** Retries of the exchange after a connectivity error (5 attempts in about 15 s). */
         const val MAX_EXCHANGE_RETRIES = 4
+
+        const val HTTP_NOT_FOUND = 404
 
         /** 1 s, 2 s, 4 s, then 8 s at most. */
         fun backoffMillis(attempt: Int): Long = 1_000L shl attempt.coerceIn(0, 3)

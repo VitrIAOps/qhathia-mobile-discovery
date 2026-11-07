@@ -11,6 +11,7 @@ import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.ShareCartResponseDto
 import com.qhathia.mobile.discovery.core.network.service.CartShareApiService
+import com.qhathia.mobile.discovery.core.network.dto.ProblemDetailDto
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -26,7 +27,7 @@ import java.net.UnknownHostException
 class CartShareRepositoryImplTest {
 
     private val sessionTokenProvider = mockk<SessionTokenProvider>(relaxUnitFun = true).apply {
-        coEvery { accessToken(any()) } returns Result.success("jwt")
+        coEvery { accessToken() } returns Result.success("jwt")
     }
     private val cartShareApiService = mockk<CartShareApiService>()
 
@@ -131,21 +132,44 @@ class CartShareRepositoryImplTest {
 
     @Test
     fun given_network_token_failure_when_shared_then_failed_network_without_request() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.failure(SttException(SttErrorCategory.Network))
+        coEvery { sessionTokenProvider.accessToken() } returns Result.failure(SttException(SttErrorCategory.Network))
 
         assertEquals(ShareOutcome.Failed(CartShareErrorCategory.Network), shareWith(NetworkResult.Success(response("SENT"))))
         coVerify(exactly = 0) { cartShareApiService.shareCart(any(), any()) }
     }
 
     @Test
-    fun given_401_when_shared_then_refreshes_token_and_sends_once_more() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { cartShareApiService.shareCart("stale", any()) } returns NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { cartShareApiService.shareCart("fresh", any()) } returns NetworkResult.Success(response("SENT"))
+    fun given_401_when_shared_then_rejected_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { cartShareApiService.shareCart("jwt", any()) } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val outcome = repository().shareCart("Ana", "987654321", items)
 
-        assertEquals(ShareOutcome.Delivered("https://r2.dev/cotizacion.pdf"), outcome)
+        assertEquals(ShareOutcome.Rejected(ShareRejection.Other), outcome)
+        coVerify(exactly = 1) { cartShareApiService.shareCart(any(), any()) }
+    }
+
+    @Test
+    fun not_sellable_share_names_the_product() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.Unavailable, productId = "p1", productName = "Taladro"),
+            CartShareErrorMapper.fromHttpError(409, ProblemDetailDto(errorCode = "PRODUCT_NOT_SELLABLE", productId = "p1", productName = "Taladro")),
+        )
+    }
+
+    @Test
+    fun stock_insufficient_share_carries_the_units_left() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.StockInsufficient, productId = "p1", productName = "Taladro", available = 2),
+            CartShareErrorMapper.fromHttpError(422, ProblemDetailDto(errorCode = "STOCK_INSUFFICIENT", productId = "p1", productName = "Taladro", available = 2)),
+        )
+    }
+
+    @Test
+    fun unknown_code_falls_back_to_the_status() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.Invalid),
+            CartShareErrorMapper.fromHttpError(422, ProblemDetailDto(errorCode = "VALIDATION_ERROR")),
+        )
     }
 }

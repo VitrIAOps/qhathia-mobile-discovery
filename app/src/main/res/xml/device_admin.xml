@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device owner for the kiosk (F-10): no admin policies are used. -->
+<device-admin>
+    <uses-policies />
+</device-admin>

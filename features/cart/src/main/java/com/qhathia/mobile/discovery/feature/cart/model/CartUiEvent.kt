@@ -47,4 +47,10 @@ sealed interface CartUiEvent {
      * screen it runs that screen's main action; otherwise it dismisses the dialog (wave 2, D6).
      */
     data object DismissRequest : CartUiEvent
+
+    /** The cart dialog was shown: refresh the basket against the store. */
+    data object Opened : CartUiEvent
+
+    /** "Reintentar" after a connection error: send the same order once more. */
+    data object RetryOrder : CartUiEvent
 }

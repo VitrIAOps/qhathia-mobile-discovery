@@ -13,10 +13,9 @@ import javax.inject.Inject
 /**
  * Creates a purchase order via `POST /api/v1/orders` and maps the result to a domain [Order].
  *
- * Obtains the DEVICE session JWT via the shared [SessionTokenProvider] (the interim auth seam reused
- * from the STT/detail pipeline). On a `401` the cached token is dropped and the call is retried once
- * with a fresh login. Failures surface as a failed [Result] carrying an [OrderException] tagged with
- * the matching [OrderErrorCategory]; the cart collapses every category to one simplified message.
+ * Obtains the DEVICE session JWT via the shared [SessionTokenProvider]. A `401` is not retried: an unlinked tablet ends its session through the HTTP client's unlink signal.
+ * Failures surface as a failed [Result] carrying an [OrderException] tagged with
+ * the matching [OrderErrorCategory] and, when the server named them, the failure details.
  */
 class OrderRepositoryImpl @Inject constructor(
     private val sessionTokenProvider: SessionTokenProvider,
@@ -33,25 +32,15 @@ class OrderRepositoryImpl @Inject constructor(
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(OrderErrorMapper.fromTokenFailure(it)) }
 
-        var response = orderApiService.createOrder(token, request)
-        if (response is NetworkResult.HttpError && response.code == HTTP_UNAUTHORIZED) {
-            sessionTokenProvider.clear()
-            val refreshed = sessionTokenProvider.accessToken(forceRefresh = true)
-                .getOrElse { return failure(OrderErrorMapper.fromTokenFailure(it)) }
-            response = orderApiService.createOrder(refreshed, request)
-        }
+        val response = orderApiService.createOrder(token, request)
 
         return when (response) {
             is NetworkResult.Success -> Result.success(response.data.toDomain())
-            is NetworkResult.HttpError -> failure(OrderErrorMapper.fromHttpError(response.code))
+            is NetworkResult.HttpError -> Result.failure(OrderErrorMapper.fromHttpError(response.code, response.problem))
             is NetworkResult.NetworkError -> failure(OrderErrorMapper.fromNetworkError(response.kind))
         }
     }
 
     private fun failure(category: OrderErrorCategory): Result<Order> =
         Result.failure(OrderException(category))
-
-    private companion object {
-        const val HTTP_UNAUTHORIZED = 401
-    }
 }

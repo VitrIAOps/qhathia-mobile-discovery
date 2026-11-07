@@ -4,8 +4,8 @@
     <string name="settings_password_title">Configuración protegida</string>
     <string name="settings_password_subtitle">Ingresa el PIN para acceder a la configuración</string>
     <string name="settings_password_error">PIN incorrecto</string>
-    <!-- %1$s: time left on the lock as HH:mm (design D9). -->
-    <string name="settings_password_locked">Demasiados intentos. Podrás intentarlo de nuevo en %1$s h</string>
+    <!-- %1$s: time left on the lock as m:ss (settings-pin-lockout D3). -->
+    <string name="settings_password_locked">Demasiados intentos. Vuelve a intentarlo en %1$s</string>
     <string name="settings_password_icon_cd">Configuración protegida</string>
     <string name="settings_pin_digit_cd">Dígito %1$s</string>
     <string name="settings_pin_backspace_cd">Borrar</string>

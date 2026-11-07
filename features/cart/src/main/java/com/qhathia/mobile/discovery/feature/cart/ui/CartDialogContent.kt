@@ -27,10 +27,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.ConsumerField
 import com.qhathia.mobile.discovery.core.ui.component.CloseIconButton
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryTextField
@@ -44,8 +48,10 @@ import com.qhathia.mobile.discovery.core.ui.component.SubmittingOverlay
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import com.qhathia.mobile.discovery.feature.cart.R
+import com.qhathia.mobile.discovery.feature.cart.model.CartNotice
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiEvent
 import com.qhathia.mobile.discovery.feature.cart.model.CartUiState
+import com.qhathia.mobile.discovery.feature.cart.model.OrderFailure
 import com.qhathia.mobile.discovery.feature.cart.model.OrderSubmission
 import com.qhathia.mobile.discovery.feature.cart.model.OrderedLine
 import kotlinx.collections.immutable.ImmutableList
@@ -79,6 +85,14 @@ fun CartDialogContent(
                     },
                 ),
                 summary = submission.summary.toSubmissionLines(),
+                totalText = submission.total?.let {
+                    stringResource(R.string.cart_success_total_label, stringResource(UiR.string.discovery_price_format, it))
+                },
+                note = if (submission.totalMismatch && submission.total != null) {
+                    stringResource(R.string.cart_success_total_mismatch, stringResource(UiR.string.discovery_price_format, submission.total))
+                } else {
+                    null
+                },
                 // The "check your phone" prompt only applies when the quote actually reached WhatsApp.
                 footnote = when {
                     submission.isQuoteOnly -> stringResource(R.string.cart_share_success_check_phone)
@@ -91,17 +105,7 @@ fun CartDialogContent(
                 modifier = modifier,
             )
 
-        OrderSubmission.Error ->
-            SubmissionErrorContent(
-                title = stringResource(R.string.cart_error_title),
-                message = stringResource(R.string.cart_error_message),
-                // "Entendido" carries the higher priority (filled) — it returns to the cart to retry.
-                primaryLabel = stringResource(R.string.cart_error_understood),
-                onPrimary = { onEvent(CartUiEvent.DismissError) },
-                secondaryLabel = stringResource(R.string.cart_error_cancel),
-                onSecondary = { onEvent(CartUiEvent.CancelOrder) },
-                modifier = modifier,
-            )
+        is OrderSubmission.Error -> OrderErrorContent(reason = submission.reason, onEvent = onEvent, modifier = modifier)
 
         // A share that failed keeps the basket: only "Entendido", back to the cart (CAR-033).
         OrderSubmission.QuoteNotDelivered ->
@@ -115,10 +119,12 @@ fun CartDialogContent(
                 modifier = modifier,
             )
 
-        OrderSubmission.ShareError ->
+        is OrderSubmission.ShareError ->
             SubmissionErrorContent(
                 title = stringResource(R.string.cart_share_error_title),
-                message = stringResource(R.string.cart_share_error_message),
+                message = stringResource(
+                    if (submission.network) R.string.cart_share_error_network_message else R.string.cart_share_error_message,
+                ),
                 primaryLabel = stringResource(R.string.cart_error_understood),
                 onPrimary = { onEvent(CartUiEvent.DismissError) },
                 secondaryLabel = null,
@@ -131,8 +137,76 @@ fun CartDialogContent(
     }
 }
 
+/**
+ * The order error by cause (order-price-check D6): no connection offers "Reintentar" and never
+ * "Cancelar orden"; a timeout only "Entendido" (the order may exist); a validation error names the
+ * field; anything else is the simplified error with "Cancelar orden".
+ */
+@Composable
+private fun OrderErrorContent(
+    reason: OrderFailure,
+    onEvent: (CartUiEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val understood = stringResource(R.string.cart_error_understood)
+    when (reason) {
+        OrderFailure.Network -> SubmissionErrorContent(
+            title = stringResource(UiR.string.discovery_error_network_title),
+            message = stringResource(R.string.cart_error_network_message),
+            primaryLabel = stringResource(UiR.string.discovery_action_retry),
+            onPrimary = { onEvent(CartUiEvent.RetryOrder) },
+            secondaryLabel = stringResource(R.string.cart_error_back_to_cart),
+            onSecondary = { onEvent(CartUiEvent.DismissError) },
+            modifier = modifier,
+        )
+        OrderFailure.Timeout -> SubmissionErrorContent(
+            title = stringResource(R.string.cart_error_title),
+            message = stringResource(R.string.cart_error_timeout_message),
+            primaryLabel = understood,
+            onPrimary = { onEvent(CartUiEvent.DismissError) },
+            secondaryLabel = null,
+            onSecondary = {},
+            modifier = modifier,
+        )
+        is OrderFailure.Validation -> SubmissionErrorContent(
+            title = stringResource(R.string.cart_error_title),
+            message = stringResource(
+                when {
+                    ConsumerField.Name in reason.fields -> R.string.cart_error_validation_name
+                    ConsumerField.Phone in reason.fields -> R.string.cart_error_validation_phone
+                    ConsumerField.Items in reason.fields -> R.string.cart_error_validation_items
+                    else -> R.string.cart_error_message
+                },
+            ),
+            primaryLabel = understood,
+            onPrimary = { onEvent(CartUiEvent.DismissError) },
+            secondaryLabel = null,
+            onSecondary = {},
+            modifier = modifier,
+        )
+        OrderFailure.Generic -> SubmissionErrorContent(
+            title = stringResource(R.string.cart_error_title),
+            message = stringResource(R.string.cart_error_message),
+            // "Entendido" carries the higher priority (filled) — it returns to the cart to retry.
+            primaryLabel = understood,
+            onPrimary = { onEvent(CartUiEvent.DismissError) },
+            secondaryLabel = stringResource(R.string.cart_error_cancel),
+            onSecondary = { onEvent(CartUiEvent.CancelOrder) },
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
 private fun ImmutableList<OrderedLine>.toSubmissionLines(): ImmutableList<SubmissionLine> =
-    map { SubmissionLine(imageUrl = it.imageUrl, name = it.name, quantity = it.quantity) }.toImmutableList()
+    map {
+        SubmissionLine(
+            imageUrl = it.imageUrl,
+            name = it.name,
+            quantity = it.quantity,
+            priceText = it.lineTotal?.let { total -> stringResource(UiR.string.discovery_price_format, total) },
+        )
+    }.toImmutableList()
 
 // --- Cart body (idle + submitting overlay) ---
 
@@ -339,6 +413,7 @@ private fun FooterPanel(
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
         ConsumerForm(uiState = uiState, onEvent = onEvent)
+        uiState.notice?.let { NoticeBox(notice = it) }
         TotalsSection(itemCount = uiState.totalItemCount, total = uiState.totalAmount)
         if (uiState.hasUnavailableLines) {
             Text(
@@ -353,6 +428,45 @@ private fun FooterPanel(
             onEvent = onEvent,
         )
     }
+}
+
+/**
+ * What changed in the basket on the customer's behalf (order-price-check D7): up to
+ * [MAX_PRICE_LINES] price changes and "y N más", the removed products, and the lowered quantities.
+ * Announced politely by accessibility services.
+ */
+@Composable
+private fun NoticeBox(notice: CartNotice) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            notice.priceChanges.take(MAX_PRICE_LINES).forEach {
+                NoticeLine(
+                    stringResource(
+                        R.string.cart_notice_price_changed,
+                        it.productName,
+                        stringResource(UiR.string.discovery_price_format, it.oldUnitPrice),
+                        stringResource(UiR.string.discovery_price_format, it.newUnitPrice),
+                    ),
+                )
+            }
+            val more = notice.priceChanges.size - MAX_PRICE_LINES
+            if (more > 0) NoticeLine(pluralStringResource(R.plurals.cart_notice_price_more, more, more))
+            if (notice.removedNames.isNotEmpty()) {
+                NoticeLine(stringResource(R.string.cart_notice_items_removed, notice.removedNames.joinToString(", ") { "«$it»" }))
+            }
+            notice.capped.forEach { NoticeLine(stringResource(R.string.cart_notice_quantity_capped, it.max, it.productName)) }
+        }
+    }
+}
+
+@Composable
+private fun NoticeLine(text: String) {
+    Text(text = text, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
@@ -463,6 +577,7 @@ private fun ActionButtons(
 }
 
 private val FOOTER_WIDTH = 420.dp
+private const val MAX_PRICE_LINES = 3
 
 // --- Previews (landscape kiosk) ---
 
@@ -477,6 +592,99 @@ private fun sampleSummary(): kotlinx.collections.immutable.ImmutableList<Ordered
         OrderedLine("", "Taladro Percutor Bosch GSB 13 RE Professional 12V", 1),
         OrderedLine("", "Set de brocas (5 piezas)", 5),
     )
+
+private fun sampleRecordedSummary(): kotlinx.collections.immutable.ImmutableList<OrderedLine> =
+    kotlinx.collections.immutable.persistentListOf(
+        OrderedLine("", "Taladro Percutor Bosch GSB 13 RE Professional 12V", 1, lineTotal = 189.0),
+        OrderedLine("", "Set de brocas (5 piezas)", 5, lineTotal = 249.5),
+    )
+
+private fun sampleNotice() = CartNotice(
+    priceChanges = listOf(
+        com.qhathia.mobile.discovery.core.domain.model.CartPriceChange("p1", "Taladro Percutor Bosch", 210.0, 199.0),
+    ),
+    removedNames = listOf("Broca 6 mm"),
+    capped = listOf(com.qhathia.mobile.discovery.core.domain.model.CartQuantityCap("p2", "Set de brocas", 3)),
+)
+
+private fun validState(submission: OrderSubmission = OrderSubmission.Idle, notice: CartNotice? = null) = CartUiState(
+    items = sampleItems(),
+    totalItemCount = 6,
+    totalAmount = 438.5,
+    name = "Ana Pérez",
+    phone = "987654321",
+    nameError = null,
+    phoneError = null,
+    isOrderEnabled = true,
+    submission = submission,
+    notice = notice,
+)
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — notice (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartNoticePreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(uiState = validState(notice = sampleNotice()), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Cart — notice (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun CartNoticeDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(uiState = validState(notice = sampleNotice()), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — no network (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderNetworkErrorPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(uiState = validState(OrderSubmission.Error(OrderFailure.Network)), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — timeout (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderTimeoutPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(uiState = validState(OrderSubmission.Error(OrderFailure.Timeout)), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — validation (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderValidationPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = validState(OrderSubmission.Error(OrderFailure.Validation(setOf(ConsumerField.Name)))),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — no network (dark)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ShareNetworkErrorPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        CartDialogContent(uiState = validState(OrderSubmission.ShareError(network = true)), onEvent = {}, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Order — recorded total, mismatch (light)", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun OrderRecordedTotalPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        CartDialogContent(
+            uiState = CartUiState(
+                submission = OrderSubmission.Success(sampleRecordedSummary(), total = 438.5, totalMismatch = true),
+            ),
+            onEvent = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
 
 @androidx.compose.ui.tooling.preview.Preview(name = "Cart — valid (light)", showBackground = true, widthDp = 1024, heightDp = 640)
 @Composable
@@ -671,7 +879,7 @@ private fun unavailableState() = CartUiState(
 private fun OrderErrorPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
         CartDialogContent(
-            uiState = CartUiState(submission = OrderSubmission.Error),
+            uiState = CartUiState(submission = OrderSubmission.Error()),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )
@@ -683,7 +891,7 @@ private fun OrderErrorPreview() {
 private fun OrderErrorDarkPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
         CartDialogContent(
-            uiState = CartUiState(submission = OrderSubmission.Error),
+            uiState = CartUiState(submission = OrderSubmission.Error()),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )
@@ -695,7 +903,7 @@ private fun OrderErrorDarkPreview() {
 private fun ShareErrorPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
         CartDialogContent(
-            uiState = CartUiState(submission = OrderSubmission.ShareError),
+            uiState = CartUiState(submission = OrderSubmission.ShareError()),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )
@@ -707,7 +915,7 @@ private fun ShareErrorPreview() {
 private fun ShareErrorDarkPreview() {
     com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
         CartDialogContent(
-            uiState = CartUiState(submission = OrderSubmission.ShareError),
+            uiState = CartUiState(submission = OrderSubmission.ShareError()),
             onEvent = {},
             modifier = Modifier.fillMaxSize(),
         )

@@ -31,6 +31,13 @@ class DeviceSettingsLocalDataSource @Inject constructor(
     /** The stored exit PIN hash, again whenever the remote settings change it. */
     fun observeExitPinHash(): Flow<String?> = dataStore.data.map { it[KEY_EXIT_PIN_HASH] }
 
+    /** Removes every stored setting and the exit PIN hash; reads then fall back to the defaults. */
+    suspend fun clear() {
+        dataStore.edit { preferences ->
+            SETTINGS_KEYS.forEach { preferences.remove(it) }
+        }
+    }
+
     suspend fun save(stored: Stored) {
         val settings = stored.settings
         dataStore.edit { preferences ->
@@ -73,5 +80,16 @@ class DeviceSettingsLocalDataSource @Inject constructor(
         val KEY_AUTO_SYNC = booleanPreferencesKey("settings_auto_sync_enabled")
         val KEY_VERSION = longPreferencesKey("settings_version")
         val KEY_EXIT_PIN_HASH = stringPreferencesKey("settings_exit_pin_hash")
+
+        /** Every key this data source owns, for [clear]. */
+        val SETTINGS_KEYS: List<Preferences.Key<*>> = listOf(
+            KEY_IDLE_SHOWCASE,
+            KEY_VOICE_ASSISTANT,
+            KEY_BRIGHTNESS,
+            KEY_KIOSK_MODE,
+            KEY_AUTO_SYNC,
+            KEY_VERSION,
+            KEY_EXIT_PIN_HASH,
+        )
     }
 }

@@ -3,12 +3,15 @@ package com.qhathia.mobile.discovery.core.data.search
 import com.qhathia.mobile.discovery.core.data.stt.SessionTokenProvider
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.ConversationSearchResponseDto
+import com.qhathia.mobile.discovery.core.network.dto.SearchFiltersDto
 import com.qhathia.mobile.discovery.core.network.dto.SearchProductDto
 import com.qhathia.mobile.discovery.core.network.service.ConversationSearchApiService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -35,8 +38,8 @@ class ProductSearchRepositoryImplTest {
 
     @Test
     fun given_results_when_search_then_maps_to_domain() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
-        coEvery { searchApiService.search("jwt", "taladro", any(), any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search("jwt", "taladro", any(), any(), any()) } returns
             NetworkResult.Success(response())
 
         val result = repository().search("taladro")
@@ -49,8 +52,8 @@ class ProductSearchRepositoryImplTest {
 
     @Test
     fun given_empty_results_when_search_then_no_results_true() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
-        coEvery { searchApiService.search(any(), any(), any(), any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search(any(), any(), any(), any(), any()) } returns
             NetworkResult.Success(response(products = emptyList(), noResults = true))
 
         val result = repository().search("inexistente")
@@ -60,8 +63,8 @@ class ProductSearchRepositoryImplTest {
 
     @Test
     fun given_connectivity_failure_when_search_then_network_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
-        coEvery { searchApiService.search(any(), any(), any(), any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search(any(), any(), any(), any(), any()) } returns
             NetworkResult.NetworkError(UnknownHostException("no dns"), NetworkErrorKind.Connectivity)
 
         val result = repository().search("taladro")
@@ -71,8 +74,8 @@ class ProductSearchRepositoryImplTest {
 
     @Test
     fun given_timeout_when_search_then_search_api_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
-        coEvery { searchApiService.search(any(), any(), any(), any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search(any(), any(), any(), any(), any()) } returns
             NetworkResult.NetworkError(RuntimeException("slow"), NetworkErrorKind.Timeout)
 
         val result = repository().search("taladro")
@@ -82,8 +85,8 @@ class ProductSearchRepositoryImplTest {
 
     @Test
     fun given_http_error_when_search_then_search_api_category() = runTest {
-        coEvery { sessionTokenProvider.accessToken(any()) } returns Result.success("jwt")
-        coEvery { searchApiService.search(any(), any(), any(), any()) } returns
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search(any(), any(), any(), any(), any()) } returns
             NetworkResult.HttpError(500, "Server Error")
 
         val result = repository().search("taladro")
@@ -92,17 +95,25 @@ class ProductSearchRepositoryImplTest {
     }
 
     @Test
-    fun given_401_when_search_then_clears_token_and_retries_once() = runTest {
-        coEvery { sessionTokenProvider.accessToken(false) } returns Result.success("stale")
-        coEvery { sessionTokenProvider.accessToken(true) } returns Result.success("fresh")
-        coEvery { searchApiService.search("stale", any(), any(), any()) } returns
-            NetworkResult.HttpError(401, "Unauthorized")
-        coEvery { searchApiService.search("fresh", any(), any(), any()) } returns
-            NetworkResult.Success(response())
+    fun given_401_when_search_then_fails_without_retry() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search("jwt", any(), any(), any(), any()) } returns NetworkResult.HttpError(401, "Unauthorized")
 
         val result = repository().search("taladro")
 
-        assertTrue(result.isSuccess)
-        assertEquals(1, result.getOrNull()!!.products.size)
+        assertEquals(SearchErrorCategory.SearchApi, (result.exceptionOrNull() as SearchException).category)
+        coVerify(exactly = 1) { searchApiService.search(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun filters_reach_the_service_as_dto() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search(any(), any(), any(), any(), any()) } returns NetworkResult.Success(response())
+
+        repository().search("taladro", "es", StructuredSearchFilters(brands = listOf("Bosch")))
+        repository().search("taladro", "es", null)
+
+        coVerify { searchApiService.search("jwt", "taladro", "es", null, SearchFiltersDto(brands = listOf("Bosch"))) }
+        coVerify { searchApiService.search("jwt", "taladro", "es", null, null) }
     }
 }

@@ -2,6 +2,9 @@ package com.qhathia.mobile.discovery.core.testing
 
 import com.qhathia.mobile.discovery.core.domain.model.Cart
 import com.qhathia.mobile.discovery.core.domain.model.CartItem
+import com.qhathia.mobile.discovery.core.domain.model.CartPriceChange
+import com.qhathia.mobile.discovery.core.domain.model.CartRefresh
+import com.qhathia.mobile.discovery.core.domain.model.ProductSnapshot
 import com.qhathia.mobile.discovery.core.domain.repository.CartRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,5 +40,15 @@ class FakeCartRepository(
 
     override suspend fun clear() {
         state.value = Cart.EMPTY
+    }
+
+    override suspend fun refresh(snapshots: Map<String, ProductSnapshot>): CartRefresh {
+        val refresh = state.value.refreshedWith(snapshots)
+        state.value = refresh.cart
+        return refresh
+    }
+
+    override suspend fun updatePrices(changes: List<CartPriceChange>) {
+        state.value = state.value.withPricesUpdated(changes)
     }
 }

@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import java.io.IOException
 import java.time.Instant
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -47,8 +48,13 @@ class DevicePairingRepositoryImplTest {
     private val socket = mockk<PairingSocketClient>()
     private val session = FakeStoreSessionRepository()
     private val connectivity = FakeConnectivityDataSource()
+    private val pending = FakePendingPairingSessionStore()
 
-    private fun repository() = DevicePairingRepositoryImpl(api, socket, session, connectivity)
+    private fun repository() = DevicePairingRepositoryImpl(api, socket, session, connectivity, pending)
+
+    private fun codeFor(sessionId: String) = NetworkResult.Success(
+        PairingTokenResponseDto("2Y567", sessionId, "2026-06-09T18:40:00Z", expiresInSeconds = 300),
+    )
 
     private val tokenDto = DeviceTokenResponseDto(
         deviceId = "dev-1",
@@ -70,7 +76,7 @@ class DevicePairingRepositoryImplTest {
 
     @Test
     fun given_generate_succeeds_then_maps_code() = runTest {
-        coEvery { api.generatePairingToken() } returns NetworkResult.Success(
+        coEvery { api.generatePairingToken(any()) } returns NetworkResult.Success(
             PairingTokenResponseDto("2Y567", "sess-1", "2026-06-09T18:40:00Z", expiresInSeconds = 300),
         )
 
@@ -85,7 +91,7 @@ class DevicePairingRepositoryImplTest {
     @Test
     fun given_generate_without_ttl_then_falls_back_to_expiry() = runTest {
         // Older server omits expiresInSeconds: ttl is derived from expiresAt against the local clock.
-        coEvery { api.generatePairingToken() } returns NetworkResult.Success(
+        coEvery { api.generatePairingToken(any()) } returns NetworkResult.Success(
             PairingTokenResponseDto("2Y567", "sess-1", Instant.now().plusSeconds(180).toString()),
         )
 
@@ -96,14 +102,14 @@ class DevicePairingRepositoryImplTest {
 
     @Test
     fun given_generate_http_error_then_failure() = runTest {
-        coEvery { api.generatePairingToken() } returns NetworkResult.HttpError(503, "Unavailable")
+        coEvery { api.generatePairingToken(any()) } returns NetworkResult.HttpError(503, "Unavailable")
 
         assertTrue(repository().generateCode().isFailure)
     }
 
     @Test
     fun given_generate_network_error_then_failure() = runTest {
-        coEvery { api.generatePairingToken() } returns
+        coEvery { api.generatePairingToken(any()) } returns
             NetworkResult.NetworkError(RuntimeException("offline"), NetworkErrorKind.Connectivity)
 
         assertTrue(repository().generateCode().isFailure)
@@ -353,7 +359,7 @@ class DevicePairingRepositoryImplTest {
 
     @Test
     fun given_exchange_succeeds_then_code_survives_a_restart() = runTest {
-        coEvery { api.generatePairingToken() } returns NetworkResult.Success(
+        coEvery { api.generatePairingToken(any()) } returns NetworkResult.Success(
             PairingTokenResponseDto("2Y567", "sess-1", "2026-06-09T18:40:00Z", expiresInSeconds = 300),
         )
         coEvery { api.exchangeToken("sess-1") } returns PairingExchangeResponse.Success(tokenDto)
@@ -427,6 +433,141 @@ class DevicePairingRepositoryImplTest {
 
     private fun Result<*>.exchangeError(): PairingExchangeError? =
         (exceptionOrNull() as? PairingExchangeException)?.error
+
+    // --- store name from the exchange (F-05) ---
+
+    @Test
+    fun exchange_with_store_name_saves_it_for_home() = runTest {
+        coEvery { api.exchangeToken("sess-1") } returns
+            PairingExchangeResponse.Success(tokenDto.copy(storeName = "QA Discovery — Ferretería"))
+
+        val device = repository().exchangeForDeviceToken("sess-1").getOrNull()
+
+        assertEquals("QA Discovery — Ferretería", session.observe().first().storeName)
+        assertEquals("QA Discovery — Ferretería", device?.storeName)
+    }
+
+    @Test
+    fun exchange_without_store_name_keeps_the_session_name() = runTest {
+        session.updateStoreName("Ferretería")
+        coEvery { api.exchangeToken("sess-1") } returns PairingExchangeResponse.Success(tokenDto.copy(storeName = " "))
+
+        repository().exchangeForDeviceToken("sess-1")
+
+        assertEquals("Ferretería", session.observe().first().storeName)
+    }
+
+    // --- abandoned codes (F-02) ---
+
+    @Test
+    fun first_code_replaces_nothing_and_is_kept() = runTest {
+        coEvery { api.generatePairingToken(any()) } returns codeFor("sess-1")
+
+        repository().generateCode()
+
+        coVerify { api.generatePairingToken(null) }
+        assertEquals("sess-1", pending.value)
+    }
+
+    @Test
+    fun second_code_replaces_the_first_even_after_a_restart() = runTest {
+        coEvery { api.generatePairingToken(any()) } returnsMany listOf(codeFor("sess-1"), codeFor("sess-2"))
+        repository().generateCode()
+
+        repository().generateCode() // a new instance stands for the restarted app
+
+        coVerify { api.generatePairingToken("sess-1") }
+        assertEquals("sess-2", pending.value)
+    }
+
+    @Test
+    fun successful_exchange_forgets_the_code() = runTest {
+        pending.value = "sess-1"
+        coEvery { api.exchangeToken("sess-1") } returns PairingExchangeResponse.Success(tokenDto)
+
+        repository().exchangeForDeviceToken("sess-1")
+
+        assertNull(pending.value)
+    }
+
+    @Test
+    fun abandoned_code_is_cancelled_and_forgotten() = runTest {
+        pending.value = "sess-1"
+        coEvery { api.cancelPairingSession("sess-1") } returns NetworkResult.Success(Unit)
+
+        assertTrue(repository().cancelAbandonedSession().isSuccess)
+
+        assertNull(pending.value)
+    }
+
+    @Test
+    fun abandoned_code_unknown_to_the_backend_is_forgotten() = runTest {
+        pending.value = "sess-1"
+        coEvery { api.cancelPairingSession("sess-1") } returns NetworkResult.HttpError(404, "Not Found")
+
+        assertTrue(repository().cancelAbandonedSession().isSuccess)
+        assertNull(pending.value)
+    }
+
+    @Test
+    fun failed_cancel_keeps_the_code_for_the_next_request() = runTest {
+        pending.value = "sess-1"
+        coEvery { api.cancelPairingSession("sess-1") } returns
+            NetworkResult.NetworkError(IOException("offline"), NetworkErrorKind.Connectivity)
+
+        assertTrue(repository().cancelAbandonedSession().isFailure)
+        assertEquals("sess-1", pending.value)
+    }
+
+    @Test
+    fun nothing_kept_means_no_request() = runTest {
+        assertTrue(repository().cancelAbandonedSession().isSuccess)
+
+        coVerify(exactly = 0) { api.cancelPairingSession(any()) }
+    }
+
+    @Test
+    fun paired_tablet_forgets_the_code_without_cancelling() = runTest {
+        pending.value = "sess-1"
+        session.saveDeviceSession("device-jwt", "Tablet Mostrador 1")
+
+        repository().cancelAbandonedSession()
+
+        coVerify(exactly = 0) { api.cancelPairingSession(any()) }
+        assertNull(pending.value)
+    }
+
+    @Test
+    fun late_cancel_does_not_forget_a_newer_code() = runTest {
+        pending.value = "sess-1"
+        coEvery { api.cancelPairingSession("sess-1") } coAnswers {
+            pending.value = "sess-2" // "Continuar" got a new code meanwhile
+            NetworkResult.Success(Unit)
+        }
+
+        repository().cancelAbandonedSession()
+
+        assertEquals("sess-2", pending.value)
+    }
+
+    @Test
+    fun cancelled_status_reads_as_expired() {
+        assertEquals(PairingStatus.Expired, PairingStatusMessageDto("CANCELLED", "sess-1").toDomainOrNull())
+    }
+
+    private class FakePendingPairingSessionStore : PendingPairingSessionStore {
+        var value: String? = null
+
+        override suspend fun get(): String? = value
+
+        override suspend fun set(sessionId: String) {
+            value = sessionId
+        }
+
+        override suspend fun clearIf(sessionId: String) {
+            if (value == sessionId) value = null
+        }
+    }
 
     private class FakeConnectivityDataSource : ConnectivityDataSource {
         val state = MutableStateFlow(

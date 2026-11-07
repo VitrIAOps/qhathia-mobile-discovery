@@ -73,4 +73,10 @@ class ProductDetailMappersTest {
         assertEquals(true, ProductDetailResponseDto(id = "p1", active = true).toDomain().active)
         assertEquals(null, ProductDetailResponseDto(id = "p1").toDomain().active) // absent: unknown
     }
+
+    @Test
+    fun given_stock_when_mapped_then_detail_and_related_carry_it() {
+        assertEquals(0, ProductDetailResponseDto(id = "p1", stock = 0).toDomain().stock)
+        assertEquals(4, SuggestedProductDto(id = "s1", stock = 4).toDomain().stock)
+    }
 }

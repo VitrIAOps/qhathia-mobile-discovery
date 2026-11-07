@@ -34,6 +34,7 @@ internal fun DeviceTokenResponseDto.toPairedDevice(pairingCode: String?): Paired
     platform = platform,
     status = status,
     pairingCode = pairingCode,
+    storeName = storeName?.takeIf { it.isNotBlank() },
 )
 
 internal fun DeviceInfoResponseDto.toPairedDevice(pairingCode: String?, storeName: String?): PairedDevice = PairedDevice(
@@ -54,7 +55,8 @@ internal fun PairingStatusMessageDto.toDomainOrNull(): PairingStatus? = when (st
     "WAITING" -> PairingStatus.Waiting
     "APPROVED" -> PairingStatus.Approved
     "REJECTED" -> PairingStatus.Rejected
-    "EXPIRED" -> PairingStatus.Expired
+    // A cancelled code (replaced by another instance, §37) is dead on screen like an expired one.
+    "EXPIRED", "CANCELLED" -> PairingStatus.Expired
     else -> null
 }
 

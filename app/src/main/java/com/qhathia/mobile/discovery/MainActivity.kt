@@ -1,8 +1,6 @@
 package com.qhathia.mobile.discovery
 
-import android.Manifest
 import android.app.ActivityManager
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
@@ -12,7 +10,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -36,10 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.delay
+import com.qhathia.mobile.discovery.kiosk.DeviceOwnerKiosk
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import android.util.Log
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.flowWithLifecycle
@@ -76,9 +80,6 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val requestMicPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* handled at point of use */ }
-
     /** Whether the kiosk lock is applied, so focus changes hide the system bars again. */
     private var kioskImmersive = false
 
@@ -91,21 +92,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Device owner (F-10): pin without the "Pin app?" dialog and stay the home screen.
+        DeviceOwnerKiosk.configure(this)
         enableEdgeToEdge()
         setContent {
             DiscoveryAppRoot()
-        }
-    }
-
-    /**
-     * Asks for the microphone the first time Home is shown in this process (wave 3, EXP-004): never
-     * over the onboarding and pairing screens. The mic buttons still ask on tap when it is missing.
-     */
-    fun requestMicPermissionOnHome() {
-        if (micPermissionAskedOnHome) return
-        micPermissionAskedOnHome = true
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -149,7 +140,12 @@ class MainActivity : ComponentActivity() {
         } else {
             pinningThrottle.record(now)
         }
-        runCatching { startLockTask() }
+        try {
+            startLockTask()
+        } catch (e: Exception) {
+            // API 26 rejects it while the task is not in the foreground; keep it visible in logcat.
+            Log.w(TAG, "startLockTask rejected", e)
+        }
     }
 
     /** Carries out a remote restart from inside the pinned task (design D7). */
@@ -159,6 +155,10 @@ class MainActivity : ComponentActivity() {
 
     private fun isPinned(): Boolean =
         getSystemService(ActivityManager::class.java).lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+
+    private companion object {
+        const val TAG = "MainActivity"
+    }
 }
 
 @Composable
@@ -293,17 +293,23 @@ private fun DiscoveryNavHost(
         if (currentRoute == HOME_ROUTE) mainViewModel.resumeKioskMode()
     }
 
-    // Kiosk (design D8): a refused "Pin app?" is asked again when the consumer is back on Home, and on
-    // touches on Home below, at most once every 15 s.
-    LaunchedEffect(currentRoute, kioskActive) {
-        if (kioskActive && currentRoute == HOME_ROUTE) activity?.requestPinning(throttled = true)
+    // Kiosk (design D8, F-10): while Home is shown and resumed, a refused "Pin app?" is asked again
+    // every 15 s without waiting for a touch, and on touches on Home below; the throttle keeps it to
+    // one request every 15 s, and requestPinning does nothing once pinned.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(currentRoute, kioskActive, lifecycleOwner) {
+        if (!kioskActive || currentRoute != HOME_ROUTE) return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                activity?.requestPinning(throttled = true)
+                delay(DeviceConstants.PINNING_REQUEST_MIN_INTERVAL)
+            }
+        }
     }
     val askPinningOnTouch by rememberUpdatedState(kioskActive && currentRoute == HOME_ROUTE)
 
-    // Microphone permission: asked on the first Home after pairing, not over the welcome screen.
-    LaunchedEffect(currentRoute) {
-        if (currentRoute == HOME_ROUTE) activity?.requestMicPermissionOnHome()
-    }
+    // Microphone permission (F-07): asked by each microphone button on its first tap
+    // (rememberMicPermissionGate), never on arriving at Home.
 
     // Kiosk: Back on Home would finish the root activity, which ends screen pinning; swallow it.
     BackHandler(enabled = kioskActive && currentRoute == HOME_ROUTE) { }
@@ -311,9 +317,17 @@ private fun DiscoveryNavHost(
     // Customer session (design D2): the ViewModel runs the inactivity timer from the current route.
     LaunchedEffect(currentRoute) { mainViewModel.onRouteChanged(currentRoute) }
 
-    // The session ended on inactivity and its data is already cleared: close every overlay and go Home.
+    // The cart dialog gets the longer inactivity budget while it is shown (F-35).
+    LaunchedEffect(showCart) { mainViewModel.onCartDialogVisibilityChanged(showCart) }
+
+    // The session ended on inactivity and its data is already cleared: hide the keyboard (it would
+    // stay over Home, CAR-042), close every overlay and go Home.
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(Unit) {
         mainViewModel.sessionTimeout.collect {
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
             showCart = false
             showSettingsGate = false
             navController.popBackStack(HOME_ROUTE, inclusive = false)
@@ -398,6 +412,8 @@ private fun DiscoveryNavHost(
                     },
                     onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
+                    // Volver with no previous result: close-search dialog only when Home is below (F-38).
+                    previousIsHome = { navController.previousBackStackEntry?.destination?.route == HOME_ROUTE },
                 )
                 productDetailScreen(
                     onNavigateBack = goBack,
@@ -444,6 +460,3 @@ private fun DiscoveryNavHost(
         )
     }
 }
-
-/** Process-wide: the mic permission is asked on Home at most once per process. */
-private var micPermissionAskedOnHome = false
