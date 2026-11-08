@@ -4,7 +4,7 @@ Android application written in **Kotlin** with **Jetpack Compose**, organized as
 **Clean Architecture + MVI** codebase. Gradle root project: `QhathiaDiscovery` · application id:
 `com.qhathia.mobile.discovery`.
 
-This README is the technical entry point for developers. Deep-dive standards live in the workspace `docs/` folder (see [Documentation](#documentation)).
+This README is the technical entry point for developers. Deep-dive standards live in the workspace `engineering/` folder, and the business domain in `domain/` (see [Documentation](#documentation)).
 
 > **Built with Spec-Driven Development (SDD).** Every feature in this app started as a written
 > specification, not as code. Specs are the source of truth; code is the implementation of a spec.
@@ -108,7 +108,7 @@ cd qhathia-mobile-discovery
 3. **Sanity check:** `./gradlew --version` (PowerShell: `.\gradlew`, cmd: `gradlew.bat`).
 
 > Always invoke Gradle through the **wrapper** (`./gradlew`), never a globally installed `gradle`.
-> Full environment guide: [`../docs/android/android-development-guide.md`](../docs/android/android-development-guide.md).
+> Full environment guide: [`../engineering/android/android-development-guide.md`](../engineering/android/android-development-guide.md).
 
 ---
 
@@ -240,8 +240,8 @@ UI (Composable) ──UiEvent──▶ ViewModel ──▶ UseCase ──▶ Rep
 - Compose collects state with `collectAsStateWithLifecycle()`; never read `StateFlow.value` in
   composition.
 
-Full reference: [`../docs/android/android-frontend-standards.md`](../docs/android/android-frontend-standards.md)
-and [`../docs/android/android-ui-ux-compose-guidelines.md`](../docs/android/android-ui-ux-compose-guidelines.md).
+Full reference: [`../engineering/android/android-frontend-standards.md`](../engineering/android/android-frontend-standards.md)
+and [`../engineering/android/android-ui-ux-compose-guidelines.md`](../engineering/android/android-ui-ux-compose-guidelines.md).
 
 ---
 
@@ -296,14 +296,16 @@ qhathia-mobile-workspace/openspec/
 
 ## Documentation
 
-> **Docs live in the workspace.** `../docs/` is the `docs/` folder of the qhathia-mobile-workspace repo, which includes this app as a submodule.
+> **Docs live in the workspace** (qhathia-mobile-workspace, which includes this app as a submodule):
+> business domain in `../domain/` (product definition, glossary, rules, stories) and
+> engineering docs in `../engineering/` (Android standards, API contract, CI).
 
 | Topic | File |
 |---|---|
-| Architecture, module taxonomy, build templates | [`../docs/android/android-frontend-standards.md`](../docs/android/android-frontend-standards.md) |
-| Compose UI/UX, theming, accessibility | [`../docs/android/android-ui-ux-compose-guidelines.md`](../docs/android/android-ui-ux-compose-guidelines.md) |
-| Environment setup, Gradle tasks, build commands | [`../docs/android/android-development-guide.md`](../docs/android/android-development-guide.md) |
-| API contracts, endpoints, DTOs | [`../docs/android/api-contract.md`](../docs/android/api-contract.md) |
+| Architecture, module taxonomy, build templates | [`../engineering/android/android-frontend-standards.md`](../engineering/android/android-frontend-standards.md) |
+| Compose UI/UX, theming, accessibility | [`../engineering/android/android-ui-ux-compose-guidelines.md`](../engineering/android/android-ui-ux-compose-guidelines.md) |
+| Environment setup, Gradle tasks, build commands | [`../engineering/android/android-development-guide.md`](../engineering/android/android-development-guide.md) |
+| API contracts, endpoints, DTOs | [`../engineering/api/api-contract.md`](../engineering/api/api-contract.md) |
 | Repo-wide AI/agent context | [`../CLAUDE.md`](../CLAUDE.md) (workspace) |
 
 ---

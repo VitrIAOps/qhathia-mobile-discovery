@@ -1,5 +1,5 @@
 [versions]
-# --- Build toolchain (aligned with workspace docs/android/android-frontend-standards.md canonical catalog) ---
+# --- Build toolchain (aligned with workspace engineering/android/android-frontend-standards.md canonical catalog) ---
 agp = "9.2.1"
 kotlin = "2.3.20"
 # Since KSP 2.3.0 the version is standalone — no longer tied to the Kotlin compiler version.
