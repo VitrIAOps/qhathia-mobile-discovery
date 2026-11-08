@@ -1,12 +1,14 @@
 # Qhathia Kiosk — Claude Project Context
 
+> **Docs live in the workspace.** `../docs/` is the `docs/` folder of the qhathia-mobile-workspace repo, which includes this app as a submodule.
+
 ## Project Overview
 
 This is the **Merchant Operational Tool** of a dual-interface commerce ecosystem. It is an Android application that gives store owners and sales staff a real-time inventory and order management console, designed to be 100% mobile-operated with minimal learning curve.
 
 It is **not** a POS, not a payment gateway, and not a logistics tool. Its core specialization is order orchestration and real-time stock visibility.
 
-Full product definition: `docs/product/product-definition.md`
+Full product definition: `../docs/product/product-definition.md`
 
 ---
 
@@ -22,10 +24,10 @@ Full product definition: `docs/product/product-definition.md`
 
 ## Key Rules — Read Before Implementing Anything
 
-1. Read all relevant files in `docs/` before implementing any change.
+1. Read all relevant files in the workspace `../docs/` before implementing any change.
 2. Follow the architecture strictly — no undocumented patterns.
 3. Reuse existing project patterns.
-4. Every new feature or core layer must be a **proper Gradle module** — never a package inside `:app`. See `docs/android/android-frontend-standards.md` → "Creating a New Module".
+4. Every new feature or core layer must be a **proper Gradle module** — never a package inside `:app`. See `../docs/android/android-frontend-standards.md` → "Creating a New Module".
 5. Validate Definition of Done before marking a task complete.
 
 ---
@@ -34,11 +36,11 @@ Full product definition: `docs/product/product-definition.md`
 
 | What you need | Where to look |
 |---|---|
-| Product vision, personas, glossary | `docs/product/product-definition.md` |
-| Android architecture, module taxonomy, build templates | `docs/android/android-frontend-standards.md` |
-| Compose UI/UX patterns, theming, accessibility | `docs/android/android-ui-ux-compose-guidelines.md` |
-| Environment setup, Gradle tasks, build commands | `docs/android/android-development-guide.md` |
-| API contracts, endpoints, DTOs | `docs/android/api-contract.md` |
+| Product vision, personas, glossary | `../docs/product/product-definition.md` |
+| Android architecture, module taxonomy, build templates | `../docs/android/android-frontend-standards.md` |
+| Compose UI/UX patterns, theming, accessibility | `../docs/android/android-ui-ux-compose-guidelines.md` |
+| Environment setup, Gradle tasks, build commands | `../docs/android/android-development-guide.md` |
+| API contracts, endpoints, DTOs | `../docs/android/api-contract.md` |
 
 ---
 
@@ -98,7 +100,7 @@ ClickUp Task / feature request
 
 ## Project Structure — Gradle Modules
 
-The project is in a **single-module transitional state** (`settings.gradle.kts` currently only declares `:app`). All new features and core layers must be created as separate Gradle modules. See the full module taxonomy and `build.gradle.kts` templates in `docs/android/android-frontend-standards.md`.
+The project is in a **single-module transitional state** (`settings.gradle.kts` currently only declares `:app`). All new features and core layers must be created as separate Gradle modules. See the full module taxonomy and `build.gradle.kts` templates in `../docs/android/android-frontend-standards.md`.
 
 ```
 root/

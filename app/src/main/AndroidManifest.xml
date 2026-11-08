@@ -31,7 +31,7 @@
         <!-- Business rule: landscape only (design D12). Android 16 ignores screenOrientation on large
              screens (smallest width >= 600 dp) for apps targeting SDK 36; this property opts out.
              Google removes the opt-out at target SDK 37: before raising targetSdk to 37, the
-             landscape rule must rely on the device setup (docs/android/tablet-kiosk-setup.md). -->
+             landscape rule must rely on the device setup (workspace docs/android/tablet-kiosk-setup.md). -->
         <property
             android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
             android:value="true" />

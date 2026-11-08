@@ -10,7 +10,7 @@ metadata:
 
 Load and apply all Android development standards for this project before writing any code.
 
-> **Single source of truth:** The standards live under `docs/android/` (and `docs/product/`).
+> **Single source of truth:** The standards live under `../docs/android/` (and `../docs/product/`) — the `docs/` folder of the qhathia-mobile-workspace repo.
 > This skill intentionally references those canonical files directly — it no longer keeps its
 > own duplicate copies, so there is nothing to drift out of sync.
 
@@ -33,7 +33,7 @@ Load this skill before:
 Read the full contents of:
 
 ```
-docs/android/android-frontend-standards.md
+../docs/android/android-frontend-standards.md
 ```
 
 This is the **primary reference**. Pay special attention to:
@@ -52,7 +52,7 @@ This is the **primary reference**. Pay special attention to:
 Read the full contents of:
 
 ```
-docs/android/android-ui-ux-compose-guidelines.md
+../docs/android/android-ui-ux-compose-guidelines.md
 ```
 
 Pay special attention to:
@@ -69,7 +69,7 @@ Pay special attention to:
 If the task involves any API call, DTO, repository, or remote data source, read:
 
 ```
-docs/android/api-contract.md
+../docs/android/api-contract.md
 ```
 
 Pay special attention to:
@@ -84,7 +84,7 @@ Pay special attention to:
 If the task involves running Gradle tasks, writing tests, or setting up a module, read:
 
 ```
-docs/android/android-development-guide.md
+../docs/android/android-development-guide.md
 ```
 
 Pay special attention to:
@@ -100,7 +100,7 @@ Pay special attention to:
 If the task introduces new business rules, domain models, or user flows, read:
 
 ```
-docs/product/product-definition.md
+../docs/product/product-definition.md
 ```
 
 Validate that the implementation aligns with the product vision, is within scope, and uses correct domain terminology from the Glossary.
@@ -113,7 +113,7 @@ After loading the above context, apply these rules without exception:
 
 1. **Never add code to `:app`** for anything other than the application shell (NavHost, theme entry, Hilt wiring, manifest). All business logic, features, and core layers go into their own Gradle modules.
 
-2. **Never create packages as a substitute for modules.** If a module does not exist yet, create it following the "Creating a New Module" checklist in `docs/android/android-frontend-standards.md`.
+2. **Never create packages as a substitute for modules.** If a module does not exist yet, create it following the "Creating a New Module" checklist in `../docs/android/android-frontend-standards.md`.
 
 3. **Always update `settings.gradle.kts`** when creating a new module. A module directory without an `include()` entry does not exist for Gradle.
 
@@ -144,7 +144,7 @@ After loading the above context, apply these rules without exception:
     | Background Service | `<service android:name="..." android:exported="false" />` |
     | FileProvider / ContentProvider | `<provider>` block with `android:authorities` and `<meta-data>` for paths |
     | Additional Activity | `<activity android:name="..." />` |
-    | Camera, storage, location, etc. | Corresponding `<uses-permission>` — see the Manifest Reference section in `docs/android/android-frontend-standards.md` |
+    | Camera, storage, location, etc. | Corresponding `<uses-permission>` — see the Manifest Reference section in `../docs/android/android-frontend-standards.md` |
 
     Dynamic receivers registered in code (`context.registerReceiver(...)`) do **not** need a manifest entry. Static receivers (those that must work even when the app is not running) do.
 
