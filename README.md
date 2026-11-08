@@ -15,8 +15,10 @@ This README is the technical entry point for developers. Deep-dive standards liv
 ## How this project is built: Spec-Driven Development
 
 This project follows **Spec-Driven Development** using [OpenSpec](https://github.com/Fission-AI/OpenSpec)
-(`schema: spec-driven` in [`openspec/config.yaml`](openspec/config.yaml)). No non-trivial change is
-coded before its behavior is written down and agreed.
+(`schema: spec-driven`). No non-trivial change is coded before its behavior is written down and agreed.
+
+> **Specs live in the `qhathia-mobile-workspace` repo**, which includes this app as a git submodule.
+> Run every OpenSpec workflow from the workspace root; paths below are relative to it.
 
 ```
 Feature request / ClickUp task
@@ -31,21 +33,22 @@ Feature request / ClickUp task
  3. Apply       → implement tasks against the spec       (/opsx:apply)
         │
         ▼
- 4. Archive     → merge spec deltas into openspec/specs/  (/opsx:archive)
+ 4. Archive     → merge spec deltas into openspec/specs/discovery/  (/opsx:archive)
 ```
 
-- **Living specs** — [`openspec/specs/`](openspec/specs) holds one specification per capability
+- **Living specs** — `openspec/specs/discovery/` (workspace) holds one specification per capability
   (e.g. `product-search`, `shopping-cart`, `device-pairing`, `kiosk-lock-mode`). They describe what
   the app does *today*, as requirements and scenarios.
 - **Changes** — each change lives in `openspec/changes/<change>/` while in progress and moves to
-  [`openspec/changes/archive/`](openspec/changes/archive) (dated) once done. The archive is the
+  `openspec/changes/archive/` (workspace, dated) once done. The archive is the
   full, reviewable history of why each feature exists.
 - **Spec first, then code** — a pull request implements tasks from an approved change; reviewers
   check the code against the spec's scenarios.
-- **AI-assisted** — the workflow is driven by agent skills and commands in [`.claude/`](.claude)
-  (see [`CLAUDE.md`](CLAUDE.md)), which load the project standards before writing any code.
+- **AI-assisted** — the OpenSpec skills and `/opsx:*` commands live in the workspace `.claude/`;
+  this repo keeps the `android-developer` skill in [`.claude/`](.claude) (see [`CLAUDE.md`](CLAUDE.md)),
+  which loads the project standards before writing any code.
 
-Validate a change with `openspec validate <change>`.
+Validate a change with `openspec validate <change>` from the workspace root.
 
 ---
 
@@ -283,8 +286,8 @@ Non-trivial changes are proposed as OpenSpec artifacts before implementation —
 [How this project is built](#how-this-project-is-built-spec-driven-development):
 
 ```
-openspec/
-├── specs/              # Living capability specifications (the source of truth)
+qhathia-mobile-workspace/openspec/
+├── specs/discovery/    # Living capability specifications for this app (the source of truth)
 └── changes/            # In-flight changes (proposal.md, design.md, specs/, tasks.md)
     └── archive/        # Completed, archived changes (dated)
 ```

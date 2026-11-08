@@ -49,10 +49,7 @@ Skills live under `.claude/skills/`. Load the appropriate skill before starting 
 | Task type | Skill to load |
 |---|---|
 | Implementing Android code | `.claude/skills/android-developer/SKILL.md` |
-| Proposing a new OpenSpec change | `.claude/skills/openspec-propose/SKILL.md` |
-| Applying (implementing) an OpenSpec change | `.claude/skills/openspec-apply-change/SKILL.md` |
-| Archiving a completed change | `.claude/skills/openspec-archive-change/SKILL.md` |
-| Exploring OpenSpec change state | `.claude/skills/openspec-explore/SKILL.md` |
+| OpenSpec (propose, apply, archive, explore) | In the workspace repo — see "Specs (OpenSpec)" |
 
 ---
 
@@ -64,14 +61,26 @@ Slash commands live under `.claude/commands/`.
 |---|---|
 | `/write-user-story` | Enrich a ClickUp task or feature request with business + technical context |
 | `/enrich-user-story` | Lighter enrichment — business context only, no ClickUp write-back |
-| `/opsx:propose` | Create a new OpenSpec change from an enriched story |
-| `/opsx:apply` | Implement pending tasks from an OpenSpec change |
-| `/opsx:archive` | Archive a completed OpenSpec change |
-| `/opsx:explore` | Inspect the current state of an OpenSpec change |
+| `/opsx:*` | OpenSpec commands — run them from the workspace root |
+
+---
+
+## Specs (OpenSpec)
+
+Specs and changes for this app no longer live in this repo. They live in the
+**qhathia-mobile-workspace** repository, which includes this repo as a git submodule:
+
+- Living specs: `openspec/specs/discovery/` in the workspace.
+- Changes and archive: `openspec/changes/` in the workspace.
+- OpenSpec skills and `/opsx:*` commands: `.claude/` in the workspace.
+
+Run every OpenSpec workflow from the workspace root, not from this repo.
 
 ---
 
 ## Standard Implementation Workflow
+
+Run from the workspace root; code lands in this submodule.
 
 ```
 ClickUp Task / feature request

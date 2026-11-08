@@ -1,6 +1,0 @@
-VIN-030 baseline on Tablet_API36 (unpaired), main @ f8622dd profile, 2026-10-28
-1 initial:           JRRHT
-2 screen off/on:     JRRHT (kept)
-3 rotated portrait:  KXK2P (new code)
-4 back to landscape: C9H9F (new code)
-5 leave + re-enter:  SPJ2Q (new code)
