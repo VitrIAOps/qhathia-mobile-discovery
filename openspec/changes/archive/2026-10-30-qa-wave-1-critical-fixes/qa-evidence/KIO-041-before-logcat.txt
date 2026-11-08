@@ -1,3 +1,0 @@
-10-28 05:22:23.323  9616  9616 I SpikeRestart: restart mode=current pid=9616 task=126
-10-28 05:22:23.324  1658  1779 E ActivityManager: startActivityUnchecked: Attempt to violate Lock Task Mode
-10-28 05:22:23.340  1658  4110 I ActivityManager: Process com.qhathia.mobile.discovery (pid 9616) has died: fore TOP 

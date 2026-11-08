@@ -11,10 +11,7 @@ Read `CLAUDE.md` at the project root. It contains the project overview, document
 | Task type | Skill to load first |
 |---|---|
 | Implementing Android code (any layer) | `.claude/skills/android-developer/SKILL.md` |
-| Proposing a new OpenSpec change | `.claude/skills/openspec-propose/SKILL.md` |
-| Implementing OpenSpec tasks | `.claude/skills/openspec-apply-change/SKILL.md` |
-| Archiving a completed change | `.claude/skills/openspec-archive-change/SKILL.md` |
-| Exploring OpenSpec change state | `.claude/skills/openspec-explore/SKILL.md` |
+| OpenSpec (propose, apply, archive, explore) | Workspace repo `.claude/skills/openspec-*` |
 
 **Do not write any code before loading the android-developer skill.** It defines which files to read, module creation rules, and Definition of Done.
 
@@ -32,6 +29,8 @@ Read `CLAUDE.md` at the project root. It contains the project overview, document
 ---
 
 ## Standard workflow
+
+Specs live in the **qhathia-mobile-workspace** repo (`openspec/specs/discovery/`). Run OpenSpec commands from the workspace root.
 
 ```
 /write-user-story  →  /opsx:propose  →  /opsx:apply  →  /opsx:archive

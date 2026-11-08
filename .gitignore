@@ -63,4 +63,3 @@ Thumbs.db
 *.log
 
 # QA evidence (PDF reports and screenshots): too heavy for the repo, shared separately
-/docs/qa/

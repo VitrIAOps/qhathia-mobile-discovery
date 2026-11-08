@@ -1,5 +1,0 @@
-# VOZ-004 after (fix/qa-wave-2 @ d546573, profile, Medium_Tablet): Home listening, app unpinned, HOME key.
-    mResumedActivity: ActivityRecord{b134df u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t130}
-pid: 13978
-## AudioFlinger input threads
-## Audio policy sessions
