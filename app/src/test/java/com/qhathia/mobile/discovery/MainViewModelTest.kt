@@ -46,7 +46,11 @@ class MainViewModelTest {
     /** An off-Home customer screen. */
     private val offHomeRoute = catalogRoute()
 
-    private fun viewModel(storeSession: FakeStoreSessionRepository = FakeStoreSessionRepository()): MainViewModel {
+    /** A shell view model; [inForeground] reports its activity as visible, as the shell does on start. */
+    private fun viewModel(
+        storeSession: FakeStoreSessionRepository = FakeStoreSessionRepository(),
+        inForeground: Boolean = true,
+    ): MainViewModel {
         val settings = FakeDeviceSettingsRepository()
         val kioskSession = FakeKioskSessionRepository()
         return MainViewModel(
@@ -57,7 +61,7 @@ class MainViewModelTest {
             observeKioskLock = ObserveKioskLockUseCase(storeSession, settings, kioskSession),
             resumeKioskModeUseCase = ResumeKioskModeUseCase(kioskSession),
             observeAppRestartRequests = ObserveAppRestartRequestsUseCase(FakeAppRestarter()),
-        )
+        ).also { if (inForeground) it.onForegroundChanged(true) }
     }
 
     /** Counts [MainViewModel.sessionTimeout] emissions while the test runs. */
@@ -259,5 +263,81 @@ class MainViewModelTest {
 
         wait(1)
         assertEquals(1, timeouts())
+    }
+
+    // --- fix-cart-inactivity-hidden-activity (F-35) ---
+
+    @Test
+    fun given_not_in_foreground_when_basket_has_items_then_session_never_ends() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel(inForeground = false)
+            val timeouts = countTimeouts(vm)
+            vm.onRouteChanged(offHomeRoute)
+
+            wait(600)
+
+            assertEquals(0, timeouts())
+            assertFalse(cartRepository.current.isEmpty)
+            assertEquals(0, sessionRepository.endCount)
+        }
+
+    @Test
+    fun given_cart_open_and_typing_then_session_survives_past_60s() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        val timeouts = countTimeouts(vm)
+        vm.onRouteChanged(offHomeRoute)
+        vm.onCartDialogVisibilityChanged(true)
+
+        // D:CAR-042: one letter every 5 s for 75 s.
+        repeat(15) {
+            wait(5)
+            vm.onUserActivity()
+        }
+
+        assertEquals(0, timeouts())
+        assertFalse(cartRepository.current.isEmpty)
+    }
+
+    @Test
+    fun given_two_shells_on_one_cart_then_the_hidden_one_never_clears_it() =
+        runTest(mainDispatcher.dispatcher) {
+            // A HOME intent left a second shell: the old one is stopped on the Catalog, the new one shows
+            // the cart while the customer types (F-35).
+            val hidden = viewModel()
+            hidden.onRouteChanged(offHomeRoute)
+            hidden.onForegroundChanged(false)
+            val visible = viewModel()
+            val visibleTimeouts = countTimeouts(visible)
+            visible.onRouteChanged(offHomeRoute)
+            visible.onCartDialogVisibilityChanged(true)
+
+            repeat(15) {
+                wait(5)
+                visible.onUserActivity()
+            }
+            wait(60)
+
+            assertEquals(0, visibleTimeouts())
+            assertFalse(cartRepository.current.isEmpty)
+            assertEquals(0, sessionRepository.endCount)
+        }
+
+    @Test
+    fun given_back_in_foreground_then_countdown_starts_from_zero() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+        val timeouts = countTimeouts(vm)
+        vm.onRouteChanged(offHomeRoute)
+
+        wait(50)
+        vm.onForegroundChanged(false)
+        wait(300)
+        vm.onForegroundChanged(true)
+        wait(59)
+        assertEquals(0, timeouts())
+        assertFalse(cartRepository.current.isEmpty)
+
+        wait(1)
+        assertEquals(1, timeouts())
+        assertTrue(cartRepository.current.isEmpty)
     }
 }

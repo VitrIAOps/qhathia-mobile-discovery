@@ -47,6 +47,10 @@ import javax.inject.Inject
  * ([onCartDialogVisibilityChanged]), the session ends: the basket and the consumer forms are cleared
  * and [sessionTimeout] asks the shell to close its overlays and return Home. The timer runs on every
  * screen except Home and the onboarding flow; on Home it runs only while the basket is not empty.
+ *
+ * The countdown runs only while the shell's activity is visible ([onForegroundChanged]): the basket is
+ * process-wide, so a hidden second shell (left by a HOME intent) must never end the session of the
+ * customer using the visible one (F-35). Becoming visible counts as activity.
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -100,6 +104,9 @@ class MainViewModel @Inject constructor(
     /** Whether the cart dialog is shown; it gets the longer inactivity budget. */
     private val cartDialogOpen = MutableStateFlow(false)
 
+    /** Whether the shell's activity is started (visible); `false` until the shell says otherwise. */
+    private val inForeground = MutableStateFlow(false)
+
     private val _sessionTimeout = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -131,6 +138,15 @@ class MainViewModel @Inject constructor(
         onUserActivity()
     }
 
+    /**
+     * The shell's activity was started (visible) or stopped. Only a visible shell may end the session;
+     * becoming visible restarts the countdown.
+     */
+    fun onForegroundChanged(visible: Boolean) {
+        inForeground.value = visible
+        if (visible) onUserActivity()
+    }
+
     /** Ends a temporary exit from kiosk mode (the merchant is back on Home). */
     fun resumeKioskMode() {
         resumeKioskModeUseCase()
@@ -138,10 +154,17 @@ class MainViewModel @Inject constructor(
 
     private fun startInactivityTimer(basketHasItems: Flow<Boolean>) {
         viewModelScope.launch {
-            // Every route, basket, activity or cart-dialog change re-evaluates and restarts the countdown.
-            combine(currentRoute, basketHasItems, activityTick, cartDialogOpen) { route, hasItems, _, cartOpen ->
+            // Every route, basket, activity, cart-dialog or visibility change re-evaluates and restarts
+            // the countdown.
+            combine(
+                currentRoute,
+                basketHasItems,
+                activityTick,
+                cartDialogOpen,
+                inForeground,
+            ) { route, hasItems, _, cartOpen, visible ->
                 when {
-                    !isSessionTimed(route, hasItems) -> null
+                    !visible || !isSessionTimed(route, hasItems) -> null
                     cartOpen -> CartConstants.CART_DIALOG_INACTIVITY_SECONDS
                     else -> CartConstants.INACTIVITY_TIMEOUT_SECONDS
                 }
