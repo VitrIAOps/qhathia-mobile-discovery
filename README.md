@@ -44,7 +44,7 @@ Feature request / ClickUp task
   full, reviewable history of why each feature exists.
 - **Spec first, then code** — a pull request implements tasks from an approved change; reviewers
   check the code against the spec's scenarios.
-- **AI-assisted** — the agent context (`CLAUDE.md`, `AGENTS.md`), the `android-developer` skill,
+- **AI-assisted** — the agent context (`CLAUDE.md`), the `android-developer` skill,
   the OpenSpec skills and the `/opsx:*` commands all live in the workspace root, and load the
   project standards before writing any code.
 
@@ -304,7 +304,7 @@ qhathia-mobile-workspace/openspec/
 | Compose UI/UX, theming, accessibility | [`../docs/android/android-ui-ux-compose-guidelines.md`](../docs/android/android-ui-ux-compose-guidelines.md) |
 | Environment setup, Gradle tasks, build commands | [`../docs/android/android-development-guide.md`](../docs/android/android-development-guide.md) |
 | API contracts, endpoints, DTOs | [`../docs/android/api-contract.md`](../docs/android/api-contract.md) |
-| Repo-wide AI/agent context | [`../CLAUDE.md`](../CLAUDE.md) · [`../AGENTS.md`](../AGENTS.md) (workspace) |
+| Repo-wide AI/agent context | [`../CLAUDE.md`](../CLAUDE.md) (workspace) |
 
 ---
 
