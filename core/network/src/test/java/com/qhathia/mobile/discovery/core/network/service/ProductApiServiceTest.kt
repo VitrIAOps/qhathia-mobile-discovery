@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.core.network.service
 
+import com.qhathia.mobile.discovery.core.network.KIOSK_SESSION_HEADER
 import com.qhathia.mobile.discovery.core.network.KtorClientFactory
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import io.ktor.client.engine.mock.MockEngine
@@ -52,5 +53,23 @@ class ProductApiServiceTest {
             .getProduct("t", "p1")
 
         assertEquals(0, (result as NetworkResult.Success).data.stock)
+    }
+
+    // --- add-customer-session-id (F-22) ---
+
+    @Test
+    fun detail_sends_the_customer_session_header() = runTest {
+        service("""{"id":"p1","name":"Sierra","price":210.0}""").getProduct("t", "p1", kioskSession = "s-1")
+
+        assertEquals("s-1", captured?.headers?.get(KIOSK_SESSION_HEADER))
+    }
+
+    @Test
+    fun suggestions_and_list_do_not_send_the_customer_session_header() = runTest {
+        service("""{"suggestions":[]}""").getSuggestions("t", "p1")
+        assertNull(captured?.headers?.get(KIOSK_SESSION_HEADER))
+
+        service("[]").listProducts("t")
+        assertNull(captured?.headers?.get(KIOSK_SESSION_HEADER))
     }
 }

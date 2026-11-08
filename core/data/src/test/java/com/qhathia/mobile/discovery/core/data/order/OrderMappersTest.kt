@@ -88,4 +88,18 @@ class OrderMappersTest {
         assertEquals("Taladro", order.items.first().productName)
         assertEquals(200.0, order.items.first().lineTotal)
     }
+
+    // --- add-customer-session-id (F-22) ---
+
+    @Test
+    fun given_session_id_when_building_request_then_it_is_in_the_body() {
+        val request = buildCreateOrderRequest("Ana", "987654321", listOf(item()), sessionId = "s-1")
+
+        assertEquals("s-1", request.sessionId)
+    }
+
+    @Test
+    fun given_no_session_id_when_building_request_then_it_is_omitted() {
+        assertEquals(null, buildCreateOrderRequest("Ana", "987654321", listOf(item())).sessionId)
+    }
 }

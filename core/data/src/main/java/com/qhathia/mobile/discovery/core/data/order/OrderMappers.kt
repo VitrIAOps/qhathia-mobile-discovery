@@ -23,12 +23,14 @@ internal fun String.toApiMobileNumber(): String =
 /**
  * Builds the `POST /api/v1/orders` request from the consumer data and the basket lines. Each line
  * carries the unit price the customer saw (`expectedUnitPrice`, 2 decimals half up), so the server
- * answers `409 PRICE_CHANGED` instead of recording a price the customer never saw.
+ * answers `409 PRICE_CHANGED` instead of recording a price the customer never saw. [sessionId] is the
+ * current customer session, so the order counts for the same customer as their searches and views.
  */
 internal fun buildCreateOrderRequest(
     name: String,
     phone: String,
     items: List<CartItem>,
+    sessionId: String? = null,
 ): CreateOrderRequestDto = CreateOrderRequestDto(
     customerName = name.trim(),
     customerPhone = phone.toApiMobileNumber(),
@@ -39,6 +41,7 @@ internal fun buildCreateOrderRequest(
             expectedUnitPrice = it.priceUnit.toMoney().toDouble(),
         )
     },
+    sessionId = sessionId,
 )
 
 /** Maps the created-order response DTO to the domain [Order]. */

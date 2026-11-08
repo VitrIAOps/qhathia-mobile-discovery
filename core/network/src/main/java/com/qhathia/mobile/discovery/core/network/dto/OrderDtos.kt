@@ -4,8 +4,9 @@ import kotlinx.serialization.Serializable
 
 /**
  * Request body of `POST /api/v1/orders` (api-contract §9): the consumer's name + normalized mobile
- * number and one line per cart product. `sessionId` and `customerNote` are optional and omitted by the
- * kiosk for now.
+ * number and one line per cart product. `sessionId` is the current customer session (the same id the
+ * search and the product views carry), so biz records `ORDER_CREATED` for that customer. `customerNote`
+ * is optional and omitted by the kiosk.
  */
 @Serializable
 data class CreateOrderRequestDto(

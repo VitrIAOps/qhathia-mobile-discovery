@@ -7,6 +7,7 @@ import com.qhathia.mobile.discovery.core.domain.model.DetailErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.DetailException
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
+import com.qhathia.mobile.discovery.core.domain.repository.CustomerSessionRepository
 import com.qhathia.mobile.discovery.core.domain.repository.ProductDetailRepository
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.service.ProductApiService
@@ -23,13 +24,14 @@ import javax.inject.Inject
 class ProductDetailRepositoryImpl @Inject constructor(
     private val sessionTokenProvider: SessionTokenProvider,
     private val productApiService: ProductApiService,
+    private val customerSession: CustomerSessionRepository,
 ) : ProductDetailRepository {
 
     override suspend fun getProduct(id: String): Result<ProductDetail> {
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(DetailErrorMapper.fromTokenFailure(it)) }
 
-        val response = productApiService.getProduct(token, id)
+        val response = productApiService.getProduct(token, id, kioskSession = customerSession.currentSessionId())
 
         return when (response) {
             is NetworkResult.Success -> success(response.data.toDomain())
