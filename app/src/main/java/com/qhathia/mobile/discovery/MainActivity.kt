@@ -1,6 +1,8 @@
 package com.qhathia.mobile.discovery
 
 import android.app.ActivityManager
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
@@ -39,6 +41,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import com.qhathia.mobile.discovery.kiosk.DeviceOwnerKiosk
 import androidx.lifecycle.repeatOnLifecycle
@@ -92,6 +95,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A HOME intent with the showcase already open must not leave a second one (F-35).
+        if (yieldToOpenShowcase()) return
         // Device owner (F-10): pin without the "Pin app?" dialog and stay the home screen.
         DeviceOwnerKiosk.configure(this)
         enableEdgeToEdge()
@@ -151,6 +156,32 @@ class MainActivity : ComponentActivity() {
     /** Carries out a remote restart from inside the pinned task (design D7). */
     fun restartInTask() {
         startActivity(RestartActivity.intent(this, Process.myPid()))
+    }
+
+    /**
+     * Applies [homeLaunchAction] to the intent that created this activity. Returns `true` when this
+     * activity is finishing because another showcase is already open.
+     */
+    private fun yieldToOpenShowcase(): Boolean {
+        val isHomeIntent = intent?.action == Intent.ACTION_MAIN && intent?.hasCategory(Intent.CATEGORY_HOME) == true
+        if (!isHomeIntent) return false
+        val otherShellTask = getSystemService(ActivityManager::class.java).appTasks.firstOrNull { task ->
+            val info = runCatching { task.taskInfo }.getOrNull() ?: return@firstOrNull false
+            val id = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) info.taskId else @Suppress("DEPRECATION") info.id
+            id != taskId && info.baseActivity?.className == MainActivity::class.java.name
+        }
+        return when (homeLaunchAction(isHomeIntent, isTaskRoot, otherShellTaskExists = otherShellTask != null)) {
+            HomeLaunchAction.Proceed -> false
+            HomeLaunchAction.FinishOnTop -> {
+                finish()
+                true
+            }
+            HomeLaunchAction.BringExistingToFront -> {
+                otherShellTask?.let { runCatching { it.moveToFront() } }
+                finishAndRemoveTask()
+                true
+            }
+        }
     }
 
     private fun isPinned(): Boolean =
@@ -316,6 +347,19 @@ private fun DiscoveryNavHost(
 
     // Customer session (design D2): the ViewModel runs the inactivity timer from the current route.
     LaunchedEffect(currentRoute) { mainViewModel.onRouteChanged(currentRoute) }
+
+    // Only a visible shell runs the inactivity timer (F-35). STARTED, not RESUMED: the system pinning
+    // dialog pauses the activity while the customer still sees it.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.onForegroundChanged(true)
+            try {
+                awaitCancellation()
+            } finally {
+                mainViewModel.onForegroundChanged(false)
+            }
+        }
+    }
 
     // The cart dialog gets the longer inactivity budget while it is shown (F-35).
     LaunchedEffect(showCart) { mainViewModel.onCartDialogVisibilityChanged(showCart) }
