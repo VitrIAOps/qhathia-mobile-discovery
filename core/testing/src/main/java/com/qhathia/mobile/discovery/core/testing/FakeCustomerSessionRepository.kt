@@ -5,7 +5,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-/** In-memory [CustomerSessionRepository] for tests; counts the ends it was asked to signal. */
+/**
+ * In-memory [CustomerSessionRepository] for tests; counts the ends it was asked to signal. Session ids
+ * are predictable: `session-1` until the first [end], then `session-2`, and so on.
+ */
 class FakeCustomerSessionRepository : CustomerSessionRepository {
 
     private val ended = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
@@ -15,6 +18,8 @@ class FakeCustomerSessionRepository : CustomerSessionRepository {
         private set
 
     override val sessionEnded: Flow<Unit> = ended.asSharedFlow()
+
+    override fun currentSessionId(): String = "session-${endCount + 1}"
 
     override suspend fun end() {
         endCount++
