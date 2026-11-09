@@ -138,6 +138,34 @@ private fun ShareDialogContent(
                 modifier = modifier,
             )
 
+        is ShareSubmission.Unavailable ->
+            SubmissionErrorContent(
+                title = stringResource(R.string.pd_share_unavailable_title),
+                message = submission.productName
+                    ?.let { stringResource(R.string.pd_share_unavailable_message, it) }
+                    ?: stringResource(R.string.pd_share_unavailable_message_generic),
+                primaryLabel = stringResource(R.string.pd_share_error_understood),
+                onPrimary = { onEvent(ProductDetailUiEvent.DismissShareError) },
+                secondaryLabel = null,
+                onSecondary = {},
+                modifier = modifier,
+            )
+
+        is ShareSubmission.StockShortage ->
+            SubmissionErrorContent(
+                title = stringResource(R.string.pd_share_stock_shortage_title),
+                message = pluralStringResource(
+                    R.plurals.pd_share_stock_shortage_message,
+                    submission.available,
+                    submission.available,
+                ),
+                primaryLabel = stringResource(R.string.pd_share_error_understood),
+                onPrimary = { onEvent(ProductDetailUiEvent.DismissShareError) },
+                secondaryLabel = stringResource(R.string.pd_share_error_cancel),
+                onSecondary = { onEvent(ProductDetailUiEvent.DismissShare) },
+                modifier = modifier,
+            )
+
         ShareSubmission.Idle, ShareSubmission.Submitting ->
             ShareForm(state = state, onEvent = onEvent, modifier = modifier)
     }
@@ -318,6 +346,54 @@ private fun ShareSubmittingDarkPreview() {
                 isShareEnabled = true,
                 submission = ShareSubmission.Submitting,
             ),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — unavailable (light)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareUnavailableLightPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.Unavailable("Taladro Percutor Bosch GSB 13 RE")),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — unavailable (dark)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareUnavailableDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.Unavailable(null)),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — stock shortage (light)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareStockShortageLightPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = false) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.StockShortage(2)),
+            onEvent = {},
+            modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Share — stock shortage (dark)", showBackground = true, widthDp = 640, heightDp = 720)
+@Composable
+private fun ShareStockShortageDarkPreview() {
+    com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme(darkTheme = true) {
+        ShareDialogContent(
+            state = ShareUiState(visible = true, submission = ShareSubmission.StockShortage(1)),
             onEvent = {},
             modifier = Modifier.size(width = DIALOG_WIDTH, height = DIALOG_HEIGHT),
         )

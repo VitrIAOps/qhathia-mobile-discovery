@@ -10,6 +10,7 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
 import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.CheckProductOrderableUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
@@ -68,6 +69,7 @@ class ProductDetailViewModelTest {
         observeSessionEnd = ObserveCustomerSessionEndUseCase(sessionRepository),
         isOrderable = IsOrderableUseCase(),
         endCustomerSession = EndCustomerSessionUseCase(cartRepository, sessionRepository),
+        checkProduct = CheckProductOrderableUseCase(repository),
     )
 
     /** A view model whose detail is loaded, so the share dialog can open. */
@@ -530,14 +532,15 @@ class ProductDetailViewModelTest {
         }
 
     @Test
-    fun given_share_rejected_400_when_confirm_then_error_sent_once() = runTest(mainDispatcher.dispatcher) {
+    fun given_share_rejected_400_when_confirm_then_unavailable_sent_once() = runTest(mainDispatcher.dispatcher) {
+        // F-32: a 400/409 without a product name is still "not sellable from the tablet", not a retryable error.
         val shareRepository = FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.Unavailable))
         val vm = loadedViewModel(shareRepository)
         vm.openShareWithValidData()
 
         vm.onEvent(ProductDetailUiEvent.ConfirmShare)
 
-        assertEquals(ProductDetailUiState.ShareSubmission.Error(), vm.uiState.value.share.submission)
+        assertEquals(ProductDetailUiState.ShareSubmission.Unavailable(null), vm.uiState.value.share.submission)
         assertEquals(1, shareRepository.callCount)
     }
 
@@ -661,5 +664,193 @@ class ProductDetailViewModelTest {
         vm.onEvent(ProductDetailUiEvent.ShareNameChanged("A".repeat(262)))
 
         assertEquals(CartConstants.MAX_CONSUMER_NAME_CHARS, vm.uiState.value.share.name.length)
+    }
+
+    // --- fix-unsellable-product-detail (F-32) ---
+
+    private fun loadedStatusDetail(vm: ProductDetailViewModel) =
+        (vm.uiState.value.status as ProductDetailUiState.Status.Loaded).detail
+
+    @Test
+    fun addToCart_whenProductDeletedMeanwhile_showsNotFound_andDoesNotAdd() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val cart = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cart)
+        repository.result = Result.failure(DetailException(DetailErrorCategory.NotFound))
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        advanceUntilIdle()
+
+        assertEquals(ProductDetailUiState.Status.Error(ProductDetailUiState.ErrorKind.NotFound), vm.uiState.value.status)
+        assertTrue(cart.current.isEmpty)
+    }
+
+    @Test
+    fun addToCart_whenProductDeactivatedMeanwhile_showsNotFound_andDoesNotAdd() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val cart = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cart)
+        repository.result = Result.success(ProductDetailFixtures.productDetail(id = "p1", active = false))
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        advanceUntilIdle()
+
+        assertEquals(ProductDetailUiState.Status.Error(ProductDetailUiState.ErrorKind.NotFound), vm.uiState.value.status)
+        assertTrue(cart.current.isEmpty)
+    }
+
+    @Test
+    fun addToCart_whenProductBecameLowStock_greysOut_andDoesNotAdd() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val cart = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cart)
+        repository.result = Result.success(ProductDetailFixtures.productDetail(id = "p1", availability = "LOW_STOCK", stock = 3))
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        advanceUntilIdle()
+
+        assertEquals("LOW_STOCK", loadedStatusDetail(vm).availability)
+        assertTrue(cart.current.isEmpty)
+    }
+
+    @Test
+    fun addToCart_whenStockDropped_capsTheQuantity() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1", stock = 5)))
+        val cart = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cart)
+        repeat(3) { vm.onEvent(ProductDetailUiEvent.IncreaseQuantity) }
+        assertEquals(4, vm.uiState.value.quantity)
+        repository.result = Result.success(ProductDetailFixtures.productDetail(id = "p1", stock = 2))
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        advanceUntilIdle()
+
+        assertEquals(2, cart.current.totalItemCount)
+        assertEquals(2, loadedStatusDetail(vm).stock)
+    }
+
+    @Test
+    fun addToCart_whenStoreUnreachable_addsAnyway() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val cart = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cart)
+        repository.result = Result.failure(DetailException(DetailErrorCategory.Network))
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        advanceUntilIdle()
+
+        assertEquals(1, cart.current.totalItemCount)
+        assertTrue(vm.uiState.value.status is ProductDetailUiState.Status.Loaded)
+    }
+
+    @Test
+    fun addToCart_doubleTapWhileChecking_checksAndAddsOnce() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val cart = FakeCartRepository()
+        val vm = viewModel(repository = repository, cartRepository = cart)
+        advanceUntilIdle()
+        val loads = repository.callCount
+        repository.delayMillis = 1_000
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        runCurrent()
+        assertTrue(vm.uiState.value.isChecking)
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+        advanceUntilIdle()
+
+        assertEquals(loads + 1, repository.callCount)
+        assertEquals(1, cart.current.totalItemCount)
+        assertFalse(vm.uiState.value.isChecking)
+    }
+
+    @Test
+    fun share_whenRejectedLowStock_showsReason_andDisablesButtons() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository(
+            ShareOutcome.Rejected(ShareRejection.Unavailable, productId = "p1", productName = "QA X LOW", reason = "LOW_STOCK"),
+        )
+        val vm = loadedViewModel(shareRepository)
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertEquals(ProductDetailUiState.ShareSubmission.Unavailable("QA X LOW"), vm.uiState.value.share.submission)
+        assertEquals("LOW_STOCK", loadedStatusDetail(vm).availability)
+
+        vm.onEvent(ProductDetailUiEvent.DismissShareError)
+        assertFalse(vm.uiState.value.share.visible)
+        vm.onEvent(ProductDetailUiEvent.ShareWhatsApp)
+        assertFalse(vm.uiState.value.share.visible)
+    }
+
+    @Test
+    fun share_whenRejectedInactive_marksTheDetailInactive() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository(
+            ShareOutcome.Rejected(ShareRejection.Unavailable, productId = "p1", productName = "Taladro", reason = "INACTIVE"),
+        )
+        val vm = loadedViewModel(shareRepository)
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertEquals(false, loadedStatusDetail(vm).active)
+    }
+
+    @Test
+    fun share_whenRejectedNotFound_closesTheDialog_andShowsNotFound() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel(FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.NotFound)))
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.share.visible)
+        assertEquals(ProductDetailUiState.Status.Error(ProductDetailUiState.ErrorKind.NotFound), vm.uiState.value.status)
+    }
+
+    @Test
+    fun share_whenStockInsufficient_lowersTheQuantity_andReturnsToTheForm() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository(
+            ShareOutcome.Rejected(ShareRejection.StockInsufficient, productId = "p1", productName = "Taladro", available = 2),
+        )
+        val vm = loadedViewModel(shareRepository)
+        repeat(3) { vm.onEvent(ProductDetailUiEvent.IncreaseQuantity) }
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertEquals(ProductDetailUiState.ShareSubmission.StockShortage(2), vm.uiState.value.share.submission)
+        assertEquals(2, vm.uiState.value.quantity)
+        vm.onEvent(ProductDetailUiEvent.DismissShareError)
+        assertEquals(ProductDetailUiState.ShareSubmission.Idle, vm.uiState.value.share.submission)
+        assertTrue(vm.uiState.value.share.visible)
+    }
+
+    @Test
+    fun share_whenRejectedInvalid_keepsTheGenericError() = runTest(mainDispatcher.dispatcher) {
+        val vm = loadedViewModel(FakeCartShareRepository(ShareOutcome.Rejected(ShareRejection.Invalid)))
+        vm.openShareWithValidData()
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertEquals(ProductDetailUiState.ShareSubmission.Error(), vm.uiState.value.share.submission)
+    }
+
+    @Test
+    fun share_whenProductBecameUnsellable_isNotSent() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val shareRepository = FakeCartShareRepository()
+        val vm = viewModel(repository = repository, shareRepository = shareRepository)
+        vm.openShareWithValidData()
+        repository.result = Result.success(ProductDetailFixtures.productDetail(id = "p1", availability = "OUT_OF_STOCK", stock = 0))
+
+        vm.onEvent(ProductDetailUiEvent.ConfirmShare)
+        advanceUntilIdle()
+
+        assertEquals(0, shareRepository.callCount)
+        assertTrue(vm.uiState.value.share.submission is ProductDetailUiState.ShareSubmission.Unavailable)
     }
 }

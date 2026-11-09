@@ -21,13 +21,15 @@ sealed interface ShareOutcome {
     /**
      * A deterministic `4xx` answer. Final, never retried. When the server named the product
      * (`PRODUCT_NOT_SELLABLE`, `STOCK_INSUFFICIENT`), [productId], [productName] and, for a stock
-     * shortage, [available] carry it.
+     * shortage, [available] carry it. [reason] says why a product cannot be sold (`INACTIVE`,
+     * `OUT_OF_STOCK`, `CONSULT`, `LOW_STOCK`; api-contract §39), when the server sent it.
      */
     data class Rejected(
         val kind: ShareRejection,
         val productId: String? = null,
         val productName: String? = null,
         val available: Int? = null,
+        val reason: String? = null,
     ) : ShareOutcome
 
     /** Connectivity loss, timeout or `5xx`. The only outcome that is retried. */
