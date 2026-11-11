@@ -19,6 +19,7 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
 import com.qhathia.mobile.discovery.feature.settings.ui.SettingsViewModel
 import com.qhathia.mobile.discovery.feature.settings.ui.formatMinutesSeconds
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -43,12 +44,15 @@ class SettingsViewModelTest {
     private val clock = MutableClock { mainDispatcher.dispatcher.scheduler.currentTime }
     private val deviceLogs = FakeDeviceLogRepository()
 
-    private fun newViewModel(repository: FakeSettingsAccessRepository) = SettingsViewModel(
+    private fun newViewModel(
+        repository: FakeSettingsAccessRepository,
+        pinAttempts: FakeSettingsPinAttemptsRepository = attempts,
+    ) = SettingsViewModel(
         validateSettingsPassword = ValidateSettingsPasswordUseCase(repository),
         isSettingsPinRequired = IsSettingsPinRequiredUseCase(repository),
-        observePinLock = ObservePinLockUseCase(attempts, clock),
-        registerPinFailure = RegisterPinFailureUseCase(attempts, clock),
-        resetPinAttempts = ResetPinAttemptsUseCase(attempts),
+        observePinLock = ObservePinLockUseCase(pinAttempts, clock),
+        registerPinFailure = RegisterPinFailureUseCase(pinAttempts, clock),
+        resetPinAttempts = ResetPinAttemptsUseCase(pinAttempts),
         observePinRequired = ObserveSettingsPinRequiredUseCase(repository),
         reportPinLockout = ReportPinLockoutUseCase(deviceLogs),
     )
@@ -341,5 +345,35 @@ class SettingsViewModelTest {
             vm.onEvent(SettingsUiEvent.DismissDialog)
             assertTrue(awaitItem() is SettingsUiEffect.NavigateBack)
         }
+    }
+
+    // --- fix-pin-lockout-log (F-13) ---
+
+    @Test
+    fun given_store_emits_before_resume_then_new_lock_still_reported() = runTest(mainDispatcher.dispatcher) {
+        // Worst case with DataStore: the screen already shows the new lock before submitPassword resumes.
+        lateinit var vm: SettingsViewModel
+        attempts.afterSet = { saved ->
+            if (saved.lockedAt != null) vm.uiState.first { it.isLocked }
+        }
+        vm = viewModel()
+
+        repeat(5) { vm.enterWrongPin() }
+        runCurrent()
+
+        assertEquals(30L, vm.uiState.value.lockedSecondsLeft)
+        assertEquals(listOf(5 to 30L), deviceLogs.lockouts)
+        vm.onEvent(SettingsUiEvent.DismissDialog)
+    }
+
+    @Test
+    fun given_dialog_closed_right_after_lock_then_still_reported() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        repeat(5) { vm.enterWrongPin() }
+        vm.onEvent(SettingsUiEvent.DismissDialog)
+        runCurrent()
+
+        assertEquals(listOf(5 to 30L), deviceLogs.lockouts)
     }
 }
