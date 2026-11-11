@@ -11,15 +11,18 @@ import com.qhathia.mobile.discovery.core.domain.model.CartShareErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.ShareOutcome
+import com.qhathia.mobile.discovery.core.domain.model.ShareRejection
 import com.qhathia.mobile.discovery.core.domain.model.toCartItem
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartResult
 import com.qhathia.mobile.discovery.core.domain.usecase.AddToCartUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.CheckProductOrderableUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.EndCustomerSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductDetailUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.GetProductSuggestionsUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.IsOrderableUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCartUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveCustomerSessionEndUseCase
+import com.qhathia.mobile.discovery.core.domain.usecase.ProductCheck
 import com.qhathia.mobile.discovery.core.domain.usecase.ShareQuoteUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerNameUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ValidateConsumerPhoneUseCase
@@ -53,6 +56,9 @@ import kotlinx.coroutines.launch
  * [ShareQuoteUseCase] (which owns the retry policy), reusing the cart's loading/success/error
  * overlays. When the customer session ends (inactivity timeout), the dialog closes and its form is
  * cleared, so the next customer never sees the previous one's name or phone. The mic action and the mock related-products taps remain no-ops for this slice.
+ *
+ * Before adding or sharing, the product is read again ([CheckProductOrderableUseCase], F-32): a product
+ * the store deleted, deactivated or stopped selling while the detail was open is never added or shared.
  */
 @HiltViewModel
 class ProductDetailViewModel @Inject constructor(
@@ -67,6 +73,7 @@ class ProductDetailViewModel @Inject constructor(
     observeSessionEnd: ObserveCustomerSessionEndUseCase,
     private val isOrderable: IsOrderableUseCase,
     private val endCustomerSession: EndCustomerSessionUseCase,
+    private val checkProduct: CheckProductOrderableUseCase,
 ) : ViewModel() {
 
     private val productId: String = savedStateHandle.get<String>(ARG_PRODUCT_ID).orEmpty()
@@ -116,7 +123,7 @@ class ProductDetailViewModel @Inject constructor(
             ProductDetailUiEvent.DismissShare -> if (!_uiState.value.share.isSubmitting) closeShareDialog()
             ProductDetailUiEvent.ShareDismissRequest -> onShareDismissRequest()
             ProductDetailUiEvent.AcceptShareSuccess -> closeShareDialog()
-            ProductDetailUiEvent.DismissShareError -> updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
+            ProductDetailUiEvent.DismissShareError -> dismissShareResult()
             // Voice is handed off to the search screen, which listens in place (wave 2, D4).
             ProductDetailUiEvent.ActivateMic -> emit(ProductDetailUiEffect.NavigateToSearch("", SearchSource.Voice))
         }
@@ -140,9 +147,24 @@ class ProductDetailViewModel @Inject constructor(
     private fun onShareDismissRequest() {
         when (_uiState.value.share.submission) {
             ProductDetailUiState.ShareSubmission.Submitting -> Unit
-            is ProductDetailUiState.ShareSubmission.Error, ProductDetailUiState.ShareSubmission.NotDelivered ->
-                updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
+            is ProductDetailUiState.ShareSubmission.Error,
+            ProductDetailUiState.ShareSubmission.NotDelivered,
+            is ProductDetailUiState.ShareSubmission.StockShortage,
+            is ProductDetailUiState.ShareSubmission.Unavailable,
+            -> dismissShareResult()
             else -> closeShareDialog()
+        }
+    }
+
+    /**
+     * "Entendido" on a result screen: an unsellable product closes the dialog (there is nothing left to
+     * retry); any other error returns to the form.
+     */
+    private fun dismissShareResult() {
+        if (_uiState.value.share.submission is ProductDetailUiState.ShareSubmission.Unavailable) {
+            closeShareDialog()
+        } else {
+            updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Idle) }
         }
     }
 
@@ -171,25 +193,114 @@ class ProductDetailViewModel @Inject constructor(
      * rejection or exhausted retries show the simplified error screen.
      */
     private fun confirmShare() {
-        val detail = orderableDetail() ?: return
+        if (orderableDetail() == null || _uiState.value.isChecking) return
         val share = _uiState.value.share
         if (!share.isShareEnabled || share.submission != ProductDetailUiState.ShareSubmission.Idle) return
 
-        val quantity = _uiState.value.quantity
-        val item = detail.toCartItem(quantity)
-        val summary = persistentListOf(SubmissionLine(imageUrl = item.imageUrl, name = item.name, quantity = quantity))
-
         updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Submitting) }
         viewModelScope.launch {
+            val detail = recheck()
+            if (detail == null) {
+                // The detail now shows why (not found, or greyed out): leave the share flow.
+                if (_uiState.value.status is ProductDetailUiState.Status.Loaded) {
+                    updateShare { it.copy(submission = ProductDetailUiState.ShareSubmission.Unavailable(loadedDetail()?.name)) }
+                } else {
+                    closeShareDialog()
+                }
+                return@launch
+            }
+            val quantity = _uiState.value.quantity
+            val item = detail.toCartItem(quantity)
+            val summary = persistentListOf(SubmissionLine(imageUrl = item.imageUrl, name = item.name, quantity = quantity))
             val submission = when (val outcome = shareQuote(share.name, share.phone, listOf(item))) {
                 is ShareOutcome.Delivered -> ProductDetailUiState.ShareSubmission.Success(summary)
                 is ShareOutcome.NotDelivered -> ProductDetailUiState.ShareSubmission.NotDelivered
                 is ShareOutcome.Failed ->
                     ProductDetailUiState.ShareSubmission.Error(network = outcome.category == CartShareErrorCategory.Network)
-                is ShareOutcome.Rejected -> ProductDetailUiState.ShareSubmission.Error()
+                is ShareOutcome.Rejected -> onShareRejected(outcome) ?: return@launch
             }
             updateShare { it.copy(submission = submission) }
         }
+    }
+
+    /**
+     * Turns a share rejection into what the customer sees (F-32). Returns `null` when the dialog was
+     * closed because the product no longer exists.
+     */
+    private fun onShareRejected(rejection: ShareOutcome.Rejected): ProductDetailUiState.ShareSubmission? =
+        when (rejection.kind) {
+            ShareRejection.Unavailable -> {
+                markUnsellable(rejection.reason)
+                ProductDetailUiState.ShareSubmission.Unavailable(rejection.productName)
+            }
+            ShareRejection.NotFound -> {
+                closeShareDialog()
+                showNotFound()
+                null
+            }
+            ShareRejection.StockInsufficient -> {
+                val available = rejection.available ?: 0
+                if (available > 0) {
+                    updateLoadedDetail { it.copy(stock = available) }
+                    _uiState.update { it.copy(quantity = available) }
+                    ProductDetailUiState.ShareSubmission.StockShortage(available)
+                } else {
+                    markUnsellable(OUT_OF_STOCK)
+                    ProductDetailUiState.ShareSubmission.Unavailable(rejection.productName)
+                }
+            }
+            ShareRejection.Invalid, ShareRejection.Other -> ProductDetailUiState.ShareSubmission.Error()
+        }
+
+    /** Greys out the detail with the server's [reason]; an unknown or `INACTIVE` reason marks it inactive. */
+    private fun markUnsellable(reason: String?) {
+        updateLoadedDetail { detail ->
+            reason?.takeIf { it in SELLABILITY_REASONS }
+                ?.let { detail.copy(availability = it) }
+                ?: detail.copy(active = false)
+        }
+    }
+
+    /**
+     * Reads the product again and applies what the store says to the loaded detail (F-32). Returns the
+     * detail to go on with, or `null` when the product is gone or no longer sellable (the detail then
+     * shows why). When the store cannot be read, goes on with the loaded detail.
+     */
+    private suspend fun recheck(): ProductDetail? {
+        _uiState.update { it.copy(isChecking = true) }
+        val check = checkProduct(productId)
+        _uiState.update { it.copy(isChecking = false) }
+        return when (check) {
+            null -> orderableDetail()
+            ProductCheck.Gone -> {
+                showNotFound()
+                null
+            }
+            is ProductCheck.Current -> {
+                val fresh = check.detail
+                if (fresh.active == false) {
+                    // Deactivated by the store: the same screen as a deleted product (X:EXP-004).
+                    showNotFound()
+                    return null
+                }
+                updateLoadedDetail { it.copy(availability = fresh.availability, active = fresh.active, stock = fresh.stock) }
+                val detail = orderableDetail() ?: return null
+                val max = CartConstants.maxQuantityFor(detail.availability, detail.stock)
+                _uiState.update { it.copy(quantity = it.quantity.coerceIn(1, max)) }
+                detail
+            }
+        }
+    }
+
+    private inline fun updateLoadedDetail(transform: (ProductDetail) -> ProductDetail) {
+        _uiState.update { state ->
+            val loaded = state.status as? ProductDetailUiState.Status.Loaded ?: return@update state
+            state.copy(status = ProductDetailUiState.Status.Loaded(transform(loaded.detail)))
+        }
+    }
+
+    private fun showNotFound() {
+        _uiState.update { it.copy(status = ProductDetailUiState.Status.Error(ProductDetailUiState.ErrorKind.NotFound)) }
     }
 
     private inline fun updateShare(transform: (ProductDetailUiState.ShareUiState) -> ProductDetailUiState.ShareUiState) {
@@ -197,10 +308,13 @@ class ProductDetailViewModel @Inject constructor(
     }
 
     private fun onAddToCart() {
-        val detail = orderableDetail() ?: return
-        val quantity = _uiState.value.quantity
-        // The stepper goes back to 1 once the units are in the cart, so a second tap adds one (DET-004).
-        addAndReportLimit(detail.toCartItem(quantity)) { _uiState.update { it.copy(quantity = 1) } }
+        if (orderableDetail() == null || _uiState.value.isChecking) return
+        viewModelScope.launch {
+            val detail = recheck() ?: return@launch
+            val quantity = _uiState.value.quantity
+            // The stepper goes back to 1 once the units are in the cart, so a second tap adds one (DET-004).
+            addAndReportLimit(detail.toCartItem(quantity)) { _uiState.update { it.copy(quantity = 1) } }
+        }
     }
 
     private fun onAddRelatedToCart(productId: String) {
@@ -295,5 +409,12 @@ class ProductDetailViewModel @Inject constructor(
                 AddToCartResult.NotOrderable -> Unit
             }
         }
+    }
+
+    private companion object {
+        const val OUT_OF_STOCK = "OUT_OF_STOCK"
+
+        /** `PRODUCT_NOT_SELLABLE` reasons that are also availability values (api-contract §39). */
+        val SELLABILITY_REASONS = setOf(OUT_OF_STOCK, "CONSULT", "LOW_STOCK")
     }
 }

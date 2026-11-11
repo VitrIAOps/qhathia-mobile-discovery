@@ -67,4 +67,16 @@
     <!-- Share-quote dialog — the server answered but WhatsApp did not receive the quote. -->
     <string name="pd_share_not_delivered_title">No pudimos enviar la cotización</string>
     <string name="pd_share_not_delivered_message">La cotización no llegó a tu WhatsApp. Acércate al vendedor para que te ayude.</string>
+
+    <!-- Share-quote dialog — the product cannot be sold from the tablet (F-32). -->
+    <string name="pd_share_unavailable_title">Este producto no está disponible</string>
+    <string name="pd_share_unavailable_message">«%1$s» no se puede pedir desde la tablet. Consulta con el vendedor.</string>
+    <string name="pd_share_unavailable_message_generic">Este producto no se puede pedir desde la tablet. Consulta con el vendedor.</string>
+
+    <!-- Share-quote dialog — fewer units left than asked (F-32). -->
+    <string name="pd_share_stock_shortage_title">Cambiamos la cantidad</string>
+    <plurals name="pd_share_stock_shortage_message">
+        <item quantity="one">Solo queda %d unidad. Revisa la cantidad y vuelve a compartir.</item>
+        <item quantity="other">Solo quedan %d unidades. Revisa la cantidad y vuelve a compartir.</item>
+    </plurals>
 </resources>
