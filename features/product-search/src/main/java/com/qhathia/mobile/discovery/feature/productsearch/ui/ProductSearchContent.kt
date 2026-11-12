@@ -56,6 +56,7 @@ import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
 import com.qhathia.mobile.discovery.core.ui.component.ProductCard
 import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
@@ -137,7 +138,10 @@ fun ProductSearchContent(
                             modifier = Modifier.align(Alignment.Center),
                         )
 
-                        ProductSearchPhase.NetworkError -> NetworkErrorBody(modifier = Modifier.align(Alignment.Center))
+                        ProductSearchPhase.NetworkError -> NetworkErrorBody(
+                            onRetry = { onEvent(ProductSearchUiEvent.Retry) },
+                            modifier = Modifier.align(Alignment.Center),
+                        )
                     }
                 }
 
@@ -598,7 +602,7 @@ private fun UnhappyBody(
 }
 
 @Composable
-private fun NetworkErrorBody(modifier: Modifier = Modifier) {
+private fun NetworkErrorBody(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -616,6 +620,13 @@ private fun NetworkErrorBody(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 480.dp),
+        )
+        // F-38: the same retry action as the Catalog and Product-detail error bodies.
+        Spacer(modifier = Modifier.size(Spacing.md))
+        PrimaryActionButton(
+            text = stringResource(UiR.string.discovery_action_retry),
+            onClick = onRetry,
+            fillMaxWidth = false,
         )
     }
 }
@@ -933,7 +944,18 @@ private fun UnhappyApologyOnlyPreview() {
 private fun NetworkErrorPreview() {
     DiscoveryTheme(darkTheme = false) {
         ProductSearchContent(
-            uiState = ProductSearchUiState(source = SearchSource.Text, phase = ProductSearchPhase.NetworkError),
+            uiState = ProductSearchUiState(source = SearchSource.Text, phase = ProductSearchPhase.NetworkError, query = "martillo"),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Network error — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun NetworkErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(source = SearchSource.Text, phase = ProductSearchPhase.NetworkError, query = "martillo"),
             onEvent = {},
         )
     }

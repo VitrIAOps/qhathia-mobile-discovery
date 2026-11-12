@@ -13,7 +13,7 @@ class LogRedactorTest {
         assertEquals(
             setOf(
                 "customerName", "customerPhone", "phone", "deviceAccessToken",
-                "accessToken", "token", "key", "exitPinHash",
+                "accessToken", "token", "key", "exitPinHash", "pairingToken",
             ),
             LogRedactor.REDACTED_FIELDS,
         )
@@ -91,5 +91,14 @@ class LogRedactorTest {
         )
 
         lines.forEach { assertEquals(it, LogRedactor.redact(it)) }
+    }
+
+    @Test
+    fun the_pairing_code_is_masked() {
+        // F-20: the 5-character pairing code of PairingTokenResponseDto.
+        val redacted = LogRedactor.redact("""{"sessionId":"s-1","pairingToken":"PFTQW","expiresAt":"2026-11-07T06:21:34Z"}""")
+
+        assertFalse(redacted.contains("PFTQW"), redacted)
+        assertTrue(redacted.contains(""""pairingToken":"***""""), redacted)
     }
 }

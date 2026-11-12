@@ -81,14 +81,14 @@ internal object KtorClientFactory {
         }
         if (enableLogging) {
             install(Logging) {
-                // Personal data and secrets never reach logcat (design D10, RED-060). The level stays
-                // BODY so QA still sees the shape of each call.
+                // Method, URL and status only (F-20): bodies need ENABLE_NETWORK_BODY_LOGGING, turned on
+                // by hand when debugging. The redactor still masks personal data and secrets (D10, RED-060).
                 logger = object : Logger {
                     override fun log(message: String) {
                         Log.d("KtorClient", LogRedactor.redact(message))
                     }
                 }
-                level = LogLevel.BODY
+                level = if (BuildConfig.ENABLE_NETWORK_BODY_LOGGING) LogLevel.BODY else LogLevel.INFO
                 sanitizeHeader { header -> header == HttpHeaders.Authorization }
             }
         }

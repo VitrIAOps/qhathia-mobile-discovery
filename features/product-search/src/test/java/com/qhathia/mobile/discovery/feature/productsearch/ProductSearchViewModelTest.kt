@@ -875,4 +875,65 @@ class ProductSearchViewModelTest {
         assertEquals(StructuredSearchFilters(tags = listOf("inalambrico")), repository.filters.last())
         assertEquals(tagPanel, (vm.uiState.value.phase as ProductSearchPhase.Results).filters)
     }
+
+    // --- fix-search-retry-and-logs (F-38, UX-T-06) ---
+
+    @Test
+    fun networkError_onChip_retry_appliesSameFilters() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro", repository = repository)
+        repository.result = Result.failure(SearchException(SearchErrorCategory.Network))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
+        val failedFilters = repository.filters.last()
+
+        repository.result = Result.success(ProductFixtures.result())
+        vm.onEvent(ProductSearchUiEvent.Retry)
+
+        assertEquals(3, repository.callCount) // initial, failed chip, retry
+        assertEquals("taladro", repository.queries.last())
+        assertEquals(failedFilters, repository.filters.last())
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+        assertEquals(1, vm.uiState.value.selectedFilters.size)
+    }
+
+    @Test
+    fun networkError_keepsTheSearchedText_andRetryRepeatsIt() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro", repository = repository)
+        repository.result = Result.failure(SearchException(SearchErrorCategory.Network))
+        vm.onEvent(ProductSearchUiEvent.QueryChanged("martillo"))
+        vm.onEvent(ProductSearchUiEvent.SubmitSearch)
+
+        assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
+        assertEquals("martillo", vm.uiState.value.query)
+
+        repository.result = Result.success(ProductFixtures.result())
+        vm.onEvent(ProductSearchUiEvent.Retry)
+
+        assertEquals("martillo", repository.queries.last())
+        assertTrue(vm.uiState.value.phase is ProductSearchPhase.Results)
+    }
+
+    @Test
+    fun retry_isIgnoredOutsideTheNetworkError() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result()))
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.Retry)
+
+        assertEquals(1, repository.callCount)
+    }
+
+    @Test
+    fun networkError_retryWhileStillOffline_showsTheErrorAgain() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.failure(SearchException(SearchErrorCategory.Network)))
+        val vm = viewModel(query = "taladro", repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.Retry)
+
+        assertEquals(2, repository.callCount)
+        assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
+        assertEquals("taladro", vm.uiState.value.query)
+    }
 }

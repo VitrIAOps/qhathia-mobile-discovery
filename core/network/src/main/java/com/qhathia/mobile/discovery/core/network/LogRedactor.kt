@@ -25,6 +25,7 @@ internal object LogRedactor {
         "token",
         "key",
         "exitPinHash",
+        "pairingToken",
     )
 
     private val member = Regex(
