@@ -56,4 +56,7 @@ sealed interface ProductSearchUiEvent {
 
     /** The screen is shown again (lifecycle `ON_RESUME`). */
     data object ScreenResumed : ProductSearchUiEvent
+
+    /** "Reintentar" on the network error: repeat the last search, chips included (F-38). */
+    data object Retry : ProductSearchUiEvent
 }

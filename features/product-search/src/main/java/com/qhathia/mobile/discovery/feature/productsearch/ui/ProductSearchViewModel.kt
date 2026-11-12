@@ -125,6 +125,9 @@ class ProductSearchViewModel @Inject constructor(
     /** Voice capture was stopped while hidden and there was nothing to restore: leave once shown again. */
     private var leaveOnResume = false
 
+    /** The last search request, repeated by "Reintentar" after a network error (F-38). */
+    private var lastSearch: LastSearch? = null
+
     init {
         // The Catalog microphone opens this screen with source Voice and no query: listen here
         // instead of sending an empty search (design D11, CAT-030).
@@ -161,6 +164,7 @@ class ProductSearchViewModel @Inject constructor(
             is ProductSearchUiEvent.SuggestionSelected -> onSuggestionSelected(event.phrase)
             ProductSearchUiEvent.ScreenStopped -> onScreenStopped()
             ProductSearchUiEvent.ScreenResumed -> onScreenResumed()
+            ProductSearchUiEvent.Retry -> retryLastSearch()
         }
     }
 
@@ -348,6 +352,7 @@ class ProductSearchViewModel @Inject constructor(
     ) {
         cancelTimers()
         searchJob?.cancel()
+        lastSearch = LastSearch(query, source, isRefinement, filters)
         // A fresh (non-refinement) search starts a new results view, so it resets the selection.
         if (!isRefinement) clearSelection()
         _uiState.update {
@@ -434,11 +439,24 @@ class ProductSearchViewModel @Inject constructor(
     }
 
     private fun settleNetworkError(source: SearchSource) {
-        // A network error is a transient overlay (screen kept) — not a navigable history entry.
+        // A network error is a transient overlay (screen kept) — not a navigable history entry. The field
+        // keeps what was searched, so it does not have to be typed again (UX-T-06).
         cancelTimers()
         _uiState.update {
-            it.copy(source = source, phase = ProductSearchPhase.NetworkError, canGoBack = history.isNotEmpty())
+            it.copy(
+                source = source,
+                phase = ProductSearchPhase.NetworkError,
+                canGoBack = history.isNotEmpty(),
+                query = lastSearch?.query.orEmpty(),
+            )
         }
+    }
+
+    /** "Reintentar": repeats the last search as it was sent; only while the network error is shown. */
+    private fun retryLastSearch() {
+        if (_uiState.value.phase !is ProductSearchPhase.NetworkError) return
+        val last = lastSearch ?: return
+        performSearch(last.query, last.source, last.isRefinement, last.filters)
     }
 
     private fun settle(source: SearchSource, phase: ProductSearchPhase, query: String) {
@@ -597,3 +615,11 @@ class ProductSearchViewModel @Inject constructor(
         const val EFFECT_BUFFER = 8
     }
 }
+
+/** One search request as [ProductSearchViewModel] sent it, so "Reintentar" can send it again. */
+private data class LastSearch(
+    val query: String,
+    val source: SearchSource,
+    val isRefinement: Boolean,
+    val filters: StructuredSearchFilters?,
+)
