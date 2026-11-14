@@ -292,18 +292,19 @@ private fun LocationRequired(blocked: Boolean, onAllow: () -> Unit) {
 /** A text action in the "Buscar redes" style. */
 @Composable
 private fun LinkButton(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = DiscoveryColors.CatalogText,
+    // The text is centered in its 48 dp box; a bare Text kept it at the top (UX-T-21).
+    Box(
         modifier = Modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, DiscoveryColors.Blue200, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .labeled(text)
-            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-    )
+            .padding(horizontal = Spacing.lg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelLarge, color = DiscoveryColors.CatalogText)
+    }
 }
 
 @Composable

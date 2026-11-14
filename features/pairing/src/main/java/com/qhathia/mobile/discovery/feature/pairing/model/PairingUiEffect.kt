@@ -10,6 +10,4 @@ sealed interface PairingUiEffect {
      */
     data object Paired : PairingUiEffect
 
-    /** Server-side unpairing is not available yet (no API); inform the merchant. */
-    data object UnpairUnavailable : PairingUiEffect
 }

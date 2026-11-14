@@ -36,6 +36,4 @@ interface DevicePairingRepository {
     /** Reads the currently paired device (`GET /devices/me`) using the persisted device token. */
     suspend fun getPairedDevice(): Result<PairedDevice>
 
-    /** Unpairs the device. No backend API exists yet — see the implementation's TODO. */
-    suspend fun unpair(): Result<Unit>
 }

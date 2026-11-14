@@ -50,7 +50,7 @@ class StoreSessionLocalDataSource @Inject constructor(
         }
     }
 
-    /** Clears the persisted device session (used by unpair). */
+    /** Clears the persisted device session (local clean-up). */
     suspend fun clearDeviceSession() {
         dataStore.edit { preferences ->
             preferences.remove(KEY_DEVICE_TOKEN)

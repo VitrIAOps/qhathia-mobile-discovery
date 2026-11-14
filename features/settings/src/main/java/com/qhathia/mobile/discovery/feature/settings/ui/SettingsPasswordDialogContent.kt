@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.settings.ui
 
+import com.qhathia.mobile.discovery.core.ui.component.CloseIconButton
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.qhathia.mobile.discovery.core.ui.component.labeled
 import java.util.Locale
 import androidx.compose.foundation.background
@@ -53,10 +56,12 @@ fun SettingsPasswordDialogContent(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier,
+        // Taps on the panel stay in the panel; only the dimmed area around it closes the dialog.
+        modifier = modifier.pointerInput(Unit) { detectTapGestures { } },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
+        Box {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -81,6 +86,15 @@ fun SettingsPasswordDialogContent(
                     onEvent(SettingsUiEvent.PasswordChanged(uiState.passwordInput.dropLast(1)))
                 },
             )
+        }
+        // A way out for whoever opened it by mistake, also during the lockout (UX-T-01).
+        CloseIconButton(
+            onClick = { onEvent(SettingsUiEvent.DismissDialog) },
+            contentDescription = stringResource(R.string.settings_pin_close_cd),
+            size = 48.dp,
+            iconSize = 16.dp,
+            modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.sm),
+        )
         }
     }
 }

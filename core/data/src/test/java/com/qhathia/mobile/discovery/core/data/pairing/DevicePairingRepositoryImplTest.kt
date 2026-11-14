@@ -320,7 +320,7 @@ class DevicePairingRepositoryImplTest {
         assertEquals(PairingExchangeError.AlreadyUsed, (failure as PairingExchangeException).error)
     }
 
-    // --- paired device / unpair ---
+    // --- paired device ---
 
     @Test
     fun given_no_token_when_get_paired_then_failure() = runTest {
@@ -424,11 +424,6 @@ class DevicePairingRepositoryImplTest {
 
         assertEquals("Ferretería Central", device?.storeName)
         assertEquals("Ferretería Central", session.observe().first().storeName)
-    }
-
-    @Test
-    fun given_unpair_when_no_api_then_failure() = runTest {
-        assertTrue(repository().unpair().isFailure)
     }
 
     private fun Result<*>.exchangeError(): PairingExchangeError? =

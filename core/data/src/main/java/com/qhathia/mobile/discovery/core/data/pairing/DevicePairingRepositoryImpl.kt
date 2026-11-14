@@ -246,11 +246,6 @@ class DevicePairingRepositoryImpl @Inject constructor(
         }
     }
 
-    // TODO(pairing-unpair): no backend unpair API exists yet (ClickUp 86e1kbt2d). Fail explicitly so the
-    // UI can communicate that server-side unpairing is unavailable, rather than clearing the local token
-    // and falsely implying the device was unpaired on the server (which would strand the device).
-    override suspend fun unpair(): Result<Unit> =
-        Result.failure(UnsupportedOperationException("Unpairing is not available yet"))
 
     private fun httpError(error: NetworkResult.HttpError): Throwable =
         IllegalStateException("HTTP ${error.code}: ${error.message}")
