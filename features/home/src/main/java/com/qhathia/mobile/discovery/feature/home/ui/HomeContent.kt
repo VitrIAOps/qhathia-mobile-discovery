@@ -1,5 +1,9 @@
 package com.qhathia.mobile.discovery.feature.home.ui
 
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -145,6 +149,10 @@ private fun TopBar(
                 ?: stringResource(R.string.home_store_name_placeholder)).uppercase(),
             style = MaterialTheme.typography.titleMedium,
             color = DiscoveryColors.Blue800,
+            // A long name stays on one line instead of pushing the catalog link off the bar.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
         )
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
             CatalogLink(onClick = onCatalogClick)
@@ -199,6 +207,8 @@ private fun HeroSection(
             -> {
                 val isListening = micState is MicState.Listening
                 ProcessingHero(
+                    isListening = isListening,
+                    onCancel = { onEvent(HomeUiEvent.CancelMic) },
                     baseText = stringResource(
                         when (micState) {
                             is MicState.Listening -> UiR.string.discovery_voice_listening
@@ -207,7 +217,7 @@ private fun HeroSection(
                         },
                     ),
                     micContentDescription = stringResource(
-                        if (isListening) R.string.home_mic_listening_cd else R.string.home_mic_processing_cd,
+                        if (isListening) UiR.string.discovery_cd_mic_listening else UiR.string.discovery_cd_mic_processing,
                     ),
                     onMicClick = {
                         when (micState) {
@@ -226,7 +236,12 @@ private fun HeroSection(
             }
             // Idle, NoAudioRetry, and Error use the same hero layout (headline + mic + search bar).
             // Error and retry both reactivate voice search via the mic.
-            else -> IdleHero(micState = micState, query = uiState.query, onEvent = onEvent)
+            else -> IdleHero(
+                micState = micState,
+                query = uiState.query,
+                placeholder = searchPlaceholderFor(uiState.storeCategory),
+                onEvent = onEvent,
+            )
         }
     }
 }
@@ -237,6 +252,8 @@ private fun HeroSection(
  */
 @Composable
 private fun ProcessingHero(
+    isListening: Boolean,
+    onCancel: () -> Unit,
     baseText: String,
     micContentDescription: String,
     onMicClick: () -> Unit,
@@ -253,12 +270,14 @@ private fun ProcessingHero(
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onBackground,
     )
+    VoiceCancelControls(isListening = isListening, onCancel = onCancel)
 }
 
 @Composable
 private fun IdleHero(
     micState: MicState,
     query: String,
+    placeholder: String,
     onEvent: (HomeUiEvent) -> Unit,
 ) {
     // Both the no-audio retry and the error screen re-trigger voice search via the mic.
@@ -285,11 +304,21 @@ private fun IdleHero(
         ),
         onClick = { onEvent(if (isRetry) HomeUiEvent.RetryMic else HomeUiEvent.ActivateMic) },
     )
+    // Says out loud what the big circle is for; only when the microphone is drawn.
+    if (!isRetry && LocalVoiceAssistantEnabled.current) {
+        Text(
+            text = stringResource(R.string.home_mic_hint),
+            style = MaterialTheme.typography.titleSmall,
+            color = DiscoveryColors.Blue600,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(Spacing.md))
+    }
     DiscoverySearchBar(
         query = query,
         onQueryChange = { onEvent(HomeUiEvent.QueryChanged(it)) },
         onSearch = { onEvent(HomeUiEvent.SubmitSearch) },
-        placeholder = stringResource(R.string.home_search_placeholder),
+        placeholder = placeholder,
         searchIconContentDescription = stringResource(UiR.string.discovery_cd_search),
         modifier = Modifier.width(600.dp),
     )
@@ -480,5 +509,54 @@ private fun HomeContentVoiceOffDarkPreview() {
                 onEvent = {},
             )
         }
+    }
+}
+
+/**
+ * The Home search example for the store's line of business, so a jewelry store never sees hardware
+ * examples. Without a category, or for one without its own example, the neutral text.
+ */
+@Composable
+private fun searchPlaceholderFor(category: StoreCategory?): String = stringResource(
+    when (category) {
+        StoreCategory.TOOLS -> R.string.home_example_tools
+        StoreCategory.LIGHTING -> R.string.home_example_lighting
+        StoreCategory.ELECTRONICS -> R.string.home_example_electronics
+        StoreCategory.TEXTILE -> R.string.home_example_textile
+        StoreCategory.FOOD -> R.string.home_example_food
+        StoreCategory.BEAUTY -> R.string.home_example_beauty
+        StoreCategory.JEWELRY -> R.string.home_example_jewelry
+        StoreCategory.FURNITURE -> R.string.home_example_furniture
+        StoreCategory.DECORATION -> R.string.home_example_decoration
+        StoreCategory.SPORTS -> R.string.home_example_sports
+        StoreCategory.BOOKS -> R.string.home_example_books
+        StoreCategory.TOYS -> R.string.home_example_toys
+        StoreCategory.OTHER, null -> R.string.home_search_placeholder
+    },
+)
+
+/**
+ * Under the listening message: what a tap on the circle does while listening, and a "Cancelar" that
+ * stops without searching, while listening or processing (UX-T-07).
+ */
+@Composable
+private fun VoiceCancelControls(isListening: Boolean, onCancel: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (isListening) {
+            Text(
+                text = stringResource(UiR.string.discovery_voice_tap_to_finish),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Spacer(modifier = Modifier.height(Spacing.md))
+        PrimaryActionButton(
+            text = stringResource(UiR.string.discovery_dialog_cancel),
+            onClick = onCancel,
+            containerColor = Color.Transparent,
+            contentColor = DiscoveryColors.CatalogText,
+            fillMaxWidth = false,
+        )
     }
 }

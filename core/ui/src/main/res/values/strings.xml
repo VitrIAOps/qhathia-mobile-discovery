@@ -46,11 +46,15 @@
     <string name="discovery_dialog_cancel">Cancelar</string>
 
     <!-- Shared search prompt + placeholder -->
-    <string name="discovery_search_prompt">¿En qué tipo de proyecto lo usarás?</string>
-    <string name="discovery_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
+    <string name="discovery_search_prompt">¿Qué más necesitas? Cuéntame.</string>
+    <string name="discovery_search_placeholder">Describe lo que buscas</string>
 
     <!-- Voice processing copy (home + product-search) -->
     <string name="discovery_voice_listening">Escuchando</string>
+    <string name="discovery_voice_tap_to_finish">Toca el círculo para terminar</string>
+    <!-- Microphone descriptions by state, shared by Home and the results screen. -->
+    <string name="discovery_cd_mic_listening">Escuchando, toca para detener</string>
+    <string name="discovery_cd_mic_processing">Procesando, toca para cancelar</string>
     <string name="discovery_voice_organizing">Organizando ideas</string>
     <string name="discovery_voice_slow_response">Está tardando más de lo que esperaba</string>
     <!-- Product with no photo at all, under the placeholder of the detail's main image (F-43). -->

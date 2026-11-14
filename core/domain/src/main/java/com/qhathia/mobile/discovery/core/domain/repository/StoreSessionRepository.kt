@@ -15,6 +15,9 @@ interface StoreSessionRepository {
     /** Persists [storeName] as the active store's name. */
     suspend fun updateStoreName(storeName: String?)
 
+    /** Persists the store's category; `null` removes it. */
+    suspend fun updateStoreCategory(category: com.qhathia.mobile.discovery.core.domain.model.StoreCategory?)
+
     /** Reads the persisted DEVICE access token, or `null` when the device is not paired. */
     suspend fun deviceAccessToken(): String?
 

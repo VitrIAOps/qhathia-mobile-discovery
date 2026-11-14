@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.core.ui.component
 
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,6 +35,19 @@ fun <T> HorizontalRowsGrid(
     modifier: Modifier = Modifier,
     itemContent: @Composable (T) -> Unit,
 ) {
+    // A few results read left to right in rows, as eyes and screen readers expect; only a set too big
+    // for the screen scrolls sideways by columns (UX-T-13).
+    if (items.size <= SMALL_RESULT_COUNT) {
+        FlowRow(
+            modifier = modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            maxItemsInEachRow = SMALL_RESULT_PER_ROW,
+        ) {
+            items.forEach { item -> key(key(item)) { itemContent(item) } }
+        }
+        return
+    }
     val columns = items.chunked(rows)
     LazyRow(
         modifier = modifier,
@@ -42,6 +58,26 @@ fun <T> HorizontalRowsGrid(
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 column.forEach { item -> itemContent(item) }
             }
+        }
+    }
+}
+
+/** Up to this many results are laid out in rows instead of scrolling columns. */
+private const val SMALL_RESULT_COUNT = 6
+private const val SMALL_RESULT_PER_ROW = 3
+
+@Preview(name = "HorizontalRowsGrid — few, light", showBackground = true, backgroundColor = 0xFFF8F8F8, widthDp = 800, heightDp = 620)
+@Composable
+private fun HorizontalRowsGridFewPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        HorizontalRowsGrid(items = (1..3).toList(), rows = 2, key = { it }) { index ->
+            ProductCard(
+                name = "Taladro inalámbrico DeWalt 12V $index",
+                priceText = "S/ 380.00",
+                imageUrl = "",
+                cartContentDescription = "Agregar al carrito",
+                onCartClick = {},
+            )
         }
     }
 }

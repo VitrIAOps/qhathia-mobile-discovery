@@ -125,6 +125,35 @@ class ProductSearchViewModelTest {
     }
 
     @Test
+    fun voiceSearch_whenNoResults_keepsHeardTextInQuery() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(result = Result.success(ProductFixtures.noResults()))
+        val vm = viewModel(query = "taladro bosh", source = SearchSource.Voice, repository = repository)
+
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Unhappy
+        assertEquals("taladro bosh", phase.heardText)
+        assertEquals("taladro bosh", vm.uiState.value.query)
+    }
+
+    @Test
+    fun textSearch_whenResults_showsNoHeardText() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(3))))
+        val vm = viewModel(query = "taladro", source = SearchSource.Text, repository = repository)
+
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Results
+        assertEquals("", phase.heardText)
+    }
+
+    @Test
+    fun textSearch_whileSearching_exposesTheQuery() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(delayMillis = 5_000)
+        val vm = viewModel(query = "taladro", source = SearchSource.Text, repository = repository)
+
+        assertEquals("taladro", vm.uiState.value.searchingQuery)
+        advanceTimeBy(6_000)
+        assertEquals("", vm.uiState.value.searchingQuery)
+    }
+
+    @Test
     fun given_unhappy_response_then_carries_suggested_category() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductSearchRepository(
             result = Result.success(ProductFixtures.noResults(suggestedFromCategory = "lámpara")),

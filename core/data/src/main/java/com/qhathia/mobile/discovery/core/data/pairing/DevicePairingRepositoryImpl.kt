@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.core.data.pairing
 
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
@@ -209,6 +210,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
                         pairingCode = lastGeneratedCode,
                     )
                     dto.storeName?.takeIf { it.isNotBlank() }?.let { storeSessionRepository.updateStoreName(it) }
+                    StoreCategory.fromApi(dto.storeCategory)?.let { storeSessionRepository.updateStoreCategory(it) }
                     pendingSession.clearIf(sessionId)
                     return Result.success(dto.toPairedDevice(lastGeneratedCode))
                 }
@@ -233,6 +235,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
                 val dto = result.data
                 val sentStoreName = dto.storeName?.takeIf { it.isNotBlank() }
                 if (sentStoreName != null) storeSessionRepository.updateStoreName(sentStoreName)
+                StoreCategory.fromApi(dto.storeCategory)?.let { storeSessionRepository.updateStoreCategory(it) }
                 val session = storeSessionRepository.observe().first()
                 Result.success(
                     dto.toPairedDevice(pairingCode = session.pairingCode, storeName = session.storeName),

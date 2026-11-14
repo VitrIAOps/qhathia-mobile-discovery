@@ -98,8 +98,9 @@ fun ProductCard(
                     text = name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
-                    minLines = 2,
-                    maxLines = 2,
+                    // Three lines keep the detail that tells products apart ("…DeWalt 12V").
+                    minLines = 3,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = if (onCardClick != null) Modifier.clearAndSetSemantics {} else Modifier,
                 )
