@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.catalog.ui
 
+import androidx.compose.material3.TextButton
+import com.qhathia.mobile.discovery.core.ui.component.discountPercent
+import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -104,7 +107,10 @@ fun CatalogContent(
                         StoreEmptyBody(modifier = Modifier.align(Alignment.Center))
 
                     uiState.showDiscountsEmpty ->
-                        DiscountsEmptyBody(modifier = Modifier.align(Alignment.Center))
+                        DiscountsEmptyBody(
+                            onShowAll = { onEvent(CatalogUiEvent.TabSelected(CatalogTab.ALL_ID)) },
+                            modifier = Modifier.align(Alignment.Center),
+                        )
 
                     else -> HorizontalRowsGrid(
                         items = uiState.visibleProducts,
@@ -125,7 +131,8 @@ fun CatalogContent(
                             cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                             onCartClick = { onEvent(CatalogUiEvent.CartTapped(product.id)) },
                             onCardClick = { onEvent(CatalogUiEvent.ProductTapped(product.id)) },
-                            cartEnabled = product.isOrderable,
+                            cartEnabled = product.isOrderable && uiState.canAddToCart(product.id),
+                            discountPercent = discountPercent(product.price, product.discountedPrice),
                         )
                     }
                 }
@@ -182,7 +189,7 @@ private fun TopBar(
         CartButton(
             itemCount = cartItemCount,
             label = stringResource(UiR.string.discovery_action_go_to_cart),
-            contentDescription = stringResource(UiR.string.discovery_action_go_to_cart),
+            contentDescription = goToCartDescription(cartItemCount),
             onClick = onCart,
         )
     }
@@ -308,14 +315,26 @@ private fun CategoryTab(
 }
 
 @Composable
-private fun DiscountsEmptyBody(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.padding(horizontal = Spacing.lg), contentAlignment = Alignment.Center) {
+private fun DiscountsEmptyBody(onShowAll: () -> Unit, modifier: Modifier = Modifier) {
+    // Only reachable if the catalog changed while the tab was open; it offers a way out.
+    Column(
+        modifier = modifier.padding(horizontal = Spacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
         Text(
             text = stringResource(R.string.catalog_discounts_empty),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        TextButton(onClick = onShowAll, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(
+                text = stringResource(R.string.catalog_show_all),
+                style = MaterialTheme.typography.labelLarge,
+                color = DiscoveryColors.CatalogText,
+            )
+        }
     }
 }
 

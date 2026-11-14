@@ -31,6 +31,7 @@ fun NavGraphBuilder.productDetailScreen(
     onNavigateToSearch: (String, SearchSource) -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
+    onNavigateToCatalog: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     composable(
@@ -45,6 +46,7 @@ fun NavGraphBuilder.productDetailScreen(
             onNavigateToSearch = onNavigateToSearch,
             onNavigateToDetail = onNavigateToDetail,
             onOpenCart = onOpenCart,
+            onNavigateToCatalog = onNavigateToCatalog,
             modifier = modifier,
         )
     }

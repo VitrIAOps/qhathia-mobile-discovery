@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.catalog.model
 
+import com.qhathia.mobile.discovery.core.domain.CartConstants
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.ImmutableSet
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import kotlinx.collections.immutable.ImmutableList
@@ -30,8 +33,17 @@ data class CatalogUiState(
     val source: SearchSource = SearchSource.Text,
     val query: String = "",
     val cartItemCount: Int = 0,
+    /** Products already in the cart, to tell which add buttons still work once the basket is full. */
+    val cartProductIds: ImmutableSet<String> = persistentSetOf(),
     val showCloseConfirmDialog: Boolean = false,
 ) {
+    /**
+     * Whether adding [productId] can work: always for a product already in the cart, and for a new one
+     * only while the basket has room (UX-X-07).
+     */
+    fun canAddToCart(productId: String): Boolean =
+        productId in cartProductIds || cartProductIds.size < CartConstants.MAX_DISTINCT_LINES
+
     /** The microphone animation is retained when the catalog was entered from a voice/chat context. */
     val showMicAnimation: Boolean get() = source == SearchSource.Voice
 

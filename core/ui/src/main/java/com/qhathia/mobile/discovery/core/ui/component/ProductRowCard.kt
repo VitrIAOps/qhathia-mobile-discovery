@@ -78,7 +78,7 @@ fun ProductRowCard(
             modifier = Modifier
                 .matchParentSize()
                 .clickable(onClick = onClick)
-                .labeled(cardLabel(name, priceText)),
+                .labeled(cardLabel(name, priceText, originalPriceText)),
         )
         Row {
             ProductImage(
@@ -96,8 +96,9 @@ fun ProductRowCard(
             ) {
                 Text(
                     modifier = Modifier.clearAndSetSemantics {},
-                    text = categoryName.uppercase(),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, letterSpacing = 0.8.sp),
+                    // Sentence case at body size: spaced 10 sp capitals were hard to read (UX-T-05).
+                    text = categoryName,
+                    style = MaterialTheme.typography.bodySmall,
                     color = DiscoveryColors.AccentOrange,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -141,7 +142,7 @@ fun ProductRowCard(
                             )
                         }
                     }
-                    AddToCartButton(
+                    CartCircleButton(
                         contentDescription = cartContentDescription,
                         onClick = onAddToCart,
                         enabled = cartEnabled,
@@ -152,34 +153,8 @@ fun ProductRowCard(
     }
 }
 
-@Composable
-private fun AddToCartButton(
-    contentDescription: String,
-    onClick: () -> Unit,
-    enabled: Boolean,
-) {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .clip(CircleShape)
-            .background(DiscoveryColors.CatalogText)
-            .clickable(enabled = enabled, onClick = onClick)
-            .labeled(contentDescription),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_cart),
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
 private val CARD_WIDTH = 300.dp
-private val CARD_HEIGHT = 120.dp
-private const val DISABLED_ALPHA = 0.38f
+private val CARD_HEIGHT = 128.dp
 
 @Preview(showBackground = true, backgroundColor = 0xFFF8F8F8)
 @Composable

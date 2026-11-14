@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
+import kotlinx.collections.immutable.toImmutableSet
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -92,7 +93,10 @@ class ProductDetailViewModel @Inject constructor(
         loadSuggestions()
         viewModelScope.launch {
             observeCart().collect { cart ->
-                _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
+                _uiState.update { it.copy(
+                        cartItemCount = cart.totalItemCount,
+                        cartProductIds = cart.items.map { line -> line.productId }.toImmutableSet(),
+                    ) }
             }
         }
         viewModelScope.launch {
@@ -113,6 +117,7 @@ class ProductDetailViewModel @Inject constructor(
             ProductDetailUiEvent.IncreaseQuantity -> adjustQuantity(delta = 1)
             ProductDetailUiEvent.DecreaseQuantity -> adjustQuantity(delta = -1)
             ProductDetailUiEvent.OpenCart -> emit(ProductDetailUiEffect.OpenCart)
+            ProductDetailUiEvent.GoToCatalog -> emit(ProductDetailUiEffect.NavigateToCatalog)
             is ProductDetailUiEvent.RelatedProductTapped ->
                 emit(ProductDetailUiEffect.NavigateToDetail(event.productId))
             is ProductDetailUiEvent.RelatedProductAddToCart -> onAddRelatedToCart(event.productId)
@@ -404,7 +409,10 @@ class ProductDetailViewModel @Inject constructor(
     private fun addAndReportLimit(item: CartItem, onAdded: () -> Unit = {}) {
         viewModelScope.launch {
             when (addToCart(item)) {
-                AddToCartResult.Added -> onAdded()
+                AddToCartResult.Added -> {
+                    onAdded()
+                    emit(ProductDetailUiEffect.AddedToCart(item.name, item.quantity))
+                }
                 AddToCartResult.LineLimitReached -> emit(ProductDetailUiEffect.LineLimitReached)
                 AddToCartResult.NotOrderable -> Unit
             }

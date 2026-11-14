@@ -1,6 +1,15 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
-import android.widget.Toast
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
+import com.qhathia.mobile.discovery.core.ui.component.CartFeedbackState
+import com.qhathia.mobile.discovery.core.ui.component.CartFeedbackHost
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,12 +36,17 @@ fun ProductDetailScreen(
     onNavigateToSearch: (String, SearchSource) -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onOpenCart: () -> Unit,
+    onNavigateToCatalog: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProductDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val lineLimitMessage = stringResource(UiR.string.discovery_cart_line_limit)
+    val limitOk = stringResource(UiR.string.discovery_cart_limit_ok)
+    val viewCart = stringResource(UiR.string.discovery_cart_view)
+    val resources = LocalContext.current.resources
+    val cartFeedback = remember { CartFeedbackState() }
+    val feedbackScope = rememberCoroutineScope()
 
     LaunchedEffect(viewModel) {
         viewModel.uiEffect.collect { effect ->
@@ -42,8 +56,20 @@ fun ProductDetailScreen(
                 is ProductDetailUiEffect.NavigateToSearch -> onNavigateToSearch(effect.query, effect.source)
                 is ProductDetailUiEffect.NavigateToDetail -> onNavigateToDetail(effect.productId)
                 ProductDetailUiEffect.OpenCart -> onOpenCart()
+                ProductDetailUiEffect.NavigateToCatalog -> onNavigateToCatalog()
                 ProductDetailUiEffect.LineLimitReached ->
-                    Toast.makeText(context, lineLimitMessage, Toast.LENGTH_LONG).show()
+                    feedbackScope.launch { cartFeedback.showLimit(lineLimitMessage, limitOk) }
+                is ProductDetailUiEffect.AddedToCart -> {
+                    val message = resources.getQuantityString(
+                        UiR.plurals.discovery_cart_added,
+                        effect.quantity,
+                        effect.productName,
+                        effect.quantity,
+                    )
+                    feedbackScope.launch {
+                        if (cartFeedback.showAdded(message, viewCart)) viewModel.onEvent(ProductDetailUiEvent.OpenCart)
+                    }
+                }
             }
         }
     }
@@ -54,11 +80,18 @@ fun ProductDetailScreen(
     // The search screen listens as soon as it opens, so the permission is asked here (wave 2, D4).
     val activateMic = rememberMicPermissionGate { viewModel.onEvent(ProductDetailUiEvent.ActivateMic) }
 
-    ProductDetailContent(
-        uiState = uiState,
-        onEvent = { event ->
-            if (event is ProductDetailUiEvent.ActivateMic) activateMic() else viewModel.onEvent(event)
-        },
-        modifier = modifier,
-    )
+    Box(modifier = modifier) {
+        ProductDetailContent(
+            uiState = uiState,
+            onEvent = { event ->
+                if (event is ProductDetailUiEvent.ActivateMic) activateMic() else viewModel.onEvent(event)
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        CartFeedbackHost(
+            state = cartFeedback,
+            // Above the bottom search bar.
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp),
+        )
+    }
 }

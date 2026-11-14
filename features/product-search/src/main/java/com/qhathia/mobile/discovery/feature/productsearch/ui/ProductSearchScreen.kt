@@ -1,5 +1,15 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
+import com.qhathia.mobile.discovery.core.ui.component.CartFeedbackState
+import com.qhathia.mobile.discovery.core.ui.component.CartFeedbackHost
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -39,6 +49,11 @@ fun ProductSearchScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lineLimitMessage = stringResource(UiR.string.discovery_cart_line_limit)
+    val limitOk = stringResource(UiR.string.discovery_cart_limit_ok)
+    val viewCart = stringResource(UiR.string.discovery_cart_view)
+    val resources = LocalContext.current.resources
+    val cartFeedback = remember { CartFeedbackState() }
+    val feedbackScope = rememberCoroutineScope()
     // F-17: a Toast, like the microphone-permission notice (VOZ-008), so it outlives a NavigateBack.
     val voiceNetworkMessage = stringResource(UiR.string.discovery_error_network_title) + " " +
         stringResource(UiR.string.discovery_error_network_message)
@@ -55,7 +70,18 @@ fun ProductSearchScreen(
                 is ProductSearchUiEffect.NavigateToDetail -> onNavigateToDetail(effect.productId)
                 ProductSearchUiEffect.OpenCart -> onOpenCart()
                 ProductSearchUiEffect.LineLimitReached ->
-                    Toast.makeText(context, lineLimitMessage, Toast.LENGTH_LONG).show()
+                    feedbackScope.launch { cartFeedback.showLimit(lineLimitMessage, limitOk) }
+                is ProductSearchUiEffect.AddedToCart -> {
+                    val message = resources.getQuantityString(
+                        UiR.plurals.discovery_cart_added,
+                        effect.quantity,
+                        effect.productName,
+                        effect.quantity,
+                    )
+                    feedbackScope.launch {
+                        if (cartFeedback.showAdded(message, viewCart)) viewModel.onEvent(ProductSearchUiEvent.OpenCart)
+                    }
+                }
                 is ProductSearchUiEffect.VoiceFailed -> {
                     val message = if (effect.category == SttErrorCategory.Network) voiceNetworkMessage else voiceFailedMessage
                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
@@ -74,11 +100,18 @@ fun ProductSearchScreen(
     // The microphone needs the runtime permission, like on Home (wave 2, D4: VOZ-008).
     val activateMic = rememberMicPermissionGate { viewModel.onEvent(ProductSearchUiEvent.ActivateMic) }
 
-    ProductSearchContent(
-        uiState = uiState,
-        onEvent = { event ->
-            if (event is ProductSearchUiEvent.ActivateMic) activateMic() else viewModel.onEvent(event)
-        },
-        modifier = modifier,
-    )
+    Box(modifier = modifier) {
+        ProductSearchContent(
+            uiState = uiState,
+            onEvent = { event ->
+                if (event is ProductSearchUiEvent.ActivateMic) activateMic() else viewModel.onEvent(event)
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        CartFeedbackHost(
+            state = cartFeedback,
+            // Above the bottom search bar.
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp),
+        )
+    }
 }

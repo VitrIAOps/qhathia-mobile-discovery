@@ -467,6 +467,12 @@ private fun DiscoveryNavHost(
                     },
                     onNavigateToDetail = openDetail,
                     onOpenCart = { showCart = true },
+                    onNavigateToCatalog = {
+                        // Same as from the results: a single fresh Catalog right above Home.
+                        navController.fromSettledScreen {
+                            navigate(catalogRoute()) { popUpTo(HOME_ROUTE) { inclusive = false } }
+                        }
+                    },
                 )
                 networkSettingsScreen(
                     onNavigateBack = goHome,
