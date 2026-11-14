@@ -21,7 +21,7 @@
     <string name="discovery_action_new_search">Nueva búsqueda</string>
     <string name="discovery_action_go_to_cart">Ir al carrito</string>
     <string name="discovery_action_add_to_cart">Agregar al carrito</string>
-    <string name="discovery_action_share">Compartir</string>
+    <string name="discovery_action_share">Cotizar por WhatsApp</string>
 
     <!-- Shared content descriptions -->
     <string name="discovery_cd_back">Volver</string>
@@ -36,7 +36,8 @@
     <string name="discovery_cd_photo_of">Foto %1$d de %2$s</string>
 
     <!-- Close-confirmation dialog -->
-    <string name="discovery_dialog_confirm_close">Sí, cerrar</string>
+    <string name="discovery_dialog_confirm_close">Sí, empezar de nuevo</string>
+    <string name="discovery_dialog_confirm_restart_with_cart">Sí, vaciar y empezar</string>
     <!-- Close-dialog message when the basket has products: confirming empties it (CAR-040). -->
     <plurals name="discovery_close_dialog_message_with_cart">
         <item quantity="one">Se vaciará el carrito (%1$d producto) y volverás al inicio.</item>

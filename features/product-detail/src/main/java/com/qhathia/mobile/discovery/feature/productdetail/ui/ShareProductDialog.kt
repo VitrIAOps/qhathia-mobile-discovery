@@ -1,5 +1,10 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.foundation.text.KeyboardActions
 import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -204,6 +209,7 @@ private fun ShareForm(
                         iconSize = 16.dp,
                     )
                 }
+                val focus = LocalFocusManager.current
                 DiscoveryTextField(
                     value = state.name,
                     onValueChange = { onEvent(ProductDetailUiEvent.ShareNameChanged(it)) },
@@ -213,6 +219,9 @@ private fun ShareForm(
                     errorText = if (state.showNameError) stringResource(R.string.pd_share_name_error) else null,
                     leadingIconRes = UiR.drawable.ic_user,
                     keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next,
+                    keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
                 )
                 DiscoveryTextField(
                     value = state.phone,
@@ -223,6 +232,8 @@ private fun ShareForm(
                     errorText = if (state.showPhoneError) stringResource(R.string.pd_share_phone_error) else null,
                     leadingIconRes = UiR.drawable.ic_phone,
                     keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Done,
+                    keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
                 )
                 PrimaryActionButton(
                     text = stringResource(R.string.pd_share_submit),

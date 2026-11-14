@@ -3,10 +3,16 @@
     <!-- Header. -->
     <string name="cart_title">Carrito</string>
     <string name="cart_close_cd">Cerrar carrito</string>
+    <!-- Header: "2 productos · 3 unidades". -->
     <plurals name="cart_subtitle_count">
-        <item quantity="one">%d producto guardado</item>
-        <item quantity="other">%d productos guardados</item>
+        <item quantity="one">%d producto</item>
+        <item quantity="other">%d productos</item>
     </plurals>
+    <plurals name="cart_subtitle_units">
+        <item quantity="one">%d unidad</item>
+        <item quantity="other">%d unidades</item>
+    </plurals>
+    <string name="cart_subtitle_lines_units">%1$s · %2$s</string>
 
     <!-- Empty state. -->
     <string name="cart_empty_message">Tu carrito está vacío</string>
@@ -15,12 +21,15 @@
     <!-- Cart line. -->
     <string name="cart_line_remove_cd">Quitar producto del carrito</string>
     <string name="cart_go_to_detail">Ver detalle</string>
-    <string name="cart_go_to_detail_cd">Ver el detalle del producto</string>
+    <string name="cart_go_to_detail_cd">Ver detalle de «%1$s»</string>
+    <!-- Unit price and line total of a line with several units: "S/ 189.00 c/u · S/ 378.00". -->
+    <string name="cart_line_price_each">%1$s c/u · %2$s</string>
 
     <!-- Consumer-data form. -->
-    <string name="cart_form_title">Completa tus datos para continuar</string>
-    <string name="cart_name_label">Nombres</string>
-    <string name="cart_name_placeholder">Nombres</string>
+    <string name="cart_form_title">Déjanos tu nombre y celular para enviarte el detalle por WhatsApp.</string>
+    <string name="cart_form_privacy">Solo lo usamos para este pedido o cotización.</string>
+    <string name="cart_name_label">Nombre</string>
+    <string name="cart_name_placeholder">Ej. Ana Pérez</string>
     <string name="cart_name_error">Ingresa al menos un nombre</string>
     <string name="cart_phone_label">Número de celular</string>
     <string name="cart_phone_placeholder">Ej. 987 654 321</string>
@@ -36,14 +45,19 @@
     <!-- Actions. -->
     <string name="cart_place_order">Realizar pedido</string>
     <string name="cart_keep_shopping">Seguir buscando</string>
-    <string name="cart_share_whatsapp_cd">Compartir por WhatsApp</string>
+    <string name="cart_share_whatsapp_cd">Cotizar por WhatsApp</string>
+    <string name="cart_actions_disabled_hint">Completa tu nombre y celular para continuar.</string>
 
     <!-- Order submission — loading. -->
     <string name="cart_submitting_cd">Generando tu pedido…</string>
+    <string name="cart_sharing_cd">Enviando tu cotización…</string>
 
     <!-- Order submission — success. -->
     <string name="cart_success_title">¡Pedido generado con éxito!</string>
     <string name="cart_success_subtitle">Acércate al vendedor para recibir tu pedido y realizar el pago.</string>
+    <!-- Order code from the server, shown large on the success screen. -->
+    <string name="cart_success_code">Pedido N.º %1$s</string>
+    <string name="cart_success_code_hint">Muéstrale este número al vendedor para que te atienda.</string>
     <string name="cart_success_check_phone">Revisa tu celular para ver el detalle de tu pedido.</string>
     <!-- Order created but the WhatsApp quote could not be delivered after retrying. -->
     <string name="cart_success_share_failed_subtitle">Se generó tu pedido. Acércate al vendedor e indícale tu nombre para revisar tu orden.</string>
@@ -60,7 +74,10 @@
 
     <!-- "Compartir por WhatsApp" — the server answered but WhatsApp did not receive the quote. -->
     <string name="cart_share_not_delivered_title">No pudimos enviar la cotización</string>
-    <string name="cart_share_not_delivered_message">La cotización no llegó a tu WhatsApp. Acércate al vendedor para que te ayude.</string>
+    <string name="cart_share_not_delivered_message">La cotización no llegó a tu WhatsApp. Revisa que el número sea correcto o acércate al vendedor.</string>
+    <string name="cart_share_check_number">Revisar mi número</string>
+    <string name="cart_share_close">Cerrar</string>
+    <string name="cart_share_retry">Intentar de nuevo</string>
 
     <!-- "Compartir por WhatsApp" — rejected or failed after its retries. Keeps the basket. -->
     <string name="cart_share_error_title">No pudimos enviar la cotización</string>

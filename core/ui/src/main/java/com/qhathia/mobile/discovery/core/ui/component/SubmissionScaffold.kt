@@ -15,7 +15,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +70,7 @@ data class SubmissionLine(
 fun SubmittingOverlay(
     contentDescription: String,
     modifier: Modifier = Modifier,
+    showIndicator: Boolean = true,
 ) {
     Box(
         modifier = modifier
@@ -82,23 +86,30 @@ fun SubmittingOverlay(
             },
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator(
-            color = Color.White,
-            modifier = Modifier
-                .size(48.dp)
-                .semantics { stateDescription = contentDescription },
-        )
+        if (showIndicator) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics { stateDescription = contentDescription },
+            )
+        } else {
+            // The spinner is on the tapped button; screen readers still hear what is in progress.
+            Box(Modifier.size(1.dp).semantics { stateDescription = contentDescription })
+        }
     }
 }
 
 /**
  * The success confirmation screen shared by the cart order/share and product-detail share flows: a
- * green [title], a [subtitle], the [summary] of submitted products, an optional [footnote] (e.g. the
+ * check icon and a [title] in the text color, an optional [highlight] in large type (the order code),
+ * a [subtitle], the [summary] of submitted products, an optional [footnote] (e.g. the
  * "check your phone" prompt — pass `null` to hide it), and a single accept action.
  *
  * @param quantityLabel maps a line quantity to its localized label (the caller owns the plural copy).
  * @param totalText the recorded total row, already formatted ("Total del pedido  S/ 80.00"), or `null`.
  * @param note a warning shown under the total (e.g. the recorded total differs from the cart), or `null`.
+ * @param highlight a short value the customer must remember ("Pedido N.º 564418"), or `null`.
  */
 @Composable
 fun SubmissionSuccessContent(
@@ -112,6 +123,7 @@ fun SubmissionSuccessContent(
     modifier: Modifier = Modifier,
     totalText: String? = null,
     note: String? = null,
+    highlight: String? = null,
 ) {
     Surface(
         modifier = modifier,
@@ -126,12 +138,27 @@ fun SubmissionSuccessContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
         ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = DiscoveryColors.Green600,
+                modifier = Modifier.size(48.dp),
+            )
+            // The title is read text: the text color keeps it legible; the icon carries the green.
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
-                color = DiscoveryColors.Green500,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
+            if (highlight != null) {
+                Text(
+                    text = highlight,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = DiscoveryColors.CatalogText,
+                    textAlign = TextAlign.Center,
+                )
+            }
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
@@ -258,14 +285,15 @@ fun SubmissionErrorContent(
     onSecondary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // A short message gets a compact panel centered in the space, not a full-size sheet.
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
     Surface(
-        modifier = modifier,
+        modifier = Modifier.widthIn(max = ERROR_PANEL_MAX_WIDTH),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -301,6 +329,7 @@ fun SubmissionErrorContent(
                 )
             }
         }
+    }
     }
 }
 
@@ -339,3 +368,5 @@ private fun SubmissionSuccessTotalSample(note: String?) {
         note = note,
     )
 }
+
+private val ERROR_PANEL_MAX_WIDTH = 560.dp

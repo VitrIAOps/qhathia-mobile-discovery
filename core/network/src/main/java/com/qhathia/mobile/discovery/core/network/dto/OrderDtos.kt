@@ -45,6 +45,8 @@ data class OrderResponseDto(
     val items: List<OrderItemResponseDto> = emptyList(),
     val sessionId: String? = null,
     val customerNote: String? = null,
+    /** Six-digit code the seller looks the order up by; null for orders created before the field existed. */
+    val orderCode: String? = null,
 )
 
 @Serializable

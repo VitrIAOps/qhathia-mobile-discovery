@@ -10,6 +10,6 @@
 
     <!-- Close-current-session confirmation dialog (feature-specific title/message;
          shared confirm/cancel labels and error/action copy live in core:ui). -->
-    <string name="catalog_close_dialog_title">¿Cerrar el catálogo?</string>
-    <string name="catalog_close_dialog_message">Se cerrará el catálogo y volverás al inicio.</string>
+    <string name="catalog_close_dialog_title">¿Empezar una nueva búsqueda?</string>
+    <string name="catalog_close_dialog_message">Volverás al inicio.</string>
 </resources>

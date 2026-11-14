@@ -39,6 +39,6 @@
     <string name="ps_prompt">Cuéntame más</string>
 
     <!-- Close-current-search confirmation dialog (feature-specific title/message). -->
-    <string name="ps_close_dialog_title">¿Cerrar la búsqueda actual?</string>
-    <string name="ps_close_dialog_message">Se cerrará la búsqueda y volverás al inicio.</string>
+    <string name="ps_close_dialog_title">¿Empezar una nueva búsqueda?</string>
+    <string name="ps_close_dialog_message">Volverás al inicio.</string>
 </resources>
