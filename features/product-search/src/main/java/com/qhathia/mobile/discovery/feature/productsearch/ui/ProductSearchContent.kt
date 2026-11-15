@@ -1,5 +1,9 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
+import com.qhathia.mobile.discovery.core.ui.format.formatPrice
+import com.qhathia.mobile.discovery.core.ui.component.discountPercent
+import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,6 +60,7 @@ import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
+import com.qhathia.mobile.discovery.core.ui.component.PrimaryActionButton
 import com.qhathia.mobile.discovery.core.ui.component.ProductCard
 import com.qhathia.mobile.discovery.core.ui.component.labeled
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
@@ -129,15 +134,20 @@ fun ProductSearchContent(
                         is ProductSearchPhase.Results -> ResultsBody(
                             phase = phase,
                             onEvent = onEvent,
+                            canAddToCart = uiState::canAddToCart,
                         )
 
                         is ProductSearchPhase.Unhappy -> UnhappyBody(
                             phase = phase,
                             onEvent = onEvent,
+                            canAddToCart = uiState::canAddToCart,
                             modifier = Modifier.align(Alignment.Center),
                         )
 
-                        ProductSearchPhase.NetworkError -> NetworkErrorBody(modifier = Modifier.align(Alignment.Center))
+                        ProductSearchPhase.NetworkError -> NetworkErrorBody(
+                            onRetry = { onEvent(ProductSearchUiEvent.Retry) },
+                            modifier = Modifier.align(Alignment.Center),
+                        )
                     }
                 }
 
@@ -197,7 +207,7 @@ private fun TopBar(
             CartButton(
                 itemCount = cartItemCount,
                 label = stringResource(UiR.string.discovery_action_go_to_cart),
-                contentDescription = stringResource(UiR.string.discovery_action_go_to_cart),
+                contentDescription = goToCartDescription(cartItemCount),
                 onClick = onCart,
             )
         }
@@ -270,7 +280,14 @@ private fun ProcessingBody(
         if (uiState.showProcessingMicAnimation) {
             MicButton(
                 isListening = true,
-                contentDescription = stringResource(UiR.string.discovery_cd_voice_search),
+                // Says what a tap does now: stop while listening, cancel while processing.
+                contentDescription = stringResource(
+                    if (uiState.phase is ProductSearchPhase.VoiceListening) {
+                        UiR.string.discovery_cd_mic_listening
+                    } else {
+                        UiR.string.discovery_cd_mic_processing
+                    },
+                ),
                 onClick = micOnClick,
             )
         } else {
@@ -284,17 +301,67 @@ private fun ProcessingBody(
                 is ProductSearchPhase.VoiceTranscribing -> phase.liveTranscript
                 else -> ""
             }
-            ListeningMessage(transcript = liveTranscript, listeningText = stringResource(res))
+            // A typed search names what is being looked for (UX-T-12).
+            val baseText = if (uiState.searchingQuery.isNotBlank() && uiState.phase == ProductSearchPhase.Searching) {
+                stringResource(R.string.ps_searching_query, uiState.searchingQuery)
+            } else {
+                stringResource(res)
+            }
+            ListeningMessage(transcript = liveTranscript, listeningText = baseText)
+        }
+        if (uiState.isVoiceCapturing) {
+            VoiceCancelControls(
+                isListening = uiState.phase is ProductSearchPhase.VoiceListening,
+                onCancel = { onEvent(ProductSearchUiEvent.CancelVoice) },
+            )
         }
     }
+}
+
+/**
+ * Under the listening message: what a tap on the circle does while listening, and a "Cancelar" that
+ * stops without searching (UX-T-07).
+ */
+@Composable
+private fun VoiceCancelControls(isListening: Boolean, onCancel: () -> Unit) {
+    if (isListening) {
+        Text(
+            text = stringResource(UiR.string.discovery_voice_tap_to_finish),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+    Spacer(modifier = Modifier.height(Spacing.md))
+    PrimaryActionButton(
+        text = stringResource(UiR.string.discovery_dialog_cancel),
+        onClick = onCancel,
+        containerColor = Color.Transparent,
+        contentColor = DiscoveryColors.CatalogText,
+        fillMaxWidth = false,
+    )
+}
+
+/** "Entendí: «…»" above a voice search's result, so the customer sees what the tablet understood. */
+@Composable
+private fun HeardText(heardText: String, modifier: Modifier = Modifier) {
+    if (heardText.isBlank()) return
+    Text(
+        text = stringResource(R.string.ps_heard_text, heardText),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 @Composable
 private fun ResultsBody(
     phase: ProductSearchPhase.Results,
     onEvent: (ProductSearchUiEvent) -> Unit,
+    canAddToCart: (String) -> Boolean = { true },
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        HeardText(phase.heardText, modifier = Modifier.padding(start = Spacing.lg, top = Spacing.sm))
         Row(
             modifier = Modifier
                 .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
@@ -321,18 +388,17 @@ private fun ResultsBody(
         ) { product ->
             ProductCard(
                 name = product.name,
-                priceText = stringResource(
-                    UiR.string.discovery_price_format,
-                    product.discountedPrice ?: product.price,
+                priceText = formatPrice(product.discountedPrice ?: product.price,
                 ),
                 originalPriceText = product.discountedPrice?.let {
-                    stringResource(UiR.string.discovery_price_format, product.price)
+                    formatPrice(product.price)
                 },
                 imageUrl = product.imageUrl,
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                cartEnabled = product.isOrderable,
+                cartEnabled = product.isOrderable && canAddToCart(product.id),
+                discountPercent = discountPercent(product.price, product.discountedPrice),
             )
         }
     }
@@ -366,7 +432,7 @@ private fun FiltersSuggestionsPanel(
             ) {
                 Icon(
                     painter = painterResource(UiR.drawable.ic_filter),
-                    contentDescription = stringResource(R.string.ps_refine_icon_cd),
+                    contentDescription = null, // the title next to it says the same
                     tint = DiscoveryColors.CatalogText,
                     modifier = Modifier.size(22.dp),
                 )
@@ -452,10 +518,12 @@ private fun CriterionSection(
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
                     color = DiscoveryColors.LinkBlue,
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { onEvent(ProductSearchUiEvent.FilterCriterionCleared(criterion)) }
                         .semantics { contentDescription = clearCd }
-                        .padding(Spacing.xs),
+                        .wrapContentHeight(Alignment.CenterVertically)
+                        .padding(horizontal = Spacing.sm),
                 )
             }
         }
@@ -493,7 +561,7 @@ private fun SuggestionsSection(
         ) {
             Icon(
                 painter = painterResource(UiR.drawable.ic_sparkle),
-                contentDescription = stringResource(R.string.ps_suggestions_icon_cd),
+                contentDescription = null, // the title next to it says the same
                 tint = DiscoveryColors.AccentOrange,
                 modifier = Modifier.size(18.dp),
             )
@@ -531,7 +599,7 @@ private fun RefineChip(
     val labelColor = if (selected) DiscoveryColors.Neutral50 else MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
-            .heightIn(min = 32.dp)
+            .heightIn(min = 48.dp)
             .clip(shape)
             .background(background)
             .then(if (selected) Modifier else Modifier.border(1.dp, DiscoveryColors.Blue100, shape))
@@ -553,6 +621,7 @@ private fun UnhappyBody(
     phase: ProductSearchPhase.Unhappy,
     onEvent: (ProductSearchUiEvent) -> Unit,
     modifier: Modifier = Modifier,
+    canAddToCart: (String) -> Boolean = { true },
 ) {
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
@@ -560,11 +629,16 @@ private fun UnhappyBody(
     ) {
         BrandDot()
         Spacer(modifier = Modifier.height(Spacing.md))
+        HeardText(phase.heardText)
+        if (phase.heardText.isNotBlank()) Spacer(modifier = Modifier.height(Spacing.sm))
         // Title: the apology, whose invite line is personalized from the category the backend drew the
         // suggestions from ("Relacionado a 'lámpara' te podría interesar…") or the generic invite.
-        val invite = phase.suggestedFromCategory
-            ?.let { stringResource(R.string.ps_unhappy_invite_category, it) }
-            ?: stringResource(R.string.ps_unhappy_invite)
+        // Without alternatives there is nothing to invite to: suggest other words or the catalog.
+        val invite = when {
+            phase.alternatives.isEmpty() -> stringResource(R.string.ps_unhappy_no_alternatives)
+            phase.suggestedFromCategory != null -> stringResource(R.string.ps_unhappy_invite_category, phase.suggestedFromCategory)
+            else -> stringResource(R.string.ps_unhappy_invite)
+        }
         Text(
             text = "${stringResource(R.string.ps_unhappy_message)}\n$invite",
             style = MaterialTheme.typography.titleMedium,
@@ -572,24 +646,32 @@ private fun UnhappyBody(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 576.dp),
         )
+        if (phase.heardText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = stringResource(R.string.ps_heard_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         if (phase.alternatives.isNotEmpty()) {
             Spacer(modifier = Modifier.height(Spacing.lg))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 phase.alternatives.forEach { product ->
                     ProductCard(
                         name = product.name,
-                        priceText = stringResource(
-                            UiR.string.discovery_price_format,
-                            product.discountedPrice ?: product.price,
+                        priceText = formatPrice(product.discountedPrice ?: product.price,
                         ),
                         originalPriceText = product.discountedPrice?.let {
-                            stringResource(UiR.string.discovery_price_format, product.price)
+                            formatPrice(product.price)
                         },
                         imageUrl = product.imageUrl,
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                         onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                        cartEnabled = product.isOrderable,
+                        cartEnabled = product.isOrderable && canAddToCart(product.id),
+                        discountPercent = discountPercent(product.price, product.discountedPrice),
                     )
                 }
             }
@@ -598,7 +680,7 @@ private fun UnhappyBody(
 }
 
 @Composable
-private fun NetworkErrorBody(modifier: Modifier = Modifier) {
+private fun NetworkErrorBody(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -616,6 +698,13 @@ private fun NetworkErrorBody(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 480.dp),
+        )
+        // F-38: the same retry action as the Catalog and Product-detail error bodies.
+        Spacer(modifier = Modifier.size(Spacing.md))
+        PrimaryActionButton(
+            text = stringResource(UiR.string.discovery_action_retry),
+            onClick = onRetry,
+            fillMaxWidth = false,
         )
     }
 }
@@ -644,7 +733,7 @@ private fun BottomBar(
                 modifier = Modifier.size(28.dp),
             )
             Text(
-                text = stringResource(R.string.ps_prompt),
+                text = stringResource(UiR.string.discovery_search_prompt),
                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp),
                 color = DiscoveryColors.Blue800,
             )
@@ -685,10 +774,14 @@ private fun CloseConfirmDialog(
     ConfirmationDialog(
         title = stringResource(R.string.ps_close_dialog_title),
         message = closeDialogMessage(cartItemCount, R.string.ps_close_dialog_message),
-        confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
+        // With products in the cart, confirming empties it: say so and make it the action that stands out.
+        confirmLabel = stringResource(
+            if (cartItemCount > 0) UiR.string.discovery_dialog_confirm_restart_with_cart else UiR.string.discovery_dialog_confirm_close,
+        ),
         dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
         onConfirm = onConfirm,
         onDismiss = onDismiss,
+        destructive = cartItemCount > 0,
         containerColor = MaterialTheme.colorScheme.surface,
     )
 }
@@ -933,7 +1026,18 @@ private fun UnhappyApologyOnlyPreview() {
 private fun NetworkErrorPreview() {
     DiscoveryTheme(darkTheme = false) {
         ProductSearchContent(
-            uiState = ProductSearchUiState(source = SearchSource.Text, phase = ProductSearchPhase.NetworkError),
+            uiState = ProductSearchUiState(source = SearchSource.Text, phase = ProductSearchPhase.NetworkError, query = "martillo"),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Network error — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun NetworkErrorDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(source = SearchSource.Text, phase = ProductSearchPhase.NetworkError, query = "martillo"),
             onEvent = {},
         )
     }

@@ -3,13 +3,29 @@
     <string name="home_store_name_placeholder">TIENDA</string>
 
     <!-- Idle hero copy -->
-    <string name="home_title">Encuentra lo que necesitas</string>
-    <string name="home_subtitle">Presiona aquí y describe lo que buscas, por nombre o detalles</string>
+    <string name="home_title">¿Qué estás buscando hoy?</string>
+    <string name="home_subtitle">Toca el micrófono y dime qué buscas, o escríbelo abajo</string>
+    <!-- Under the microphone, only while voice search is on. -->
+    <string name="home_mic_hint">Toca y habla, te escucho</string>
     <!-- Voice assistant turned off remotely: there is no microphone, so the hero invites typing. -->
     <string name="home_subtitle_voice_off">Escribe lo que buscas, por nombre o detalles</string>
 
     <!-- Search (feature-specific placeholder; shared search-icon CD lives in core:ui) -->
-    <string name="home_search_placeholder">Describe lo que buscas (taladro de la marca bosch)</string>
+    <!-- Neutral example, used without a store category or for a category without its own example. -->
+    <string name="home_search_placeholder">Escribe qué necesitas o para qué lo usarás</string>
+    <!-- Examples by store category (StoreCategory). Draft for product review. -->
+    <string name="home_example_tools">Ej.: taladro para concreto, llave de tubo</string>
+    <string name="home_example_lighting">Ej.: foco LED para exterior, lámpara de mesa</string>
+    <string name="home_example_electronics">Ej.: audífonos inalámbricos, cargador rápido</string>
+    <string name="home_example_textile">Ej.: tela para cortinas, polo de algodón</string>
+    <string name="home_example_food">Ej.: café en grano, galletas sin azúcar</string>
+    <string name="home_example_beauty">Ej.: crema hidratante, shampoo sin sal</string>
+    <string name="home_example_jewelry">Ej.: anillo de plata, aretes pequeños</string>
+    <string name="home_example_furniture">Ej.: silla de escritorio, mesa plegable</string>
+    <string name="home_example_decoration">Ej.: cuadro para sala, florero de vidrio</string>
+    <string name="home_example_sports">Ej.: zapatillas para correr, pelota de fútbol</string>
+    <string name="home_example_books">Ej.: novela juvenil, libro para colorear</string>
+    <string name="home_example_toys">Ej.: rompecabezas de 500 piezas, bloques para armar</string>
 
     <!-- Controls -->
     <string name="home_catalog">Ir al catálogo</string>
@@ -17,9 +33,7 @@
     <string name="home_settings_cd">Ajustes</string>
 
     <!-- Microphone content descriptions (shared "Buscar por voz" CD lives in core:ui) -->
-    <string name="home_mic_listening_cd">Escuchando, toca para detener</string>
     <string name="home_mic_retry_cd">Toca para intentar de nuevo</string>
-    <string name="home_mic_processing_cd">Procesando, toca para cancelar</string>
 
     <!-- Microphone permission -->
 
@@ -27,18 +41,18 @@
          no-audio retry; the mic re-triggers the search). Shared network-error and generic-error
          titles live in core:ui; the feature-specific messages remain here. -->
     <string name="stt_error_audio_too_long_title">¿Podrías resumir?</string>
-    <string name="stt_error_audio_too_long_message">Las grabaciones breves funcionan mejor. Intenta resumir tu búsqueda unos segundos.</string>
+    <string name="stt_error_audio_too_long_message">Dímelo en pocas palabras; así te entiendo mejor.</string>
 
     <string name="stt_error_transcription_title">No alcancé a entender…</string>
-    <string name="stt_error_transcription_message">Hubo un problema al procesar la idea. Intenta hablar más claro cuando grabes.</string>
+    <string name="stt_error_transcription_message">No te entendí bien. ¿Puedes repetirlo con otras palabras?</string>
 
     <string name="stt_error_empty_audio_title">No te escuché…</string>
     <string name="stt_error_empty_audio_message">Intenta hablar un poco más cerca del micrófono y vuelve a grabar.</string>
 
-    <string name="stt_error_timeout_title">La respuesta está tardando demasiado</string>
-    <string name="stt_error_timeout_message">Al parecer hay demoras al procesar la idea. Intenta nuevamente en unos momentos.</string>
+    <string name="stt_error_timeout_title">Esto tarda más de lo normal</string>
+    <string name="stt_error_timeout_message">Inténtalo en un momento o escribe lo que buscas.</string>
 
-    <string name="stt_error_generic_message">No pude completar tu solicitud. Por favor intenta nuevamente.</string>
+    <string name="stt_error_generic_message">No pude hacer la búsqueda. Inténtalo otra vez o escribe lo que buscas.</string>
 
     <!-- Footer -->
     <string name="home_powered_by">powered by</string>
@@ -53,7 +67,7 @@
     </string-array>
     <!-- Subtitles aligned by index with home_retry_titles. -->
     <string-array name="home_retry_subtitles">
-        <item>Inténtalo de nuevo, describe lo que buscas por nombre o detalles</item>
+        <item>Inténtalo de nuevo: dime qué buscas, por nombre o detalles</item>
         <item>Acércate y describe lo que buscas, por nombre o detalles</item>
         <item>Toca el micrófono y dime qué producto necesitas</item>
         <item>Vuelve a intentarlo: ¿qué producto estás buscando?</item>

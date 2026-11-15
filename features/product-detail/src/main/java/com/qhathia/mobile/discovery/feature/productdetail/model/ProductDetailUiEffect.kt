@@ -24,5 +24,11 @@ sealed interface ProductDetailUiEffect {
     data object OpenCart : ProductDetailUiEffect
 
     /** The basket already has 20 distinct products: tell the consumer why nothing was added. */
+    /** Open the catalog from the header. */
+    data object NavigateToCatalog : ProductDetailUiEffect
+
+    /** A product was added; the screen confirms it with "Ver carrito" (UX-X-07). */
+    data class AddedToCart(val productName: String, val quantity: Int) : ProductDetailUiEffect
+
     data object LineLimitReached : ProductDetailUiEffect
 }

@@ -84,7 +84,8 @@ private fun Thumbnail(url: String, photoNumber: Int, productName: String) {
     )
 }
 
-private val GALLERY_HEIGHT = 348.dp
+// 300 dp leaves room for the related carousel at 1280×800 dp without scrolling (UX-T-05).
+private val GALLERY_HEIGHT = 300.dp
 private val THUMBNAIL_SIZE = 88.dp
 
 @Preview(name = "Gallery 3 photos — light", showBackground = true, widthDp = 520)

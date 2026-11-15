@@ -19,6 +19,10 @@ android {
         // build (e.g. the `profile` build type) can still surface the API call logs. Off by default;
         // debug builds also force it on via BuildConfig.DEBUG at the call site.
         buildConfigField("boolean", "ENABLE_NETWORK_LOGGING", "false")
+
+        // Request/response bodies in those logs (F-20). Off in every build type: logs show method, URL
+        // and status only. Set it to "true" locally to see the bodies while debugging; never commit that.
+        buildConfigField("boolean", "ENABLE_NETWORK_BODY_LOGGING", "false")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

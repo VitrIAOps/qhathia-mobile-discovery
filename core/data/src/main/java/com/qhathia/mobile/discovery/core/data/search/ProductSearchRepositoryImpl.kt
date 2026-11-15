@@ -7,6 +7,7 @@ import com.qhathia.mobile.discovery.core.domain.model.ProductSearchResult
 import com.qhathia.mobile.discovery.core.domain.model.StructuredSearchFilters
 import com.qhathia.mobile.discovery.core.domain.model.SearchErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SearchException
+import com.qhathia.mobile.discovery.core.domain.repository.CustomerSessionRepository
 import com.qhathia.mobile.discovery.core.domain.repository.ProductSearchRepository
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.service.ConversationSearchApiService
@@ -22,6 +23,7 @@ import javax.inject.Inject
 class ProductSearchRepositoryImpl @Inject constructor(
     private val sessionTokenProvider: SessionTokenProvider,
     private val searchApiService: ConversationSearchApiService,
+    private val customerSession: CustomerSessionRepository,
 ) : ProductSearchRepository {
 
     override suspend fun search(
@@ -34,7 +36,13 @@ class ProductSearchRepositoryImpl @Inject constructor(
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(SearchErrorMapper.fromTokenFailure(it)) }
 
-        val response = searchApiService.search(token, query, language, filters = filters?.toDto())
+        val response = searchApiService.search(
+            token,
+            query,
+            language,
+            sessionId = customerSession.currentSessionId(),
+            filters = filters?.toDto(),
+        )
 
         return when (response) {
             is NetworkResult.Success -> success(response.data.toDomain())

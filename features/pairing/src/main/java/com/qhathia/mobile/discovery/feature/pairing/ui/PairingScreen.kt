@@ -1,13 +1,11 @@
 package com.qhathia.mobile.discovery.feature.pairing.ui
 
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -20,7 +18,7 @@ import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEvent
  * Stateful pairing (Vincular) entry point. Binds [PairingViewModel] and ties the code generation /
  * status subscription to composition: [PairingViewModel.start] runs when the section becomes visible
  * and [PairingViewModel.stop] tears the subscription down when the merchant switches away. Overlays the
- * unpair confirmation dialog and surfaces the "unpairing unavailable" notice.
+ * paired-tablet details.
  *
  * The slice is host-agnostic. The host supplies the header [title] ("TIENDA" in Settings, "QHATHIA" in
  * onboarding), whether a back affordance is shown ([showBackButton] / [onBack]), and what a successful
@@ -41,7 +39,6 @@ fun PairingScreen(
     viewModel: PairingViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val currentOnPaired by rememberUpdatedState(onPaired)
 
     DisposableEffect(viewModel) {
@@ -61,12 +58,6 @@ fun PairingScreen(
         viewModel.uiEffect.collect { effect ->
             when (effect) {
                 PairingUiEffect.Paired -> currentOnPaired()
-                PairingUiEffect.UnpairUnavailable ->
-                    Toast.makeText(
-                        context,
-                        R.string.pairing_unpair_unavailable,
-                        Toast.LENGTH_LONG,
-                    ).show()
             }
         }
     }
@@ -79,11 +70,4 @@ fun PairingScreen(
         onBack = onBack,
         modifier = modifier,
     )
-
-    if (uiState.showUnpairConfirmation) {
-        UnpairConfirmationDialog(
-            onConfirm = { viewModel.onEvent(PairingUiEvent.UnpairConfirmed) },
-            onDismiss = { viewModel.onEvent(PairingUiEvent.UnpairDismissed) },
-        )
-    }
 }

@@ -18,7 +18,6 @@ class FakeDevicePairingRepository(
     var generateResult: Result<PairingCode> = Result.success(DEFAULT_CODE),
     var exchangeResult: Result<PairedDevice> = Result.success(DEFAULT_DEVICE),
     var pairedResult: Result<PairedDevice> = Result.success(DEFAULT_DEVICE),
-    var unpairResult: Result<Unit> = Result.failure(UnsupportedOperationException("not available")),
 ) : DevicePairingRepository {
 
     private val statusFlow = MutableSharedFlow<PairingStatus>(extraBufferCapacity = 16)
@@ -72,7 +71,6 @@ class FakeDevicePairingRepository(
         return pairedResult
     }
 
-    override suspend fun unpair(): Result<Unit> = unpairResult
 
     companion object {
         val DEFAULT_CODE: PairingCode = PairingCode(

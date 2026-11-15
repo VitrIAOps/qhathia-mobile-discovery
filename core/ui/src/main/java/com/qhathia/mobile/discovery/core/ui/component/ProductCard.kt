@@ -64,6 +64,7 @@ fun ProductCard(
     onCardClick: (() -> Unit)? = null,
     originalPriceText: String? = null,
     cartEnabled: Boolean = true,
+    discountPercent: Int? = null,
 ) {
     Surface(
         modifier = modifier.width(CARD_WIDTH),
@@ -79,27 +80,33 @@ fun ProductCard(
                     modifier = Modifier
                         .matchParentSize()
                         .clickable(onClick = onCardClick)
-                        .labeled(cardLabel(name, priceText)),
+                        .labeled(cardLabel(name, priceText, originalPriceText)),
                 )
             }
             Column(
                 modifier = Modifier.padding(Spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                ProductImage(
-                    url = imageUrl,
-                    contentDescription = null, // the name below is the accessible label
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IMAGE_HEIGHT)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
+                Box {
+                    ProductImage(
+                        url = imageUrl,
+                        contentDescription = null, // the name below is the accessible label
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IMAGE_HEIGHT)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                    if (discountPercent != null) {
+                        DiscountBadge(percent = discountPercent, modifier = Modifier.padding(Spacing.xs))
+                    }
+                }
                 Text(
                     text = name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
-                    minLines = 2,
-                    maxLines = 2,
+                    // Three lines keep the detail that tells products apart ("…DeWalt 12V").
+                    minLines = 3,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = if (onCardClick != null) Modifier.clearAndSetSemantics {} else Modifier,
                 )
@@ -129,41 +136,16 @@ fun ProductCard(
                             },
                         )
                     }
-                    CartButton(contentDescription = cartContentDescription, onClick = onCartClick, enabled = cartEnabled)
+                    CartCircleButton(contentDescription = cartContentDescription, onClick = onCartClick, enabled = cartEnabled)
                 }
             }
         }
     }
 }
 
-@Composable
-private fun CartButton(
-    contentDescription: String,
-    onClick: () -> Unit,
-    enabled: Boolean,
-) {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .clip(CircleShape)
-            .background(DiscoveryColors.CatalogText)
-            .clickable(enabled = enabled, onClick = onClick)
-            .labeled(contentDescription),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_cart),
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
 private val CARD_WIDTH = 156.dp
-private const val DISABLED_ALPHA = 0.38f
-private val IMAGE_HEIGHT = 140.dp
+// 112 dp keeps two rows of cards with three-line names above the bottom bar at 1280×800 dp.
+private val IMAGE_HEIGHT = 112.dp
 
 @Preview(name = "ProductCard — light", showBackground = true, backgroundColor = 0xFFF8F8F8)
 @Composable

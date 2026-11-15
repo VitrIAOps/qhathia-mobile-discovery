@@ -1,14 +1,18 @@
 package com.qhathia.mobile.discovery.feature.home.model
 
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
+
 /**
  * Immutable snapshot of the Discovery Home screen.
  *
  * @property storeName the operating store's name, or `null` when not yet available.
+ * @property storeCategory the store's line of business, which picks the search example; `null` when unknown.
  * @property query the current search-bar text.
  * @property micState the voice-search interaction state.
  */
 data class HomeUiState(
     val storeName: String? = null,
+    val storeCategory: StoreCategory? = null,
     val query: String = "",
     val micState: MicState = MicState.Idle,
 ) {

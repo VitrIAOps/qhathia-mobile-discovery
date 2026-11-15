@@ -1,5 +1,17 @@
 package com.qhathia.mobile.discovery.feature.cart.ui
 
+import com.qhathia.mobile.discovery.core.ui.format.formatPrice
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -80,16 +92,21 @@ fun CartDialogContent(
                 subtitle = stringResource(
                     when {
                         submission.isQuoteOnly -> R.string.cart_share_success_subtitle
+                        // With a code, the seller finds the order by it, not by the customer's name.
+                        submission.orderCode != null -> R.string.cart_success_code_hint
                         submission.shareDelivered -> R.string.cart_success_subtitle
                         else -> R.string.cart_success_share_failed_subtitle
                     },
                 ),
+                highlight = submission.orderCode
+                    ?.takeIf { !submission.isQuoteOnly }
+                    ?.let { stringResource(R.string.cart_success_code, it) },
                 summary = submission.summary.toSubmissionLines(),
                 totalText = submission.total?.let {
-                    stringResource(R.string.cart_success_total_label, stringResource(UiR.string.discovery_price_format, it))
+                    stringResource(R.string.cart_success_total_label, formatPrice(it))
                 },
                 note = if (submission.totalMismatch && submission.total != null) {
-                    stringResource(R.string.cart_success_total_mismatch, stringResource(UiR.string.discovery_price_format, submission.total))
+                    stringResource(R.string.cart_success_total_mismatch, formatPrice(submission.total))
                 } else {
                     null
                 },
@@ -107,15 +124,19 @@ fun CartDialogContent(
 
         is OrderSubmission.Error -> OrderErrorContent(reason = submission.reason, onEvent = onEvent, modifier = modifier)
 
-        // A share that failed keeps the basket: only "Entendido", back to the cart (CAR-033).
+        // A share that failed keeps the basket (CAR-033). The provider already tried that number, so
+        // nothing is resent: check the number, or close.
         OrderSubmission.QuoteNotDelivered ->
             SubmissionErrorContent(
                 title = stringResource(R.string.cart_share_not_delivered_title),
                 message = stringResource(R.string.cart_share_not_delivered_message),
-                primaryLabel = stringResource(R.string.cart_error_understood),
+                primaryLabel = stringResource(R.string.cart_share_check_number),
                 onPrimary = { onEvent(CartUiEvent.DismissError) },
-                secondaryLabel = null,
-                onSecondary = {},
+                secondaryLabel = stringResource(R.string.cart_share_close),
+                onSecondary = {
+                    onEvent(CartUiEvent.DismissError)
+                    onEvent(CartUiEvent.Close)
+                },
                 modifier = modifier,
             )
 
@@ -125,10 +146,11 @@ fun CartDialogContent(
                 message = stringResource(
                     if (submission.network) R.string.cart_share_error_network_message else R.string.cart_share_error_message,
                 ),
-                primaryLabel = stringResource(R.string.cart_error_understood),
-                onPrimary = { onEvent(CartUiEvent.DismissError) },
-                secondaryLabel = null,
-                onSecondary = {},
+                // The failure may be passing (network, server): resend with the same data.
+                primaryLabel = stringResource(R.string.cart_share_retry),
+                onPrimary = { onEvent(CartUiEvent.RetryShare) },
+                secondaryLabel = stringResource(R.string.cart_error_back_to_cart),
+                onSecondary = { onEvent(CartUiEvent.DismissError) },
                 modifier = modifier,
             )
 
@@ -204,7 +226,7 @@ private fun ImmutableList<OrderedLine>.toSubmissionLines(): ImmutableList<Submis
             imageUrl = it.imageUrl,
             name = it.name,
             quantity = it.quantity,
-            priceText = it.lineTotal?.let { total -> stringResource(UiR.string.discovery_price_format, total) },
+            priceText = it.lineTotal?.let { total -> formatPrice(total) },
         )
     }.toImmutableList()
 
@@ -223,7 +245,7 @@ private fun CartContent(
             color = MaterialTheme.colorScheme.surfaceVariant,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Header(itemCount = uiState.totalItemCount, onClose = { onEvent(CartUiEvent.Close) })
+                Header(lineCount = uiState.lineCount, unitCount = uiState.totalItemCount, onClose = { onEvent(CartUiEvent.Close) })
                 DiscoveryDivider()
                 Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -238,7 +260,13 @@ private fun CartContent(
             }
         }
         if (uiState.isSubmitting) {
-            SubmittingOverlay(contentDescription = stringResource(R.string.cart_submitting_cd))
+            SubmittingOverlay(
+                contentDescription = stringResource(
+                    if (uiState.submittingShare) R.string.cart_sharing_cd else R.string.cart_submitting_cd,
+                ),
+                // A quote spins on its own button, next to where the customer tapped.
+                showIndicator = !uiState.submittingShare,
+            )
         }
     }
 }
@@ -246,7 +274,7 @@ private fun CartContent(
 // --- Header ---
 
 @Composable
-private fun Header(itemCount: Int, onClose: () -> Unit) {
+private fun Header(lineCount: Int, unitCount: Int, onClose: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
         verticalAlignment = Alignment.CenterVertically,
@@ -259,7 +287,11 @@ private fun Header(itemCount: Int, onClose: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = pluralStringResource(R.plurals.cart_subtitle_count, itemCount, itemCount),
+                text = stringResource(
+                    R.string.cart_subtitle_lines_units,
+                    pluralStringResource(R.plurals.cart_subtitle_count, lineCount, lineCount),
+                    pluralStringResource(R.plurals.cart_subtitle_units, unitCount, unitCount),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -347,19 +379,33 @@ private fun CartLineCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
+                    val unitPrice = formatPrice(item.priceUnit)
                     Text(
-                        text = stringResource(UiR.string.discovery_price_format, item.priceUnit),
+                        text = if (item.quantity > 1) {
+                            stringResource(
+                                R.string.cart_line_price_each,
+                                unitPrice,
+                                formatPrice(item.priceUnit * item.quantity),
+                            )
+                        } else {
+                            unitPrice
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                     )
+                    val detailLabel = stringResource(R.string.cart_go_to_detail_cd, item.name)
                     Text(
                         text = stringResource(R.string.cart_go_to_detail),
                         style = MaterialTheme.typography.labelLarge,
                         color = DiscoveryColors.CatalogText,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { onEvent(CartUiEvent.OpenLineDetail(item.productId)) }
+                            .clickable(role = Role.Button) { onEvent(CartUiEvent.OpenLineDetail(item.productId)) }
+                            .clearAndSetSemantics {
+                                contentDescription = detailLabel
+                                role = Role.Button
+                            }
                             .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                     )
                     QuantityStepper(
@@ -403,30 +449,51 @@ private fun FooterPanel(
     uiState: CartUiState,
     onEvent: (CartUiEvent) -> Unit,
 ) {
+    // The form, notices and totals scroll; the actions stay fixed at the bottom so they are never cut
+    // by the dialog's edge, whatever the form shows (UX-T-04).
     Column(
         modifier = Modifier
             .width(FOOTER_WIDTH)
             .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surface)
-            .verticalScroll(rememberScrollState())
-            .padding(Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+            .background(MaterialTheme.colorScheme.surface),
     ) {
-        ConsumerForm(uiState = uiState, onEvent = onEvent)
-        uiState.notice?.let { NoticeBox(notice = it) }
-        TotalsSection(itemCount = uiState.totalItemCount, total = uiState.totalAmount)
-        if (uiState.hasUnavailableLines) {
-            Text(
-                text = stringResource(R.string.cart_unavailable_message),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+        ) {
+            ConsumerForm(uiState = uiState, onEvent = onEvent)
+            uiState.notice?.let { NoticeBox(notice = it) }
+            TotalsSection(total = uiState.totalAmount)
+            if (uiState.hasUnavailableLines) {
+                Text(
+                    text = stringResource(R.string.cart_unavailable_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        DiscoveryDivider()
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            if (uiState.needsConsumerData) {
+                Text(
+                    text = stringResource(R.string.cart_actions_disabled_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            ActionButtons(
+                isOrderEnabled = uiState.canSubmit,
+                isShareEnabled = uiState.canSubmit,
+                isSharing = uiState.isSubmitting && uiState.submittingShare,
+                onEvent = onEvent,
             )
         }
-        ActionButtons(
-            isOrderEnabled = uiState.canSubmit,
-            isShareEnabled = uiState.canSubmit,
-            onEvent = onEvent,
-        )
     }
 }
 
@@ -449,8 +516,8 @@ private fun NoticeBox(notice: CartNotice) {
                     stringResource(
                         R.string.cart_notice_price_changed,
                         it.productName,
-                        stringResource(UiR.string.discovery_price_format, it.oldUnitPrice),
-                        stringResource(UiR.string.discovery_price_format, it.newUnitPrice),
+                        formatPrice(it.oldUnitPrice),
+                        formatPrice(it.newUnitPrice),
                     ),
                 )
             }
@@ -480,6 +547,7 @@ private fun ConsumerForm(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
+        val focus = LocalFocusManager.current
         DiscoveryTextField(
             value = uiState.name,
             onValueChange = { onEvent(CartUiEvent.NameChanged(it)) },
@@ -489,6 +557,9 @@ private fun ConsumerForm(
             errorText = if (uiState.showNameError) stringResource(R.string.cart_name_error) else null,
             leadingIconRes = UiR.drawable.ic_user,
             keyboardType = KeyboardType.Text,
+            capitalization = KeyboardCapitalization.Words,
+            imeAction = ImeAction.Next,
+            keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
         )
         DiscoveryTextField(
             value = uiState.phone,
@@ -499,80 +570,86 @@ private fun ConsumerForm(
             errorText = if (uiState.showPhoneError) stringResource(R.string.cart_phone_error) else null,
             leadingIconRes = UiR.drawable.ic_phone,
             keyboardType = KeyboardType.Phone,
+            imeAction = ImeAction.Done,
+            keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
+        )
+        Text(
+            text = stringResource(R.string.cart_form_privacy),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
+/** The amount to pay. One row while there are no discounts or surcharges to add up (UX-T-16). */
 @Composable
-private fun TotalsSection(itemCount: Int, total: Double) {
-    Column(
+private fun TotalsSection(total: Double) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(DiscoveryColors.Blue50)
             .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = pluralStringResource(R.plurals.cart_subtotal_label, itemCount, itemCount),
-                style = MaterialTheme.typography.bodySmall,
-                color = DiscoveryColors.CatalogText,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(UiR.string.discovery_price_format, total),
-                style = MaterialTheme.typography.bodySmall,
-                color = DiscoveryColors.CatalogText,
-            )
-        }
-        DiscoveryDivider(color = DiscoveryColors.Blue200)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.cart_total_label),
-                style = MaterialTheme.typography.titleSmall,
-                color = DiscoveryColors.CatalogText,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(UiR.string.discovery_price_format, total),
-                style = MaterialTheme.typography.headlineMedium,
-                color = DiscoveryColors.CatalogText,
-            )
-        }
+        Text(
+            text = stringResource(R.string.cart_total_label),
+            style = MaterialTheme.typography.titleSmall,
+            color = DiscoveryColors.CatalogText,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = formatPrice(total),
+            style = MaterialTheme.typography.headlineMedium,
+            color = DiscoveryColors.CatalogText,
+        )
     }
 }
 
+/**
+ * "Realizar pedido" and "Cotizar por WhatsApp" side by side, "Seguir buscando" as a text button under
+ * them. A quote in flight spins on its own button.
+ */
 @Composable
 private fun ActionButtons(
     isOrderEnabled: Boolean,
     isShareEnabled: Boolean,
+    isSharing: Boolean,
     onEvent: (CartUiEvent) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        // Primary: "Realizar pedido" — enabled only when the consumer data is valid.
-        PrimaryActionButton(
-            text = stringResource(R.string.cart_place_order),
-            onClick = { onEvent(CartUiEvent.PlaceOrder) },
-            enabled = isOrderEnabled,
-            containerColor = if (isOrderEnabled) DiscoveryColors.Blue700 else DiscoveryColors.Divider,
-            contentColor = if (isOrderEnabled) Color.White else DiscoveryColors.TextDisabled,
-        )
-        PrimaryActionButton(
-            text = stringResource(R.string.cart_keep_shopping),
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            // "Realizar pedido" — enabled only when the consumer data is valid.
+            PrimaryActionButton(
+                text = stringResource(R.string.cart_place_order),
+                onClick = { onEvent(CartUiEvent.PlaceOrder) },
+                enabled = isOrderEnabled,
+                containerColor = if (isOrderEnabled) DiscoveryColors.Blue700 else DiscoveryColors.Divider,
+                contentColor = if (isOrderEnabled) Color.White else DiscoveryColors.TextDisabled,
+                modifier = Modifier.weight(1f),
+            )
+            PrimaryActionButton(
+                text = stringResource(UiR.string.discovery_action_share),
+                onClick = { onEvent(CartUiEvent.ShareWhatsApp) },
+                // Blocked while a line is flagged "No disponible" (the server would reject it again).
+                enabled = isShareEnabled,
+                isLoading = isSharing,
+                containerColor = if (isShareEnabled) DiscoveryColors.Green500 else DiscoveryColors.Divider,
+                contentColor = if (isShareEnabled) Color.White else DiscoveryColors.TextDisabled,
+                leadingIconRes = UiR.drawable.ic_whatsapp,
+                iconContentDescription = stringResource(R.string.cart_share_whatsapp_cd),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        TextButton(
             onClick = { onEvent(CartUiEvent.KeepShopping) },
-            containerColor = Color.Transparent,
-            contentColor = DiscoveryColors.CatalogText,
-        )
-        PrimaryActionButton(
-            text = stringResource(UiR.string.discovery_action_share),
-            onClick = { onEvent(CartUiEvent.ShareWhatsApp) },
-            // Blocked while a line is flagged "No disponible" (the server would reject it again).
-            enabled = isShareEnabled,
-            containerColor = if (isShareEnabled) DiscoveryColors.Green500 else DiscoveryColors.Divider,
-            contentColor = if (isShareEnabled) Color.White else DiscoveryColors.TextDisabled,
-            leadingIconRes = UiR.drawable.ic_whatsapp,
-            iconContentDescription = stringResource(R.string.cart_share_whatsapp_cd),
-        )
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.cart_keep_shopping),
+                style = MaterialTheme.typography.labelLarge,
+                color = DiscoveryColors.CatalogText,
+            )
+        }
     }
 }
 

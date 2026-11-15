@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.core.ui.component
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,7 +56,9 @@ fun ProductImage(
     var failed by remember(url) { mutableStateOf(false) }
     val showPlaceholder = url.isNullOrBlank() || failed
     Box(
-        modifier = modifier.background(DiscoveryColors.Neutral50),
+        // A missing photo gets a white frame, so it reads as "no photo" and not as an image still loading
+        // on the screen's own background (UX-T-15).
+        modifier = modifier.background(if (showPlaceholder) Color.White else DiscoveryColors.Neutral50),
         contentAlignment = Alignment.Center,
     ) {
         if (showPlaceholder) {
@@ -66,9 +69,9 @@ fun ProductImage(
                 Icon(
                     painter = painterResource(R.drawable.ic_image),
                     contentDescription = null,
-                    tint = DiscoveryColors.Neutral300,
+                    tint = DiscoveryColors.TextMuted,
                     modifier = Modifier
-                        .size(PLACEHOLDER_ICON_SIZE)
+                        .size(if (showMissingLabel) LARGE_PLACEHOLDER_ICON_SIZE else PLACEHOLDER_ICON_SIZE)
                         .then(
                             if (contentDescription != null) {
                                 Modifier.semantics {
@@ -84,7 +87,7 @@ fun ProductImage(
                     Text(
                         text = stringResource(R.string.discovery_image_missing),
                         style = MaterialTheme.typography.bodySmall,
-                        color = DiscoveryColors.Neutral500,
+                        color = DiscoveryColors.TextMuted,
                     )
                 }
             }
@@ -101,6 +104,7 @@ fun ProductImage(
 }
 
 private val PLACEHOLDER_ICON_SIZE = 32.dp
+private val LARGE_PLACEHOLDER_ICON_SIZE = 64.dp
 private val PLACEHOLDER_LABEL_GAP = 4.dp
 
 @Preview(name = "ProductImage placeholder — light", showBackground = true)

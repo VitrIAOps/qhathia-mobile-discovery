@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.catalog.ui
 
+import kotlinx.collections.immutable.toImmutableSet
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -84,7 +85,10 @@ class CatalogViewModel @Inject constructor(
         load()
         viewModelScope.launch {
             observeCart().collect { cart ->
-                _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
+                _uiState.update { it.copy(
+                        cartItemCount = cart.totalItemCount,
+                        cartProductIds = cart.items.map { line -> line.productId }.toImmutableSet(),
+                    ) }
             }
         }
         viewModelScope.launch {
@@ -179,7 +183,10 @@ class CatalogViewModel @Inject constructor(
             loaded.forEach { category ->
                 add(CatalogTab(id = CatalogTab.categoryId(category.id), kind = CatalogTab.Kind.Category, label = category.name))
             }
-            add(CatalogTab(id = CatalogTab.DISCOUNTS_ID, kind = CatalogTab.Kind.Discounts))
+            // Only when something is discounted: an empty tab would lead nowhere (UX-T-17).
+            if (loaded.any { category -> category.products.any(CatalogConstants::isDiscountCandidate) }) {
+                add(CatalogTab(id = CatalogTab.DISCOUNTS_ID, kind = CatalogTab.Kind.Discounts))
+            }
         }
         return tabs.toImmutableList()
     }
@@ -283,7 +290,11 @@ class CatalogViewModel @Inject constructor(
     /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
     private fun addAndReportLimit(item: CartItem) {
         viewModelScope.launch {
-            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(CatalogUiEffect.LineLimitReached)
+            when (addToCart(item)) {
+                AddToCartResult.Added -> emit(CatalogUiEffect.AddedToCart(item.name, item.quantity))
+                AddToCartResult.LineLimitReached -> emit(CatalogUiEffect.LineLimitReached)
+                AddToCartResult.NotOrderable -> Unit
+            }
         }
     }
 

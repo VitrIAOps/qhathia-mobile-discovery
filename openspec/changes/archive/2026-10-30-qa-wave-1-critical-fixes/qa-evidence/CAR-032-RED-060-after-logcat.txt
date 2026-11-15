@@ -1,5 +1,0 @@
-# CAR-032 / RED-060 after: cart share with the test number, profile build. 1 request; name and phone masked by the app.
-10-29 22:49:47.459 D/KtorClient( 7348): REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
-10-29 22:49:47.459 D/KtorClient( 7348): {"customerName":"***","customerPhone":"***","items":[{"productId":"9842627f-6140-411c-913d-f3765da0e2a8","quantity":2}]}
-10-29 22:49:49.395 D/KtorClient( 7348): FROM: http://87.99.156.164/api/v1/carts/share-pdf
-10-29 22:49:49.395 D/KtorClient( 7348): {"status":"FAILED","messageId":null,"pdfUrl":"https://pub-6eb357761fe6456a892ca04dfa8f81dd.r2.dev/carts/9496ec33-73eb-4508-a952-de5547be2dfc.pdf","error":"400 Bad Request: \"{\"error\":{\"message\":\"(#133010) Account no

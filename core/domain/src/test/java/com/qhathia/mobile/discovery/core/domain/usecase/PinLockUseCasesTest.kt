@@ -33,7 +33,7 @@ class PinLockUseCasesTest {
 
     private suspend fun fail(times: Int): PinLockState {
         var state: PinLockState = PinLockState.Open(5)
-        repeat(times) { state = registerFailure() }
+        repeat(times) { state = registerFailure().state }
         return state
     }
 
@@ -46,7 +46,7 @@ class PinLockUseCasesTest {
     fun fifth_failure_locks_for_30_seconds() = runTest {
         fail(4)
 
-        assertEquals(PinLockState.Locked(30.seconds), registerFailure())
+        assertEquals(PinLockState.Locked(30.seconds), registerFailure().state)
         assertEquals(start, repository.stored.value.lockedAt)
         assertEquals(1, repository.stored.value.lockCount)
     }
@@ -76,7 +76,7 @@ class PinLockUseCasesTest {
         fail(5)
         clock.advance(Duration.ofSeconds(10))
 
-        assertEquals(PinLockState.Locked(20.seconds), registerFailure())
+        assertEquals(PinLockState.Locked(20.seconds), registerFailure().state)
         assertEquals(start, repository.stored.value.lockedAt)
         assertEquals(1, repository.stored.value.lockCount)
     }
@@ -100,7 +100,7 @@ class PinLockUseCasesTest {
         reset()
 
         assertEquals(PinLockState.Open(attemptsLeft = 5), observe().first())
-        assertEquals(PinLockState.Open(attemptsLeft = 4), registerFailure())
+        assertEquals(PinLockState.Open(attemptsLeft = 4), registerFailure().state)
     }
 
     @Test
@@ -153,5 +153,28 @@ class PinLockUseCasesTest {
         val seen = mutableListOf<PinLockState>()
         backgroundScope.launch { useCase().collect { seen += it } }
         return seen
+    }
+
+
+    // --- fix-pin-lockout-log (F-13) ---
+
+    @Test
+    fun only_the_failure_that_locks_starts_a_lock() = runTest {
+        repeat(4) { assertEquals(false, registerFailure().startedLock) }
+
+        assertEquals(true, registerFailure().startedLock)
+        assertEquals(false, registerFailure().startedLock) // already locked
+    }
+
+    @Test
+    fun the_next_lock_after_expiry_starts_a_lock_again() = runTest {
+        fail(5)
+        clock.advance(Duration.ofSeconds(30))
+
+        repeat(4) { assertEquals(false, registerFailure().startedLock) }
+        val fifth = registerFailure()
+
+        assertEquals(true, fifth.startedLock)
+        assertEquals(PinLockState.Locked(1.minutes), fifth.state)
     }
 }

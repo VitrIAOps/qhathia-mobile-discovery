@@ -88,4 +88,31 @@ class OrderMappersTest {
         assertEquals("Taladro", order.items.first().productName)
         assertEquals(200.0, order.items.first().lineTotal)
     }
+
+    // --- add-customer-session-id (F-22) ---
+
+    @Test
+    fun given_session_id_when_building_request_then_it_is_in_the_body() {
+        val request = buildCreateOrderRequest("Ana", "987654321", listOf(item()), sessionId = "s-1")
+
+        assertEquals("s-1", request.sessionId)
+    }
+
+    @Test
+    fun given_no_session_id_when_building_request_then_it_is_omitted() {
+        assertEquals(null, buildCreateOrderRequest("Ana", "987654321", listOf(item())).sessionId)
+    }
+
+    @Test
+    fun given_order_code_when_mapping_response_then_code_kept() {
+        val order = OrderResponseDto(id = "o1", orderCode = "564418").toDomain()
+
+        assertEquals("564418", order.orderCode)
+    }
+
+    @Test
+    fun given_no_or_blank_order_code_when_mapping_response_then_code_null() {
+        assertEquals(null, OrderResponseDto(id = "o1").toDomain().orderCode)
+        assertEquals(null, OrderResponseDto(id = "o1", orderCode = " ").toDomain().orderCode)
+    }
 }

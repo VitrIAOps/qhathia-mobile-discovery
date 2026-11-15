@@ -31,6 +31,8 @@ data class DeviceTokenResponseDto(
     val platform: String,
     val status: String,
     val storeName: String? = null,
+    /** Store line of business (`StoreCategory`), sent since backend phase 37. */
+    val storeCategory: String? = null,
 )
 
 /**
@@ -49,6 +51,8 @@ data class DeviceInfoResponseDto(
     val lastSeenAt: String? = null,
     val lastSyncAt: String? = null,
     val storeName: String? = null,
+    /** Store line of business (`StoreCategory`), sent since backend phase 37. */
+    val storeCategory: String? = null,
 )
 
 /** Status message pushed over the pairing-session WebSocket (`server → tablet`). */

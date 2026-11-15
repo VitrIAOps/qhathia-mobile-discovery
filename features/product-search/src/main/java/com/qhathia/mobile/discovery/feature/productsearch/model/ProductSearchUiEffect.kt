@@ -37,5 +37,8 @@ sealed interface ProductSearchUiEffect {
     data class VoiceFailed(val category: SttErrorCategory) : ProductSearchUiEffect
 
     /** The basket already has 20 distinct products: tell the consumer why nothing was added. */
+    /** A product was added; the screen confirms it with "Ver carrito" (UX-X-07). */
+    data class AddedToCart(val productName: String, val quantity: Int) : ProductSearchUiEffect
+
     data object LineLimitReached : ProductSearchUiEffect
 }

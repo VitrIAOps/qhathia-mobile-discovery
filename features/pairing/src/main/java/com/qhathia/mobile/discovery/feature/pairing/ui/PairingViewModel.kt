@@ -13,7 +13,6 @@ import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.HoldPairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePairingStatusUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingError
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingPhase
 import com.qhathia.mobile.discovery.feature.pairing.model.PairingUiEffect
@@ -39,7 +38,7 @@ import javax.inject.Inject
  * Drives the pairing (Vincular) section. On entry it either loads the paired-device details (when a
  * device token is already persisted) or shows a code and waits for the merchant's approval over the
  * status channel. The code's TTL drives a one-second countdown that, on reaching zero, requests a
- * fresh code — mirroring the server's `EXPIRED` push. Unpairing is wired but unavailable server-side.
+ * fresh code — mirroring the server's `EXPIRED` push.
  *
  * The code survives the section being closed and recreated (design D6): it is held outside this
  * ViewModel ([HoldPairingCodeUseCase]), so [start] shows it again with its remaining time while it is
@@ -57,7 +56,6 @@ class PairingViewModel @Inject constructor(
     private val observePairingStatus: ObservePairingStatusUseCase,
     private val exchangeDeviceToken: ExchangeDeviceTokenUseCase,
     private val getPairedDevice: GetPairedDeviceUseCase,
-    private val unpairDevice: UnpairDeviceUseCase,
     private val getHeldPairingCode: GetHeldPairingCodeUseCase,
     private val holdPairingCode: HoldPairingCodeUseCase,
     private val clock: ElapsedRealtimeClock,
@@ -108,11 +106,6 @@ class PairingViewModel @Inject constructor(
         when (event) {
             PairingUiEvent.GenerateCode -> onGenerateCode()
             PairingUiEvent.RetryPairedDeviceLoad -> if (pairedSession) loadPairedDevice()
-            PairingUiEvent.UnpairClicked ->
-                _uiState.update { it.copy(showUnpairConfirmation = true) }
-            PairingUiEvent.UnpairDismissed ->
-                _uiState.update { it.copy(showUnpairConfirmation = false) }
-            PairingUiEvent.UnpairConfirmed -> confirmUnpair()
         }
     }
 
@@ -255,13 +248,6 @@ class PairingViewModel @Inject constructor(
         cancelJobs()
         holdPairingCode(null)
         _uiState.update { it.copy(phase = PairingPhase.Error, error = error) }
-    }
-
-    private fun confirmUnpair() {
-        _uiState.update { it.copy(showUnpairConfirmation = false) }
-        viewModelScope.launch {
-            unpairDevice().onFailure { _uiEffect.emit(PairingUiEffect.UnpairUnavailable) }
-        }
     }
 
     private fun cancelJobs() {

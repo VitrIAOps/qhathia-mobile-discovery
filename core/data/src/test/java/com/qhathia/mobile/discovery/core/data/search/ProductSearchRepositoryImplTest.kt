@@ -10,6 +10,7 @@ import com.qhathia.mobile.discovery.core.network.dto.ConversationSearchResponseD
 import com.qhathia.mobile.discovery.core.network.dto.SearchFiltersDto
 import com.qhathia.mobile.discovery.core.network.dto.SearchProductDto
 import com.qhathia.mobile.discovery.core.network.service.ConversationSearchApiService
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -24,7 +25,9 @@ class ProductSearchRepositoryImplTest {
     private val sessionTokenProvider = mockk<SessionTokenProvider>(relaxUnitFun = true)
     private val searchApiService = mockk<ConversationSearchApiService>()
 
-    private fun repository() = ProductSearchRepositoryImpl(sessionTokenProvider, searchApiService)
+    private val customerSession = FakeCustomerSessionRepository()
+
+    private fun repository() = ProductSearchRepositoryImpl(sessionTokenProvider, searchApiService, customerSession)
 
     private fun response(
         products: List<SearchProductDto> = listOf(SearchProductDto(id = "p1", name = "Taladro", price = 380.0)),
@@ -113,7 +116,22 @@ class ProductSearchRepositoryImplTest {
         repository().search("taladro", "es", StructuredSearchFilters(brands = listOf("Bosch")))
         repository().search("taladro", "es", null)
 
-        coVerify { searchApiService.search("jwt", "taladro", "es", null, SearchFiltersDto(brands = listOf("Bosch"))) }
-        coVerify { searchApiService.search("jwt", "taladro", "es", null, null) }
+        coVerify { searchApiService.search("jwt", "taladro", "es", "session-1", SearchFiltersDto(brands = listOf("Bosch"))) }
+        coVerify { searchApiService.search("jwt", "taladro", "es", "session-1", null) }
+    }
+
+    // --- add-customer-session-id (F-22) ---
+
+    @Test
+    fun search_carries_the_current_customer_session() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { searchApiService.search(any(), any(), any(), any(), any()) } returns NetworkResult.Success(response())
+
+        repository().search("taladro")
+        customerSession.end()
+        repository().search("martillo")
+
+        coVerify { searchApiService.search("jwt", "taladro", any(), "session-1", any()) }
+        coVerify { searchApiService.search("jwt", "martillo", any(), "session-2", any()) }
     }
 }

@@ -15,6 +15,8 @@ import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEffect
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiEvent
 import com.qhathia.mobile.discovery.feature.settings.model.SettingsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -126,8 +128,10 @@ class SettingsViewModel @Inject constructor(
                         _uiState.update { it.copy(isValidating = false) }
                         leave(SettingsUiEffect.Unlocked)
                     } else {
-                        val lock = registerPinFailure()
-                        if (lock is PinLockState.Locked && !_uiState.value.isLocked) reportLockout(lock)
+                        val result = registerPinFailure()
+                        val lock = result.state
+                        // Decided by the domain: the lock observer may already show this lock (F-13).
+                        if (result.startedLock && lock is PinLockState.Locked) reportLockout(lock)
                         // Clear the entry so the merchant can retype the PIN (unless now locked).
                         _uiState.update {
                             it.copy(
@@ -146,10 +150,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Tells the backend about a new lock, in its own coroutine; a failure changes nothing on screen. */
+    /**
+     * Tells the backend about a new lock, in its own coroutine; a failure changes nothing on screen. Not
+     * cancelled if the PIN screen closes right after the lock (F-13); the HTTP timeouts bound it.
+     */
     private fun reportLockout(lock: PinLockState.Locked) {
         viewModelScope.launch {
-            reportPinLockout(failedAttempts = SettingsConstants.PIN_MAX_ATTEMPTS, lockDuration = lock.remaining)
+            withContext(NonCancellable) {
+                reportPinLockout(failedAttempts = SettingsConstants.PIN_MAX_ATTEMPTS, lockDuration = lock.remaining)
+            }
         }
     }
 

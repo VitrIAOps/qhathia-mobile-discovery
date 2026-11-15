@@ -16,6 +16,7 @@ import com.qhathia.mobile.discovery.core.domain.model.ConsumerField
 import com.qhathia.mobile.discovery.core.network.dto.CreateOrderRequestDto
 import com.qhathia.mobile.discovery.core.network.dto.PriceChangeDto
 import com.qhathia.mobile.discovery.core.network.dto.ProblemDetailDto
+import com.qhathia.mobile.discovery.core.testing.FakeCustomerSessionRepository
 import io.mockk.slot
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -31,7 +32,9 @@ class OrderRepositoryImplTest {
     private val sessionTokenProvider = mockk<SessionTokenProvider>(relaxUnitFun = true)
     private val orderApiService = mockk<OrderApiService>()
 
-    private fun repository() = OrderRepositoryImpl(sessionTokenProvider, orderApiService)
+    private val customerSession = FakeCustomerSessionRepository()
+
+    private fun repository() = OrderRepositoryImpl(sessionTokenProvider, orderApiService, customerSession)
 
     private val items = listOf(
         CartItem("p1", "Taladro", 100.0, "t.jpg", "AVAILABLE", 2, 99),
@@ -228,5 +231,17 @@ class OrderRepositoryImplTest {
         repository().createOrder("Ana", "987654321", listOf(CartItem("p1", "Taladro", 79.996, "", "AVAILABLE", 1, 99)))
 
         assertEquals(80.0, sent.captured.items.single().expectedUnitPrice)
+    }
+
+    // --- add-customer-session-id (F-22) ---
+
+    @Test
+    fun order_carries_the_current_customer_session() = runTest {
+        coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
+        coEvery { orderApiService.createOrder(any(), any()) } returns NetworkResult.Success(response())
+
+        repository().createOrder("Ana", "987654321", items)
+
+        coVerify { orderApiService.createOrder("jwt", match { it.sessionId == "session-1" }) }
     }
 }

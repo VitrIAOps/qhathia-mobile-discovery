@@ -158,6 +158,22 @@ class CartShareRepositoryImplTest {
     }
 
     @Test
+    fun not_sellable_share_carries_the_reason() {
+        assertEquals(
+            ShareOutcome.Rejected(ShareRejection.Unavailable, productId = "p1", productName = "QA X LOW", reason = "LOW_STOCK"),
+            CartShareErrorMapper.fromHttpError(
+                409,
+                ProblemDetailDto(errorCode = "PRODUCT_NOT_SELLABLE", productId = "p1", productName = "QA X LOW", reason = "LOW_STOCK"),
+            ),
+        )
+    }
+
+    @Test
+    fun status_only_rejection_has_no_reason() {
+        assertEquals(null, (CartShareErrorMapper.fromHttpError(409) as ShareOutcome.Rejected).reason)
+    }
+
+    @Test
     fun stock_insufficient_share_carries_the_units_left() {
         assertEquals(
             ShareOutcome.Rejected(ShareRejection.StockInsufficient, productId = "p1", productName = "Taladro", available = 2),

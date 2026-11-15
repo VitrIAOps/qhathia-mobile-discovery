@@ -7,13 +7,12 @@
 -->
 <resources>
     <!-- Errors -->
-    <string name="discovery_error_network_title">Perdí la conexión…</string>
-    <string name="discovery_error_network_message">Parece que la red está inestable. Verifica tu internet e intenta nuevamente.</string>
+    <string name="discovery_error_network_title">Sin conexión a internet</string>
+    <string name="discovery_error_network_message">La tablet se quedó sin internet. Inténtalo en un momento o pide ayuda al vendedor.</string>
     <string name="discovery_error_generic_title">Algo salió mal</string>
     <string name="discovery_action_retry">Reintentar</string>
 
     <!-- Price format -->
-    <string name="discovery_price_format">S/ %1$.2f</string>
 
     <!-- Shared action labels -->
     <string name="discovery_action_back">Volver</string>
@@ -21,7 +20,7 @@
     <string name="discovery_action_new_search">Nueva búsqueda</string>
     <string name="discovery_action_go_to_cart">Ir al carrito</string>
     <string name="discovery_action_add_to_cart">Agregar al carrito</string>
-    <string name="discovery_action_share">Compartir</string>
+    <string name="discovery_action_share">Cotizar por WhatsApp</string>
 
     <!-- Shared content descriptions -->
     <string name="discovery_cd_back">Volver</string>
@@ -36,7 +35,8 @@
     <string name="discovery_cd_photo_of">Foto %1$d de %2$s</string>
 
     <!-- Close-confirmation dialog -->
-    <string name="discovery_dialog_confirm_close">Sí, cerrar</string>
+    <string name="discovery_dialog_confirm_close">Sí, empezar de nuevo</string>
+    <string name="discovery_dialog_confirm_restart_with_cart">Sí, vaciar y empezar</string>
     <!-- Close-dialog message when the basket has products: confirming empties it (CAR-040). -->
     <plurals name="discovery_close_dialog_message_with_cart">
         <item quantity="one">Se vaciará el carrito (%1$d producto) y volverás al inicio.</item>
@@ -45,19 +45,39 @@
     <string name="discovery_dialog_cancel">Cancelar</string>
 
     <!-- Shared search prompt + placeholder -->
-    <string name="discovery_search_prompt">¿En qué tipo de proyecto lo usarás?</string>
-    <string name="discovery_search_placeholder">Describe lo que buscas Ej: hacer huecos en concreto, armar muebles…</string>
+    <string name="discovery_search_prompt">¿Qué más necesitas? Cuéntame.</string>
+    <string name="discovery_search_placeholder">Describe lo que buscas</string>
 
     <!-- Voice processing copy (home + product-search) -->
     <string name="discovery_voice_listening">Escuchando</string>
-    <string name="discovery_voice_organizing">Organizando ideas</string>
+    <string name="discovery_voice_tap_to_finish">Toca el círculo para terminar</string>
+    <!-- Microphone descriptions by state, shared by Home and the results screen. -->
+    <string name="discovery_cd_mic_listening">Escuchando, toca para detener</string>
+    <string name="discovery_cd_mic_processing">Procesando, toca para cancelar</string>
+    <string name="discovery_voice_organizing">Entendiendo lo que dijiste</string>
     <string name="discovery_voice_slow_response">Está tardando más de lo que esperaba</string>
     <!-- Product with no photo at all, under the placeholder of the detail's main image (F-43). -->
     <string name="discovery_image_missing">Sin foto</string>
     <!-- Voice search failed for a reason other than the network (F-17). -->
     <string name="discovery_voice_failed">No pude usar el micrófono. Escribe tu búsqueda o inténtalo otra vez.</string>
     <!-- Microphone permission (home + product-search) -->
-    <string name="discovery_mic_permission_required">Necesitamos acceso al micrófono para la búsqueda por voz</string>
+    <string name="discovery_mic_permission_required">La búsqueda por voz no está disponible. Escribe lo que buscas.</string>
     <!-- Basket limit (catalog, product-search, product-detail) -->
+    <!-- "-20 %" over a discounted product. -->
+    <string name="discovery_discount_badge">-%1$d %%</string>
+    <!-- Card label with a discount: name, price paid, list price. -->
+    <string name="discovery_cd_card_discounted">%1$s, %2$s, antes %3$s</string>
+    <!-- Shown after an add (UX-X-07). %1$s product, %2$d units. -->
+    <plurals name="discovery_cart_added">
+        <item quantity="one">Agregaste «%1$s» al carrito</item>
+        <item quantity="other">Agregaste %2$d de «%1$s» al carrito</item>
+    </plurals>
+    <string name="discovery_cart_view">Ver carrito</string>
+    <string name="discovery_cart_limit_ok">Entendido</string>
+    <!-- Cart control description with the count. -->
+    <plurals name="discovery_cd_go_to_cart_count">
+        <item quantity="one">Ir al carrito, %d producto</item>
+        <item quantity="other">Ir al carrito, %d productos</item>
+    </plurals>
     <string name="discovery_cart_line_limit">Tu carrito ya tiene 20 productos distintos. Realiza tu pedido o quita alguno para agregar más.</string>
 </resources>

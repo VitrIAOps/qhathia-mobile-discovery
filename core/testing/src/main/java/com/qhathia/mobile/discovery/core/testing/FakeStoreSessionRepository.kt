@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.core.testing
 
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
 import com.qhathia.mobile.discovery.core.domain.repository.StoreSessionRepository
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,10 @@ class FakeStoreSessionRepository(
         state.value = state.value.copy(storeName = storeName)
     }
 
+    override suspend fun updateStoreCategory(category: StoreCategory?) {
+        state.value = state.value.copy(storeCategory = category)
+    }
+
     override suspend fun deviceAccessToken(): String? = state.value.deviceAccessToken
 
     override suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?, pairingCode: String?) {
@@ -33,7 +38,7 @@ class FakeStoreSessionRepository(
     }
 
     override suspend fun clearDeviceSession() {
-        state.value = state.value.copy(deviceAccessToken = null, deviceName = null, pairingCode = null)
+        state.value = state.value.copy(deviceAccessToken = null, deviceName = null, pairingCode = null, storeCategory = null)
     }
 
     /** Number of [revokeDeviceSession] calls. */
@@ -44,6 +49,7 @@ class FakeStoreSessionRepository(
         revokeCount++
         state.value = state.value.copy(
             storeName = null,
+            storeCategory = null,
             deviceAccessToken = null,
             deviceName = null,
             pairingCode = null,

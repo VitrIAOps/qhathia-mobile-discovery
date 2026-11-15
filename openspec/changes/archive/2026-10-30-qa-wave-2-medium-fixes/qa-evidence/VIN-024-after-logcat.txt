@@ -1,3 +1,0 @@
-# VIN-024 after (fix/qa-wave-2 @ d546573, profile, Tablet_API36): code error offline, network back, 4 fast taps on Reintentar.
-REQUEST: http://87.99.156.164/api/v1/devices/pairing-token
-FROM: http://87.99.156.164/api/v1/devices/pairing-token

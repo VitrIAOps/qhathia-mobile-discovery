@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.core.data.pairing
 
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
@@ -209,6 +210,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
                         pairingCode = lastGeneratedCode,
                     )
                     dto.storeName?.takeIf { it.isNotBlank() }?.let { storeSessionRepository.updateStoreName(it) }
+                    StoreCategory.fromApi(dto.storeCategory)?.let { storeSessionRepository.updateStoreCategory(it) }
                     pendingSession.clearIf(sessionId)
                     return Result.success(dto.toPairedDevice(lastGeneratedCode))
                 }
@@ -233,6 +235,7 @@ class DevicePairingRepositoryImpl @Inject constructor(
                 val dto = result.data
                 val sentStoreName = dto.storeName?.takeIf { it.isNotBlank() }
                 if (sentStoreName != null) storeSessionRepository.updateStoreName(sentStoreName)
+                StoreCategory.fromApi(dto.storeCategory)?.let { storeSessionRepository.updateStoreCategory(it) }
                 val session = storeSessionRepository.observe().first()
                 Result.success(
                     dto.toPairedDevice(pairingCode = session.pairingCode, storeName = session.storeName),
@@ -243,11 +246,6 @@ class DevicePairingRepositoryImpl @Inject constructor(
         }
     }
 
-    // TODO(pairing-unpair): no backend unpair API exists yet (ClickUp 86e1kbt2d). Fail explicitly so the
-    // UI can communicate that server-side unpairing is unavailable, rather than clearing the local token
-    // and falsely implying the device was unpaired on the server (which would strand the device).
-    override suspend fun unpair(): Result<Unit> =
-        Result.failure(UnsupportedOperationException("Unpairing is not available yet"))
 
     private fun httpError(error: NetworkResult.HttpError): Throwable =
         IllegalStateException("HTTP ${error.code}: ${error.message}")

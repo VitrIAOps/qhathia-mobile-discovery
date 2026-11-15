@@ -5,6 +5,7 @@ import com.qhathia.mobile.discovery.core.domain.model.CartItem
 import com.qhathia.mobile.discovery.core.domain.model.Order
 import com.qhathia.mobile.discovery.core.domain.model.OrderErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.OrderException
+import com.qhathia.mobile.discovery.core.domain.repository.CustomerSessionRepository
 import com.qhathia.mobile.discovery.core.domain.repository.OrderRepository
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.service.OrderApiService
@@ -20,6 +21,7 @@ import javax.inject.Inject
 class OrderRepositoryImpl @Inject constructor(
     private val sessionTokenProvider: SessionTokenProvider,
     private val orderApiService: OrderApiService,
+    private val customerSession: CustomerSessionRepository,
 ) : OrderRepository {
 
     override suspend fun createOrder(
@@ -27,7 +29,7 @@ class OrderRepositoryImpl @Inject constructor(
         phone: String,
         items: List<CartItem>,
     ): Result<Order> {
-        val request = buildCreateOrderRequest(name, phone, items)
+        val request = buildCreateOrderRequest(name, phone, items, sessionId = customerSession.currentSessionId())
 
         val token = sessionTokenProvider.accessToken()
             .getOrElse { return failure(OrderErrorMapper.fromTokenFailure(it)) }

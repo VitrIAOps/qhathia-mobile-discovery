@@ -1,9 +1,0 @@
-10-28 05:39:45.292 10830 11609 D KtorClient: REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
-10-28 05:39:45.511 10830 10830 D KtorClient: RESPONSE: 422 
-10-28 05:39:45.511 10830 10830 D KtorClient: {"type":"/errors/validation-error","title":"Validation Error","status":422,"detail":"Validation failed for request fields","instance":"/api/v1/carts/share-pdf","errorCode":"VALIDATION_ERROR","timestamp":"2026-10-28T05:35:59.324057913Z","fieldErrors":{"items":"items must not exceed 20 entries"}}
-10-28 05:39:45.525 10830 11609 D KtorClient: REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
-10-28 05:39:45.736 10830 10830 D KtorClient: RESPONSE: 422 
-10-28 05:39:45.736 10830 10830 D KtorClient: {"type":"/errors/validation-error","title":"Validation Error","status":422,"detail":"Validation failed for request fields","instance":"/api/v1/carts/share-pdf","errorCode":"VALIDATION_ERROR","timestamp":"2026-10-28T05:35:59.558833415Z","fieldErrors":{"items":"items must not exceed 20 entries"}}
-10-28 05:39:45.743 10830 10845 D KtorClient: REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
-10-28 05:39:45.947 10830 10830 D KtorClient: RESPONSE: 422 
-10-28 05:39:45.947 10830 10830 D KtorClient: {"type":"/errors/validation-error","title":"Validation Error","status":422,"detail":"Validation failed for request fields","instance":"/api/v1/carts/share-pdf","errorCode":"VALIDATION_ERROR","timestamp":"2026-10-28T05:35:59.773529418Z","fieldErrors":{"items":"items must not exceed 20 entries"}}

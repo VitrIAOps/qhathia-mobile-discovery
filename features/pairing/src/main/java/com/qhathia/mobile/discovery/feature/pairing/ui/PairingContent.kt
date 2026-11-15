@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.pairing.ui
 
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import com.qhathia.mobile.discovery.feature.pairing.model.LastSeen
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -409,7 +412,7 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
                 RowDivider()
                 DetailRow(
                     label = stringResource(R.string.pairing_platform_label),
-                    value = device.platform,
+                    value = stringResource(R.string.pairing_platform_value, appVersionName()),
                 )
                 RowDivider()
                 DetailRow(
@@ -420,31 +423,8 @@ private fun PairedState(device: PairedDevice, onEvent: (PairingUiEvent) -> Unit)
             }
         }
 
-        SectionLabel(stringResource(R.string.pairing_catalog_section))
-        InfoBanner(text = stringResource(R.string.pairing_catalog_pending))
-
-        val unpairLabel = stringResource(R.string.pairing_unpair)
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onEvent(PairingUiEvent.UnpairClicked) }
-                .labeled(unpairLabel)
-                .padding(vertical = Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_link),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = unpairLabel,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
+        // Unlinking is the owner's, from Qhathia Staff: no control here that cannot work (UX-T-09).
+        InfoBanner(text = stringResource(R.string.pairing_unpair_from_app))
     }
 }
 
@@ -522,11 +502,22 @@ private fun formatMmSs(totalSeconds: Long): String {
 @Composable
 private fun syncedLabel(lastSyncAt: Instant?): String {
     if (lastSyncAt == null) return stringResource(R.string.pairing_pending)
-    val minutes = ChronoUnit.MINUTES.between(lastSyncAt, Instant.now()).coerceAtLeast(0)
-    return if (minutes < 1) {
-        stringResource(R.string.pairing_synced_recently)
-    } else {
-        pluralStringResource(R.plurals.pairing_synced_minutes, minutes.toInt(), minutes.toInt())
+    return when (val ago = LastSeen.of(lastSyncAt, Instant.now())) {
+        LastSeen.Recently -> stringResource(R.string.pairing_synced_recently)
+        is LastSeen.Minutes -> pluralStringResource(R.plurals.pairing_last_seen_minutes, ago.value, ago.value)
+        is LastSeen.Hours -> pluralStringResource(R.plurals.pairing_last_seen_hours, ago.value, ago.value)
+        is LastSeen.Days -> pluralStringResource(R.plurals.pairing_last_seen_days, ago.value, ago.value)
+    }
+}
+
+/** The app's own version for "Plataforma"; empty if Android cannot say. */
+@Composable
+private fun appVersionName(): String {
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull()
+            .orEmpty()
     }
 }
 

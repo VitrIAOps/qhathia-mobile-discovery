@@ -1,4 +1,0 @@
-10-28 05:34:14.554 10830 11556 D KtorClient: REQUEST: http://87.99.156.164/api/v1/carts/share-pdf
---
-10-28 05:34:16.047 10830 10830 D KtorClient: FROM: http://87.99.156.164/api/v1/carts/share-pdf
-10-28 05:34:16.047 10830 10830 D KtorClient: {"status":"FAILED","messageId":null,"pdfUrl":"https://pub-6eb357761fe6456a892ca04dfa8f81dd.r2.dev/carts/f828412c-7778-4df0-93fa-5d801d04d334.pdf","error":"400 Bad Request: \"{\"error\":{\"message\":\"(#133010) Account not registered\",\"code\":133010,\"type\":\"OAuthException\",\"fbtrace_id\":\"ALgD9yHChUjyxyh6mkfzo0O\"}}\""}

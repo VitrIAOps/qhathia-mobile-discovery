@@ -36,3 +36,12 @@ fun Modifier.labeled(description: String, role: Role? = Role.Button): Modifier =
  */
 internal fun cardLabel(name: String, priceText: String): String =
     "$name, $priceText"
+
+/** Card label that also says the price before the discount: "<nombre>, <precio>, antes <precio>". */
+@androidx.compose.runtime.Composable
+internal fun cardLabel(name: String, priceText: String, originalPriceText: String?): String =
+    if (originalPriceText == null) {
+        cardLabel(name, priceText)
+    } else {
+        androidx.compose.ui.res.stringResource(com.qhathia.mobile.discovery.core.ui.R.string.discovery_cd_card_discounted, name, priceText, originalPriceText)
+    }

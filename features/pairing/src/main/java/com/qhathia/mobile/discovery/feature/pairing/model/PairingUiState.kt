@@ -11,7 +11,6 @@ import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
  * @property totalSeconds the code's full lifetime at generation, captured from the server's
  *   `expiresAt`; the progress bar fills against this so it starts full regardless of the actual TTL.
  * @property device the paired-device details, present during [PairingPhase.Paired].
- * @property showUnpairConfirmation whether the unpair confirmation dialog is visible.
  * @property error what failed, present during [PairingPhase.Error].
  */
 data class PairingUiState(
@@ -20,7 +19,6 @@ data class PairingUiState(
     val remainingSeconds: Long = 0L,
     val totalSeconds: Long = 0L,
     val device: PairedDevice? = null,
-    val showUnpairConfirmation: Boolean = false,
     val error: PairingError? = null,
 )
 

@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.productdetail.model
 
+import com.qhathia.mobile.discovery.core.domain.CartConstants
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.ImmutableSet
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
@@ -18,6 +21,8 @@ import kotlinx.collections.immutable.ImmutableList
  * @property quantity the quantity selected in the add-to-cart stepper (≥ 1, bounded by stock).
  * @property cartItemCount total items in the cart, shown on the Ir al carrito control's badge.
  * @property share the "Compartir por WhatsApp" dialog sub-state (hidden until the button is tapped).
+ * @property isChecking whether the product is being read again before an add or a share (F-32); taps on
+ *   those actions are ignored meanwhile.
  */
 data class ProductDetailUiState(
     val status: Status = Status.Loading,
@@ -26,8 +31,18 @@ data class ProductDetailUiState(
     val showCloseConfirmDialog: Boolean = false,
     val quantity: Int = 1,
     val cartItemCount: Int = 0,
+    /** Products already in the cart, to tell which add buttons still work once the basket is full. */
+    val cartProductIds: ImmutableSet<String> = persistentSetOf(),
     val share: ShareUiState = ShareUiState(),
+    val isChecking: Boolean = false,
 ) {
+    /**
+     * Whether adding [productId] can work: always for a product already in the cart, and for a new one
+     * only while the basket has room (UX-X-07).
+     */
+    fun canAddToCart(productId: String): Boolean =
+        productId in cartProductIds || cartProductIds.size < CartConstants.MAX_DISTINCT_LINES
+
 
     /**
      * The share-quote dialog state. Mirrors the cart's consumer form + submission phase so the
@@ -84,7 +99,22 @@ data class ProductDetailUiState(
          * error that sends the consumer to the seller; never as a success.
          */
         data object NotDelivered : ShareSubmission
+
+        /**
+         * The server refused the share because the product cannot be sold from the tablet
+         * (`PRODUCT_NOT_SELLABLE`, F-32). "Entendido" closes the dialog; the detail is already greyed out.
+         *
+         * @property productName the product the server named, or `null` to use the loaded detail's name.
+         */
+        data class Unavailable(val productName: String?) : ShareSubmission
+
+        /**
+         * The server refused the share because only [available] units are left (`STOCK_INSUFFICIENT`).
+         * The quantity is already lowered; "Entendido" returns to the form.
+         */
+        data class StockShortage(val available: Int) : ShareSubmission
     }
+
     /** The product-detail load status. */
     sealed interface Status {
 

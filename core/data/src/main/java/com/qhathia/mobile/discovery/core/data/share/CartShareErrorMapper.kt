@@ -23,7 +23,12 @@ internal object CartShareErrorMapper {
         if (problem == null) return fromHttpStatus(code)
         return when (problem.resolvedErrorCode) {
             "PRODUCT_NOT_SELLABLE" ->
-                ShareOutcome.Rejected(ShareRejection.Unavailable, problem.productId, problem.productName)
+                ShareOutcome.Rejected(
+                    ShareRejection.Unavailable,
+                    problem.productId,
+                    problem.productName,
+                    reason = problem.reason,
+                )
             "STOCK_INSUFFICIENT" ->
                 ShareOutcome.Rejected(ShareRejection.StockInsufficient, problem.productId, problem.productName, problem.available)
             else -> fromHttpStatus(code)

@@ -125,6 +125,9 @@ class ProductSearchViewModel @Inject constructor(
     /** Voice capture was stopped while hidden and there was nothing to restore: leave once shown again. */
     private var leaveOnResume = false
 
+    /** The last search request, repeated by "Reintentar" after a network error (F-38). */
+    private var lastSearch: LastSearch? = null
+
     init {
         // The Catalog microphone opens this screen with source Voice and no query: listen here
         // instead of sending an empty search (design D11, CAT-030).
@@ -136,7 +139,10 @@ class ProductSearchViewModel @Inject constructor(
         }
         viewModelScope.launch {
             observeCart().collect { cart ->
-                _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
+                _uiState.update { it.copy(
+                        cartItemCount = cart.totalItemCount,
+                        cartProductIds = cart.items.map { line -> line.productId }.toImmutableSet(),
+                    ) }
             }
         }
     }
@@ -161,6 +167,7 @@ class ProductSearchViewModel @Inject constructor(
             is ProductSearchUiEvent.SuggestionSelected -> onSuggestionSelected(event.phrase)
             ProductSearchUiEvent.ScreenStopped -> onScreenStopped()
             ProductSearchUiEvent.ScreenResumed -> onScreenResumed()
+            ProductSearchUiEvent.Retry -> retryLastSearch()
         }
     }
 
@@ -348,12 +355,14 @@ class ProductSearchViewModel @Inject constructor(
     ) {
         cancelTimers()
         searchJob?.cancel()
+        lastSearch = LastSearch(query, source, isRefinement, filters)
         // A fresh (non-refinement) search starts a new results view, so it resets the selection.
         if (!isRefinement) clearSelection()
         _uiState.update {
             it.copy(
                 source = source,
                 query = "",
+                searchingQuery = if (source == SearchSource.Text && !isRefinement) query else "",
                 phase = ProductSearchPhase.Searching,
                 selectedFilters = selectedFilters.toImmutableSet(),
                 selectedSuggestion = selectedSuggestion,
@@ -371,14 +380,14 @@ class ProductSearchViewModel @Inject constructor(
                         !search.noResults -> settleResults(source, search, query, isRefinement)
                         // Chips that leave no product keep the results view and the chips (F-37).
                         isRefinement && filters != null -> settleNoFilterMatch(source)
-                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory)
+                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory, heard(source, query, isRefinement))
                     }
                 },
                 onFailure = { error ->
                     when ((error as? SearchException)?.category ?: SearchErrorCategory.SearchApi) {
                         SearchErrorCategory.Network -> settleNetworkError(source)
                         // A real API error carries no usable suggestions: show the apology alone.
-                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null)
+                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null, heard(source, query, isRefinement))
                     }
                 },
             )
@@ -404,6 +413,7 @@ class ProductSearchViewModel @Inject constructor(
             filters = baseFilters.toImmutableList(),
             suggestions = baseSuggestions.toImmutableList(),
             missingCategory = result.missingCategory?.takeIf { result.alternativesOnly && it.isNotBlank() },
+            heardText = heard(source, query, isRefinement),
         )
         settle(source, phase, baseQuery)
     }
@@ -424,29 +434,54 @@ class ProductSearchViewModel @Inject constructor(
         source: SearchSource,
         alternatives: List<Product>,
         suggestedFromCategory: String?,
+        heardText: String = "",
     ) {
         val phase = ProductSearchPhase.Unhappy(
             alternatives = alternatives.take(ProductSearchConstants.ALTERNATIVES_COUNT).toImmutableList(),
             suggestedFromCategory = suggestedFromCategory,
+            heardText = heardText,
         )
         settle(source, phase, baseQuery)
         startIdleTimer()
     }
 
     private fun settleNetworkError(source: SearchSource) {
-        // A network error is a transient overlay (screen kept) — not a navigable history entry.
+        // A network error is a transient overlay (screen kept) — not a navigable history entry. The field
+        // keeps what was searched, so it does not have to be typed again (UX-T-06).
         cancelTimers()
         _uiState.update {
-            it.copy(source = source, phase = ProductSearchPhase.NetworkError, canGoBack = history.isNotEmpty())
+            it.copy(
+                source = source,
+                phase = ProductSearchPhase.NetworkError,
+                canGoBack = history.isNotEmpty(),
+                query = lastSearch?.query.orEmpty(),
+            )
         }
     }
 
+    /** "Reintentar": repeats the last search as it was sent; only while the network error is shown. */
+    private fun retryLastSearch() {
+        if (_uiState.value.phase !is ProductSearchPhase.NetworkError) return
+        val last = lastSearch ?: return
+        performSearch(last.query, last.source, last.isRefinement, last.filters)
+    }
+
+    /** What a voice search understood; empty for typed searches and refinements. */
+    private fun heard(source: SearchSource, query: String, isRefinement: Boolean): String =
+        if (source == SearchSource.Voice && !isRefinement) query else ""
+
     private fun settle(source: SearchSource, phase: ProductSearchPhase, query: String) {
         history += HistoryEntry(source, phase, query, selectedFilters.toList(), selectedSuggestion)
+        // A voice search leaves what it understood in the field, ready to correct (UX-T-02).
+        val heardText = (phase as? ProductSearchPhase.Results)?.heardText
+            ?: (phase as? ProductSearchPhase.Unhappy)?.heardText
+            ?: ""
         _uiState.update {
             it.copy(
                 source = source,
                 phase = phase,
+                searchingQuery = "",
+                query = heardText.ifBlank { it.query },
                 canGoBack = history.size > 1,
                 selectedFilters = selectedFilters.toImmutableSet(),
                 selectedSuggestion = selectedSuggestion,
@@ -588,7 +623,11 @@ class ProductSearchViewModel @Inject constructor(
     /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
     private fun addAndReportLimit(item: CartItem) {
         viewModelScope.launch {
-            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(ProductSearchUiEffect.LineLimitReached)
+            when (addToCart(item)) {
+                AddToCartResult.Added -> emit(ProductSearchUiEffect.AddedToCart(item.name, item.quantity))
+                AddToCartResult.LineLimitReached -> emit(ProductSearchUiEffect.LineLimitReached)
+                AddToCartResult.NotOrderable -> Unit
+            }
         }
     }
 
@@ -597,3 +636,11 @@ class ProductSearchViewModel @Inject constructor(
         const val EFFECT_BUFFER = 8
     }
 }
+
+/** One search request as [ProductSearchViewModel] sent it, so "Reintentar" can send it again. */
+private data class LastSearch(
+    val query: String,
+    val source: SearchSource,
+    val isRefinement: Boolean,
+    val filters: StructuredSearchFilters?,
+)

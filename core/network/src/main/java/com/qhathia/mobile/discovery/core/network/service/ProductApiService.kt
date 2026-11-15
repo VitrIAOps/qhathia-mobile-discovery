@@ -1,6 +1,7 @@
 package com.qhathia.mobile.discovery.core.network.service
 
 import com.qhathia.mobile.discovery.core.network.BuildConfig
+import com.qhathia.mobile.discovery.core.network.KIOSK_SESSION_HEADER
 import com.qhathia.mobile.discovery.core.network.NetworkResult
 import com.qhathia.mobile.discovery.core.network.dto.CatalogProductDto
 import com.qhathia.mobile.discovery.core.network.dto.ProductDetailResponseDto
@@ -17,7 +18,8 @@ import javax.inject.Inject
 /**
  * Calls `GET /api/v1/products/{id}` (authenticated with the Qhathia session JWT) to fetch a single
  * product's full detail. Applies a per-request 30s timeout — the business detail budget — overriding
- * the shared client's longer STT-oriented response timeout.
+ * the shared client's longer STT-oriented response timeout. [kioskSession] names the customer whose
+ * product view this is ([KIOSK_SESSION_HEADER]); only this call carries it.
  */
 class ProductApiService @Inject constructor(
     private val client: HttpClient,
@@ -25,10 +27,12 @@ class ProductApiService @Inject constructor(
     suspend fun getProduct(
         accessToken: String,
         id: String,
+        kioskSession: String? = null,
     ): NetworkResult<ProductDetailResponseDto> =
         runCatching {
             client.get("${BuildConfig.QHATHIA_BASE_URL}/api/v1/products/$id") {
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
+                kioskSession?.let { header(KIOSK_SESSION_HEADER, it) }
                 timeout { requestTimeoutMillis = DETAIL_REQUEST_TIMEOUT_MS }
             }.body<ProductDetailResponseDto>()
         }.toNetworkResult()
