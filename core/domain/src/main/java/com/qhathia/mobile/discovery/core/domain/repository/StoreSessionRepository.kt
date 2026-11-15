@@ -24,7 +24,7 @@ interface StoreSessionRepository {
     /** Persists the DEVICE access token, device name and the pairing code used, produced by pairing. */
     suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?, pairingCode: String? = null)
 
-    /** Clears the persisted device session, pairing code included (used by unpair). */
+    /** Clears the persisted device session, pairing code included (local clean-up). */
     suspend fun clearDeviceSession()
 
     /**

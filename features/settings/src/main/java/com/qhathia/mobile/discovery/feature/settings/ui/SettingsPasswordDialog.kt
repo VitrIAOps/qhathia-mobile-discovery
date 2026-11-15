@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.settings.ui
 
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,7 +37,17 @@ fun SettingsPasswordDialog(
         // Kiosk: keep the system bars hidden over this dialog window.
         KioskImmersiveDialogEffect()
         // A dialog is its own window: report its touches to the inactivity timer.
-        Box(modifier = Modifier.fillMaxSize().reportUserActivity(), contentAlignment = Alignment.Center) {
+        // The full-screen box is part of the dialog window, so the system never sees a tap "outside":
+        // the dimmed area closes the dialog itself, and the panel swallows its own taps (UX-T-01).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    onEvent(SettingsUiEvent.DismissDialog)
+                }
+                .reportUserActivity(),
+            contentAlignment = Alignment.Center,
+        ) {
             SettingsPasswordDialogContent(
                 uiState = uiState,
                 onEvent = onEvent,

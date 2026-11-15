@@ -34,7 +34,7 @@ fun CloseIconButton(
     onClick: () -> Unit,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    size: Dp = 40.dp,
+    size: Dp = 48.dp,
     iconSize: Dp = 14.dp,
     cornerRadius: Dp = 10.dp,
     bordered: Boolean = true,

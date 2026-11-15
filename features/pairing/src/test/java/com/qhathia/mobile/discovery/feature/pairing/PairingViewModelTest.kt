@@ -13,7 +13,6 @@ import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.HoldPairingCodeUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObservePairingStatusUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.UnpairDeviceUseCase
 import com.qhathia.mobile.discovery.core.testing.FakeDevicePairingRepository
 import com.qhathia.mobile.discovery.core.testing.FakeHeldPairingCodeRepository
 import com.qhathia.mobile.discovery.core.testing.FakeStoreSessionRepository
@@ -52,7 +51,6 @@ class PairingViewModelTest {
         observePairingStatus = ObservePairingStatusUseCase(pairing),
         exchangeDeviceToken = ExchangeDeviceTokenUseCase(pairing),
         getPairedDevice = GetPairedDeviceUseCase(pairing),
-        unpairDevice = UnpairDeviceUseCase(pairing),
         getHeldPairingCode = GetHeldPairingCodeUseCase(heldCodes),
         holdPairingCode = HoldPairingCodeUseCase(heldCodes),
         clock = { mainDispatcher.dispatcher.scheduler.currentTime },
@@ -380,29 +378,4 @@ class PairingViewModelTest {
         assertEquals(PairingPhase.WaitingForApproval, vm.uiState.value.phase)
         vm.stop()
     }
-
-    @Test
-    fun given_unpair_confirmed_when_no_api_then_emits_unavailable_effect() =
-        runTest(mainDispatcher.dispatcher) {
-            val pairing = FakeDevicePairingRepository()
-            val vm = viewModel(pairing)
-
-            vm.uiEffect.test {
-                vm.onEvent(PairingUiEvent.UnpairConfirmed)
-                assertTrue(awaitItem() is PairingUiEffect.UnpairUnavailable)
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
-    fun given_unpair_clicked_then_confirmation_shown_and_dismissable() =
-        runTest(mainDispatcher.dispatcher) {
-            val vm = viewModel(FakeDevicePairingRepository())
-
-            vm.onEvent(PairingUiEvent.UnpairClicked)
-            assertTrue(vm.uiState.value.showUnpairConfirmation)
-
-            vm.onEvent(PairingUiEvent.UnpairDismissed)
-            assertTrue(!vm.uiState.value.showUnpairConfirmation)
-        }
 }

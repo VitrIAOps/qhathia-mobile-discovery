@@ -13,7 +13,7 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 
 /**
  * A two-action confirmation [AlertDialog]. Replaces the per-feature close-confirmation dialogs
- * ("¿Cerrar…?") and the unpair confirmation, which were each re-implemented in catalog,
+ * ("¿Empezar una nueva búsqueda?"), which were each re-implemented in catalog,
  * product-detail, product-search and settings. Domain-free — the caller passes localized copy and
  * the confirm / dismiss handlers.
  *
