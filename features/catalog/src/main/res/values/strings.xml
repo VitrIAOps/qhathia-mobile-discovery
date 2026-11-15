@@ -3,7 +3,8 @@
     <!-- Category tab bar. -->
     <string name="catalog_tab_all">Todo</string>
     <string name="catalog_discounts_heading">Descuentos</string>
-    <string name="catalog_discounts_empty">Productos sin descuentos aún.</string>
+    <string name="catalog_discounts_empty">Por ahora no hay productos con descuento.</string>
+    <string name="catalog_show_all">Ver todo el catálogo</string>
 
     <!-- Store has no available products. -->
     <string name="catalog_store_empty">Esta tienda aún no tiene productos disponibles.</string>

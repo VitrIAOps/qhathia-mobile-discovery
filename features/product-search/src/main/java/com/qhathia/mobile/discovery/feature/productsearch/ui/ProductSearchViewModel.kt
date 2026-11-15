@@ -139,7 +139,10 @@ class ProductSearchViewModel @Inject constructor(
         }
         viewModelScope.launch {
             observeCart().collect { cart ->
-                _uiState.update { it.copy(cartItemCount = cart.totalItemCount) }
+                _uiState.update { it.copy(
+                        cartItemCount = cart.totalItemCount,
+                        cartProductIds = cart.items.map { line -> line.productId }.toImmutableSet(),
+                    ) }
             }
         }
     }
@@ -620,7 +623,11 @@ class ProductSearchViewModel @Inject constructor(
     /** Adds to the cart and tells the screen when the 20-product limit refused it (wave 2, D7). */
     private fun addAndReportLimit(item: CartItem) {
         viewModelScope.launch {
-            if (addToCart(item) == AddToCartResult.LineLimitReached) emit(ProductSearchUiEffect.LineLimitReached)
+            when (addToCart(item)) {
+                AddToCartResult.Added -> emit(ProductSearchUiEffect.AddedToCart(item.name, item.quantity))
+                AddToCartResult.LineLimitReached -> emit(ProductSearchUiEffect.LineLimitReached)
+                AddToCartResult.NotOrderable -> Unit
+            }
         }
     }
 

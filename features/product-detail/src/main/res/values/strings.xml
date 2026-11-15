@@ -3,12 +3,11 @@
     <!-- Sections. -->
     <string name="pd_detail_headline">Este es el detalle</string>
     <string name="pd_related_headline">Podrías acompañar este producto con…</string>
-    <string name="pd_related_empty">No hay productos relacionados disponibles por el momento.</string>
 
     <!-- Availability labels (mapped from the API AvailabilityStatus enum). -->
     <string name="pd_availability_available">Disponible</string>
     <string name="pd_availability_low_stock">Pocas unidades</string>
-    <string name="pd_availability_consult">Consultar disponibilidad</string>
+    <string name="pd_availability_consult">Pregunta por el stock al vendedor</string>
     <!-- Stock-aware labels (order-price-check): the stock count wins over the availability. -->
     <plurals name="pd_availability_low_stock_count">
         <item quantity="one">Pocas unidades (queda %d)</item>
@@ -78,5 +77,10 @@
     <plurals name="pd_share_stock_shortage_message">
         <item quantity="one">Solo queda %d unidad. Revisa la cantidad y vuelve a compartir.</item>
         <item quantity="other">Solo quedan %d unidades. Revisa la cantidad y vuelve a compartir.</item>
+    </plurals>
+    <!-- Under the stepper when it reached the most units that can be ordered. -->
+    <plurals name="pd_qty_max">
+        <item quantity="one">Máximo %d (stock disponible)</item>
+        <item quantity="other">Máximo %d (stock disponible)</item>
     </plurals>
 </resources>

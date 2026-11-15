@@ -234,6 +234,39 @@ class ProductDetailViewModelTest {
     }
 
     @Test
+    fun given_add_to_cart_then_emits_added_with_name_and_quantity() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(
+            result = Result.success(ProductDetailFixtures.productDetail(id = "p1")),
+        )
+        val vm = viewModel(repository = repository)
+        val name = (vm.uiState.value.status as ProductDetailUiState.Status.Loaded).detail.name
+        vm.onEvent(ProductDetailUiEvent.IncreaseQuantity)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductDetailUiEvent.AddToCart)
+            assertEquals(ProductDetailUiEffect.AddedToCart(name, 2), awaitItem())
+        }
+    }
+
+    @Test
+    fun given_go_to_catalog_then_emits_navigate_to_catalog() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel()
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductDetailUiEvent.GoToCatalog)
+            assertEquals(ProductDetailUiEffect.NavigateToCatalog, awaitItem())
+        }
+    }
+
+    @Test
+    fun given_full_basket_then_only_products_in_it_can_be_added() = runTest(mainDispatcher.dispatcher) {
+        val state = ProductDetailUiState(cartProductIds = (1..20).map { "p$it" }.toSet().let { kotlinx.collections.immutable.persistentSetOf<String>().addAll(it) })
+
+        assertTrue(state.canAddToCart("p3"))
+        assertFalse(state.canAddToCart("p99"))
+    }
+
+    @Test
     fun given_quantity_increased_then_add_to_cart_uses_quantity() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductDetailRepository(
             result = Result.success(ProductDetailFixtures.productDetail(id = "p1")),

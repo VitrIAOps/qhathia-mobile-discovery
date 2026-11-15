@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.productdetail.model
 
+import com.qhathia.mobile.discovery.core.domain.CartConstants
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.ImmutableSet
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.ProductDetail
 import com.qhathia.mobile.discovery.core.domain.usecase.ConsumerNameError
@@ -28,9 +31,18 @@ data class ProductDetailUiState(
     val showCloseConfirmDialog: Boolean = false,
     val quantity: Int = 1,
     val cartItemCount: Int = 0,
+    /** Products already in the cart, to tell which add buttons still work once the basket is full. */
+    val cartProductIds: ImmutableSet<String> = persistentSetOf(),
     val share: ShareUiState = ShareUiState(),
     val isChecking: Boolean = false,
 ) {
+    /**
+     * Whether adding [productId] can work: always for a product already in the cart, and for a new one
+     * only while the basket has room (UX-X-07).
+     */
+    fun canAddToCart(productId: String): Boolean =
+        productId in cartProductIds || cartProductIds.size < CartConstants.MAX_DISTINCT_LINES
+
 
     /**
      * The share-quote dialog state. Mirrors the cart's consumer form + submission phase so the

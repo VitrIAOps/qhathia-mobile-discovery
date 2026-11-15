@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productsearch.model
 
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilterOption
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import kotlinx.collections.immutable.ImmutableSet
@@ -24,11 +25,20 @@ data class ProductSearchUiState(
     val canGoBack: Boolean = false,
     val showCloseConfirmDialog: Boolean = false,
     val cartItemCount: Int = 0,
+    /** Products already in the cart, to tell which add buttons still work once the basket is full. */
+    val cartProductIds: ImmutableSet<String> = persistentSetOf(),
     val selectedFilters: ImmutableSet<SearchFilterOption> = persistentSetOf(),
     val selectedSuggestion: String? = null,
     /** The typed text being searched, shown while searching ("Buscando «taladro»"); empty otherwise. */
     val searchingQuery: String = "",
 ) {
+    /**
+     * Whether adding [productId] can work: always for a product already in the cart, and for a new one
+     * only while the basket has room (UX-X-07).
+     */
+    fun canAddToCart(productId: String): Boolean =
+        productId in cartProductIds || cartProductIds.size < CartConstants.MAX_DISTINCT_LINES
+
     /** True while voice is being captured or a search is in flight. */
     val isProcessing: Boolean
         get() = phase is ProductSearchPhase.VoiceListening ||

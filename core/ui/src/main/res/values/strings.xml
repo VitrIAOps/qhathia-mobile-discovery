@@ -64,5 +64,21 @@
     <!-- Microphone permission (home + product-search) -->
     <string name="discovery_mic_permission_required">Necesitamos acceso al micrófono para la búsqueda por voz</string>
     <!-- Basket limit (catalog, product-search, product-detail) -->
+    <!-- "-20 %" over a discounted product. -->
+    <string name="discovery_discount_badge">-%1$d %%</string>
+    <!-- Card label with a discount: name, price paid, list price. -->
+    <string name="discovery_cd_card_discounted">%1$s, %2$s, antes %3$s</string>
+    <!-- Shown after an add (UX-X-07). %1$s product, %2$d units. -->
+    <plurals name="discovery_cart_added">
+        <item quantity="one">Agregaste «%1$s» al carrito</item>
+        <item quantity="other">Agregaste %2$d de «%1$s» al carrito</item>
+    </plurals>
+    <string name="discovery_cart_view">Ver carrito</string>
+    <string name="discovery_cart_limit_ok">Entendido</string>
+    <!-- Cart control description with the count. -->
+    <plurals name="discovery_cd_go_to_cart_count">
+        <item quantity="one">Ir al carrito, %d producto</item>
+        <item quantity="other">Ir al carrito, %d productos</item>
+    </plurals>
     <string name="discovery_cart_line_limit">Tu carrito ya tiene 20 productos distintos. Realiza tu pedido o quita alguno para agregar más.</string>
 </resources>

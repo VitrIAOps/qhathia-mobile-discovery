@@ -30,6 +30,9 @@ sealed interface ProductDetailUiEvent {
     /** Tap the top-bar Ir al carrito control — opens the cart dialog. */
     data object OpenCart : ProductDetailUiEvent
 
+    /** "Ir al catálogo" in the header (UX-T-15). */
+    data object GoToCatalog : ProductDetailUiEvent
+
     /** Tap "Compartir por WhatsApp" — opens the share dialog to collect the consumer's name + phone. */
     data object ShareWhatsApp : ProductDetailUiEvent
 

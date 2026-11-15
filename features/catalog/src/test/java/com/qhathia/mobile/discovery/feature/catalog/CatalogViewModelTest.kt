@@ -82,6 +82,17 @@ class CatalogViewModelTest {
     }
 
     @Test
+    fun buildTabs_whenNoDiscounts_omitsDiscountsTab() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductCatalogRepository(Result.success(CatalogFixtures.catalog(discounted = 0)))
+        val vm = viewModel(repository = repository)
+
+        val tabs = vm.uiState.value.tabs
+        // Todo + 2 categories, no Descuentos.
+        assertEquals(3, tabs.size)
+        assertTrue(tabs.none { it.kind == CatalogTab.Kind.Discounts })
+    }
+
+    @Test
     fun given_no_discounted_products_when_discounts_tab_then_empty_message() = runTest(mainDispatcher.dispatcher) {
         val repository = FakeProductCatalogRepository(Result.success(CatalogFixtures.catalog(discounted = 0)))
         val vm = viewModel(repository = repository)

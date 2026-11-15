@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
+import com.qhathia.mobile.discovery.core.ui.component.discountPercent
+import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -131,11 +133,13 @@ fun ProductSearchContent(
                         is ProductSearchPhase.Results -> ResultsBody(
                             phase = phase,
                             onEvent = onEvent,
+                            canAddToCart = uiState::canAddToCart,
                         )
 
                         is ProductSearchPhase.Unhappy -> UnhappyBody(
                             phase = phase,
                             onEvent = onEvent,
+                            canAddToCart = uiState::canAddToCart,
                             modifier = Modifier.align(Alignment.Center),
                         )
 
@@ -202,7 +206,7 @@ private fun TopBar(
             CartButton(
                 itemCount = cartItemCount,
                 label = stringResource(UiR.string.discovery_action_go_to_cart),
-                contentDescription = stringResource(UiR.string.discovery_action_go_to_cart),
+                contentDescription = goToCartDescription(cartItemCount),
                 onClick = onCart,
             )
         }
@@ -353,6 +357,7 @@ private fun HeardText(heardText: String, modifier: Modifier = Modifier) {
 private fun ResultsBody(
     phase: ProductSearchPhase.Results,
     onEvent: (ProductSearchUiEvent) -> Unit,
+    canAddToCart: (String) -> Boolean = { true },
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         HeardText(phase.heardText, modifier = Modifier.padding(start = Spacing.lg, top = Spacing.sm))
@@ -393,7 +398,8 @@ private fun ResultsBody(
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                cartEnabled = product.isOrderable,
+                cartEnabled = product.isOrderable && canAddToCart(product.id),
+                discountPercent = discountPercent(product.price, product.discountedPrice),
             )
         }
     }
@@ -616,6 +622,7 @@ private fun UnhappyBody(
     phase: ProductSearchPhase.Unhappy,
     onEvent: (ProductSearchUiEvent) -> Unit,
     modifier: Modifier = Modifier,
+    canAddToCart: (String) -> Boolean = { true },
 ) {
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
@@ -666,7 +673,8 @@ private fun UnhappyBody(
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                         onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                        cartEnabled = product.isOrderable,
+                        cartEnabled = product.isOrderable && canAddToCart(product.id),
+                        discountPercent = discountPercent(product.price, product.discountedPrice),
                     )
                 }
             }

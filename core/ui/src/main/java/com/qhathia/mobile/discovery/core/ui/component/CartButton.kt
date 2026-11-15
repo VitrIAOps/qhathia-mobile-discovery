@@ -1,5 +1,15 @@
 package com.qhathia.mobile.discovery.core.ui.component
 
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
@@ -8,8 +18,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -67,24 +75,32 @@ fun CartButton(
             style = MaterialTheme.typography.labelLarge,
             color = Color.White,
         )
-        BadgedBox(
-            badge = {
-                if (itemCount > 0) {
-                    Badge(
-                        containerColor = Color.White,
-                        contentColor = DiscoveryColors.MicGradientStart,
-                    ) {
-                        Text(text = itemCount.toString(), style = MaterialTheme.typography.labelLarge)
-                    }
+        Icon(
+            painter = painterResource(R.drawable.ic_cart),
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(20.dp),
+        )
+        // The count sits beside the icon, never over it, and pops briefly when it changes (UX-X-07).
+        if (itemCount > 0) {
+            AnimatedContent(
+                targetState = itemCount,
+                transitionSpec = {
+                    (scaleIn(initialScale = 1.3f) + fadeIn()).togetherWith(fadeOut())
+                },
+                label = "cartCount",
+            ) { count ->
+                Box(
+                    modifier = Modifier
+                        .sizeIn(minWidth = 24.dp, minHeight = 24.dp)
+                        .clip(CircleShape)
+                        .background(DiscoveryColors.CatalogText)
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = count.toString(), style = MaterialTheme.typography.labelLarge, color = Color.White)
                 }
-            },
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_cart),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
+            }
         }
     }
 }
@@ -104,3 +120,12 @@ private fun CartButtonEmptyPreview() {
         CartButton(itemCount = 0, label = "Ir al carrito", contentDescription = "Ir al carrito", onClick = {})
     }
 }
+
+/** Description of the cart control with its count ("Ir al carrito, 2 productos"). */
+@Composable
+fun goToCartDescription(itemCount: Int): String =
+    if (itemCount > 0) {
+        pluralStringResource(R.plurals.discovery_cd_go_to_cart_count, itemCount, itemCount)
+    } else {
+        stringResource(R.string.discovery_action_go_to_cart)
+    }

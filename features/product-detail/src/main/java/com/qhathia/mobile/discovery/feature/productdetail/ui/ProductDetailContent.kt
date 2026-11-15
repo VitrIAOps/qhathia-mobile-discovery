@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
+import com.qhathia.mobile.discovery.core.ui.component.discountPercent
+import com.qhathia.mobile.discovery.core.ui.component.DiscountBadge
+import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -84,6 +87,7 @@ fun ProductDetailContent(
                 onBack = { onEvent(ProductDetailUiEvent.Back) },
                 onNewSearch = { onEvent(ProductDetailUiEvent.NewSearch) },
                 onCart = { onEvent(ProductDetailUiEvent.OpenCart) },
+                onGoToCatalog = { onEvent(ProductDetailUiEvent.GoToCatalog) },
             )
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -97,6 +101,7 @@ fun ProductDetailContent(
                             related = uiState.relatedProducts,
                             quantity = uiState.quantity,
                             onEvent = onEvent,
+                            canAddToCart = uiState::canAddToCart,
                         )
 
                     is ProductDetailUiState.Status.Error ->
@@ -130,6 +135,7 @@ private fun TopBar(
     onBack: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
+    onGoToCatalog: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -145,6 +151,14 @@ private fun TopBar(
             leadingIcon = true,
         )
         Spacer(modifier = Modifier.weight(1f))
+        // As in the results: the catalog is one tap away from the detail too (UX-T-15).
+        IconTextButton(
+            iconRes = UiR.drawable.ic_catalog,
+            text = stringResource(UiR.string.discovery_action_go_to_catalog),
+            contentDescription = stringResource(UiR.string.discovery_cd_go_to_catalog),
+            onClick = onGoToCatalog,
+        )
+        Spacer(modifier = Modifier.width(Spacing.md))
         IconTextButton(
             iconRes = UiR.drawable.ic_refresh,
             text = stringResource(UiR.string.discovery_action_new_search),
@@ -155,7 +169,7 @@ private fun TopBar(
         CartButton(
             itemCount = cartItemCount,
             label = stringResource(UiR.string.discovery_action_go_to_cart),
-            contentDescription = stringResource(UiR.string.discovery_action_go_to_cart),
+            contentDescription = goToCartDescription(cartItemCount),
             onClick = onCart,
         )
     }
@@ -216,6 +230,7 @@ private fun LoadedBody(
     related: ProductDetailUiState.RelatedProducts,
     quantity: Int,
     onEvent: (ProductDetailUiEvent) -> Unit,
+    canAddToCart: (String) -> Boolean = { true },
 ) {
     Column(
         modifier = Modifier
@@ -230,9 +245,15 @@ private fun LoadedBody(
                 imageUrls = detail.images.map { it.url },
                 productName = detail.name,
             )
-            ProductInfo(detail = detail, quantity = quantity, onEvent = onEvent, modifier = Modifier.weight(1f))
+            ProductInfo(
+                detail = detail,
+                quantity = quantity,
+                onEvent = onEvent,
+                canAdd = canAddToCart(detail.id),
+                modifier = Modifier.weight(1f),
+            )
         }
-        RelatedProductsSection(related = related, onEvent = onEvent)
+        RelatedProductsSection(related = related, onEvent = onEvent, canAddToCart = canAddToCart)
         Spacer(modifier = Modifier.size(Spacing.sm))
     }
 }
@@ -258,6 +279,7 @@ private fun ProductInfo(
     quantity: Int,
     onEvent: (ProductDetailUiEvent) -> Unit,
     modifier: Modifier = Modifier,
+    canAdd: Boolean = true,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Text(
@@ -267,7 +289,8 @@ private fun ProductInfo(
         )
         StockRow(availability = detail.availability, stock = detail.stock)
         // An inactive or non-AVAILABLE product is still shown, but cannot be added or shared (DET-013).
-        if (!detail.isOrderable) NotOrderableNote()
+        // "Agotado" already says it; the note only explains the other non-orderable cases (UX-T-15).
+        if (!detail.isOrderable && detail.stock != 0) NotOrderableNote()
         DetailPrice(price = detail.price, discountedPrice = detail.discountedPrice)
         DiscoveryDivider()
         Text(
@@ -276,12 +299,22 @@ private fun ProductInfo(
             color = DiscoveryColors.TextMuted,
         )
         Spacer(modifier = Modifier.size(Spacing.xs))
+        val maxQuantity = CartConstants.maxQuantityFor(detail.availability, detail.stock)
         ActionRow(
             quantity = quantity,
-            maxQuantity = CartConstants.maxQuantityFor(detail.availability, detail.stock),
+            maxQuantity = maxQuantity,
             orderable = detail.isOrderable,
+            canAdd = canAdd,
             onEvent = onEvent,
         )
+        // Says why "+" stopped (UX-T-15).
+        if (detail.isOrderable && quantity >= maxQuantity) {
+            Text(
+                text = pluralStringResource(R.plurals.pd_qty_max, maxQuantity, maxQuantity),
+                style = MaterialTheme.typography.bodySmall,
+                color = DiscoveryColors.TextMuted,
+            )
+        }
     }
 }
 
@@ -312,6 +345,7 @@ private fun ActionRow(
     maxQuantity: Int,
     orderable: Boolean,
     onEvent: (ProductDetailUiEvent) -> Unit,
+    canAdd: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -332,7 +366,8 @@ private fun ActionRow(
                 text = stringResource(UiR.string.discovery_action_add_to_cart),
                 iconRes = UiR.drawable.ic_cart,
                 container = DiscoveryColors.Blue700,
-                enabled = orderable,
+                // A full basket only takes more units of products already in it (UX-X-07).
+                enabled = orderable && canAdd,
                 onClick = { onEvent(ProductDetailUiEvent.AddToCart) },
             )
             ActionButton(
@@ -369,7 +404,10 @@ private fun ActionButton(
 private fun RelatedProductsSection(
     related: ProductDetailUiState.RelatedProducts,
     onEvent: (ProductDetailUiEvent) -> Unit,
+    canAddToCart: (String) -> Boolean = { true },
 ) {
+    // Nothing related: no title over an empty box (UX-T-05).
+    if (related == ProductDetailUiState.RelatedProducts.Empty) return
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         HeadingRow(text = stringResource(R.string.pd_related_headline))
         when (related) {
@@ -398,21 +436,13 @@ private fun RelatedProductsSection(
                                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                                 onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
                                 onAddToCart = { onEvent(ProductDetailUiEvent.RelatedProductAddToCart(product.id)) },
-                                cartEnabled = product.isOrderable,
+                                cartEnabled = product.isOrderable && canAddToCart(product.id),
                             )
                         }
                     }
                 }
 
-            ProductDetailUiState.RelatedProducts.Empty -> RelatedProductsPlaceholderBox {
-                Text(
-                    text = stringResource(R.string.pd_related_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = DiscoveryColors.TextMuted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = Spacing.lg),
-                )
-            }
+            ProductDetailUiState.RelatedProducts.Empty -> Unit // returned above
         }
     }
 }
@@ -583,6 +613,9 @@ private fun DetailPrice(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         verticalAlignment = Alignment.Bottom,
     ) {
+        discountPercent(price, discountedPrice)?.let { percent ->
+            DiscountBadge(percent = percent, modifier = Modifier.align(Alignment.CenterVertically))
+        }
         Text(
             text = stringResource(UiR.string.discovery_price_format, discountedPrice ?: price),
             style = MaterialTheme.typography.headlineMedium,
