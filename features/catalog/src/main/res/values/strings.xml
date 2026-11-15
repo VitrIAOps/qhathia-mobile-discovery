@@ -7,7 +7,7 @@
     <string name="catalog_show_all">Ver todo el catálogo</string>
 
     <!-- Store has no available products. -->
-    <string name="catalog_store_empty">Esta tienda aún no tiene productos disponibles.</string>
+    <string name="catalog_store_empty">Esta tienda aún no tiene productos disponibles. Pregúntale al vendedor por lo que buscas.</string>
 
     <!-- Close-current-session confirmation dialog (feature-specific title/message;
          shared confirm/cancel labels and error/action copy live in core:ui). -->

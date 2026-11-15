@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.catalog.ui
 
+import com.qhathia.mobile.discovery.core.ui.format.formatPrice
 import androidx.compose.material3.TextButton
 import com.qhathia.mobile.discovery.core.ui.component.discountPercent
 import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
@@ -120,12 +121,10 @@ fun CatalogContent(
                     ) { product ->
                         ProductCard(
                             name = product.name,
-                            priceText = stringResource(
-                                UiR.string.discovery_price_format,
-                                product.discountedPrice ?: product.price,
+                            priceText = formatPrice(product.discountedPrice ?: product.price,
                             ),
                             originalPriceText = product.discountedPrice?.let {
-                                stringResource(UiR.string.discovery_price_format, product.price)
+                                formatPrice(product.price)
                             },
                             imageUrl = product.imageUrl,
                             cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),

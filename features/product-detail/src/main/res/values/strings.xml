@@ -15,7 +15,7 @@
     </plurals>
     <string name="pd_availability_out_of_stock">Agotado</string>
     <!-- Shown when the product is inactive or not AVAILABLE: it cannot be added or shared. -->
-    <string name="pd_not_orderable_note">No disponible por ahora</string>
+    <string name="pd_not_orderable_note">No se puede pedir por ahora. Consulta al vendedor.</string>
 
     <!-- Loading / error states (feature-specific copy; shared error copy lives in core:ui). -->
     <string name="pd_not_found_title">Producto no encontrado</string>
@@ -23,7 +23,7 @@
     <string name="pd_generic_error_message">No pudimos cargar el detalle del producto. Intenta nuevamente.</string>
 
     <!-- Content descriptions (feature-specific; shared CDs live in core:ui). -->
-    <string name="pd_back_cd">Volver a los resultados</string>
+    <string name="pd_back_cd">Volver</string>
     <string name="pd_loading_cd">Cargando detalle del producto</string>
 
     <!-- Close-current-search confirmation dialog (feature-specific title/message). -->
@@ -37,7 +37,7 @@
     <string name="pd_share_name_error">Ingresa al menos un nombre</string>
     <string name="pd_share_phone_label">Número de celular</string>
     <string name="pd_share_phone_placeholder">Ej. 987 654 321</string>
-    <string name="pd_share_phone_error">Ingresa un número de celular válido</string>
+    <string name="pd_share_phone_error">Ingresa un celular de 9 dígitos que empiece con 9</string>
     <string name="pd_share_submit">Enviar a mi WhatsApp</string>
     <string name="pd_share_cancel">Cancelar</string>
     <string name="pd_share_close_cd">Cerrar</string>
@@ -48,7 +48,7 @@
 
     <!-- Share-quote dialog — success. -->
     <string name="pd_share_success_title">¡Cotización enviada!</string>
-    <string name="pd_share_success_subtitle">Le compartimos la cotización de este producto al número indicado.</string>
+    <string name="pd_share_success_subtitle">Te enviamos la cotización de este producto a tu WhatsApp.</string>
     <string name="pd_share_success_check_phone">Revisa tu celular para ver la cotización.</string>
     <plurals name="pd_share_success_qty">
         <item quantity="one">Cantidad: %d</item>
@@ -57,7 +57,7 @@
     <string name="pd_share_success_accept">Aceptar</string>
 
     <!-- Share-quote dialog — error. -->
-    <string name="pd_share_error_title">Algo salió mal</string>
+    <string name="pd_share_error_title">No pudimos enviar la cotización</string>
     <string name="pd_share_error_message">No pudimos enviar la cotización. Inténtalo de nuevo en unos momentos.</string>
     <string name="pd_share_error_network_message">No pudimos enviar la cotización porque la tablet no tiene internet. Inténtalo de nuevo en un momento.</string>
     <string name="pd_share_error_understood">Intentar de nuevo</string>

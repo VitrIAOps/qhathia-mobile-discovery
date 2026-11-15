@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
+import com.qhathia.mobile.discovery.core.ui.format.formatPrice
 import com.qhathia.mobile.discovery.core.ui.component.discountPercent
 import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -387,12 +388,10 @@ private fun ResultsBody(
         ) { product ->
             ProductCard(
                 name = product.name,
-                priceText = stringResource(
-                    UiR.string.discovery_price_format,
-                    product.discountedPrice ?: product.price,
+                priceText = formatPrice(product.discountedPrice ?: product.price,
                 ),
                 originalPriceText = product.discountedPrice?.let {
-                    stringResource(UiR.string.discovery_price_format, product.price)
+                    formatPrice(product.price)
                 },
                 imageUrl = product.imageUrl,
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
@@ -662,12 +661,10 @@ private fun UnhappyBody(
                 phase.alternatives.forEach { product ->
                     ProductCard(
                         name = product.name,
-                        priceText = stringResource(
-                            UiR.string.discovery_price_format,
-                            product.discountedPrice ?: product.price,
+                        priceText = formatPrice(product.discountedPrice ?: product.price,
                         ),
                         originalPriceText = product.discountedPrice?.let {
-                            stringResource(UiR.string.discovery_price_format, product.price)
+                            formatPrice(product.price)
                         },
                         imageUrl = product.imageUrl,
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
