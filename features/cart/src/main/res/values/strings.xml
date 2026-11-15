@@ -56,7 +56,8 @@
     <string name="cart_success_title">¡Pedido generado con éxito!</string>
     <string name="cart_success_subtitle">Acércate al vendedor para recibir tu pedido y realizar el pago.</string>
     <!-- Order code from the server, shown large on the success screen. -->
-    <string name="cart_success_code">Pedido N.º %1$s</string>
+    <!-- No "N.º": Urbanist has no ordinal indicator and draws "N.o". -->
+    <string name="cart_success_code">Pedido %1$s</string>
     <string name="cart_success_code_hint">Muéstrale este número al vendedor para que te atienda.</string>
     <string name="cart_success_check_phone">Revisa tu celular para ver el detalle de tu pedido.</string>
     <!-- Order created but the WhatsApp quote could not be delivered after retrying. -->
