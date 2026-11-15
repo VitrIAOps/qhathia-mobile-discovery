@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.core.ui.component
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -75,6 +77,8 @@ fun DiscoverySearchBar(
         // it — icon, placeholder or empty space — focuses the field and opens the keyboard.
         // The IME sends no pointer events, so each text change reports activity itself.
         val reportActivity = LocalUserActivity.current
+val keyboard = LocalSoftwareKeyboardController.current
+val focusManager = LocalFocusManager.current
         BasicTextField(
             value = query,
             onValueChange = {
@@ -95,7 +99,15 @@ fun DiscoverySearchBar(
                 MaterialTheme.typography.bodyMedium.copy(color = DiscoveryColors.Blue800),
             ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+            // The keyboard closes in the same frame the search starts, so it never covers the
+            // searching state (UX-X-06).
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                    onSearch()
+                },
+            ),
             decorationBox = { innerTextField ->
                 Row(
                     modifier = Modifier

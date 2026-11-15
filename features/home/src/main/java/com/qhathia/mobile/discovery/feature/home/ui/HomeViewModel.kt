@@ -6,6 +6,7 @@ import com.qhathia.mobile.discovery.core.domain.VoiceSearchConstants
 import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.VoiceSessionEvent
+import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.RunVoiceSearchSessionUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.VoiceSearchSession
@@ -40,6 +41,7 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     observeStoreSession: ObserveStoreSessionUseCase,
     private val runVoiceSearchSession: RunVoiceSearchSessionUseCase,
+    private val getPairedDevice: GetPairedDeviceUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -56,13 +58,21 @@ class HomeViewModel @Inject constructor(
     private var slowResponseJob: Job? = null
     private var errorIdleJob: Job? = null
 
+    /** The device info was already asked for the store category in this screen's lifetime. */
+    private var categoryRequested = false
+
     /** Monotonic counter used to pick and vary the retry prompt across consecutive no-audio outcomes. */
     private var retryCount = 0
 
     init {
         viewModelScope.launch {
             observeStoreSession().collect { session ->
-                _uiState.update { it.copy(storeName = session.storeName) }
+                _uiState.update { it.copy(storeName = session.storeName, storeCategory = session.storeCategory) }
+                // Tablets paired before the category was kept learn it once from the device info.
+                if (session.isPaired && session.storeCategory == null && !categoryRequested) {
+                    categoryRequested = true
+                    launch { getPairedDevice() }
+                }
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -274,7 +275,14 @@ private fun ProcessingBody(
         if (uiState.showProcessingMicAnimation) {
             MicButton(
                 isListening = true,
-                contentDescription = stringResource(UiR.string.discovery_cd_voice_search),
+                // Says what a tap does now: stop while listening, cancel while processing.
+                contentDescription = stringResource(
+                    if (uiState.phase is ProductSearchPhase.VoiceListening) {
+                        UiR.string.discovery_cd_mic_listening
+                    } else {
+                        UiR.string.discovery_cd_mic_processing
+                    },
+                ),
                 onClick = micOnClick,
             )
         } else {
@@ -288,9 +296,57 @@ private fun ProcessingBody(
                 is ProductSearchPhase.VoiceTranscribing -> phase.liveTranscript
                 else -> ""
             }
-            ListeningMessage(transcript = liveTranscript, listeningText = stringResource(res))
+            // A typed search names what is being looked for (UX-T-12).
+            val baseText = if (uiState.searchingQuery.isNotBlank() && uiState.phase == ProductSearchPhase.Searching) {
+                stringResource(R.string.ps_searching_query, uiState.searchingQuery)
+            } else {
+                stringResource(res)
+            }
+            ListeningMessage(transcript = liveTranscript, listeningText = baseText)
+        }
+        if (uiState.isVoiceCapturing) {
+            VoiceCancelControls(
+                isListening = uiState.phase is ProductSearchPhase.VoiceListening,
+                onCancel = { onEvent(ProductSearchUiEvent.CancelVoice) },
+            )
         }
     }
+}
+
+/**
+ * Under the listening message: what a tap on the circle does while listening, and a "Cancelar" that
+ * stops without searching (UX-T-07).
+ */
+@Composable
+private fun VoiceCancelControls(isListening: Boolean, onCancel: () -> Unit) {
+    if (isListening) {
+        Text(
+            text = stringResource(UiR.string.discovery_voice_tap_to_finish),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+    Spacer(modifier = Modifier.height(Spacing.md))
+    PrimaryActionButton(
+        text = stringResource(UiR.string.discovery_dialog_cancel),
+        onClick = onCancel,
+        containerColor = Color.Transparent,
+        contentColor = DiscoveryColors.CatalogText,
+        fillMaxWidth = false,
+    )
+}
+
+/** "Entendí: «…»" above a voice search's result, so the customer sees what the tablet understood. */
+@Composable
+private fun HeardText(heardText: String, modifier: Modifier = Modifier) {
+    if (heardText.isBlank()) return
+    Text(
+        text = stringResource(R.string.ps_heard_text, heardText),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -299,6 +355,7 @@ private fun ResultsBody(
     onEvent: (ProductSearchUiEvent) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        HeardText(phase.heardText, modifier = Modifier.padding(start = Spacing.lg, top = Spacing.sm))
         Row(
             modifier = Modifier
                 .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
@@ -370,7 +427,7 @@ private fun FiltersSuggestionsPanel(
             ) {
                 Icon(
                     painter = painterResource(UiR.drawable.ic_filter),
-                    contentDescription = stringResource(R.string.ps_refine_icon_cd),
+                    contentDescription = null, // the title next to it says the same
                     tint = DiscoveryColors.CatalogText,
                     modifier = Modifier.size(22.dp),
                 )
@@ -456,10 +513,12 @@ private fun CriterionSection(
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
                     color = DiscoveryColors.LinkBlue,
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { onEvent(ProductSearchUiEvent.FilterCriterionCleared(criterion)) }
                         .semantics { contentDescription = clearCd }
-                        .padding(Spacing.xs),
+                        .wrapContentHeight(Alignment.CenterVertically)
+                        .padding(horizontal = Spacing.sm),
                 )
             }
         }
@@ -497,7 +556,7 @@ private fun SuggestionsSection(
         ) {
             Icon(
                 painter = painterResource(UiR.drawable.ic_sparkle),
-                contentDescription = stringResource(R.string.ps_suggestions_icon_cd),
+                contentDescription = null, // the title next to it says the same
                 tint = DiscoveryColors.AccentOrange,
                 modifier = Modifier.size(18.dp),
             )
@@ -535,7 +594,7 @@ private fun RefineChip(
     val labelColor = if (selected) DiscoveryColors.Neutral50 else MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
-            .heightIn(min = 32.dp)
+            .heightIn(min = 48.dp)
             .clip(shape)
             .background(background)
             .then(if (selected) Modifier else Modifier.border(1.dp, DiscoveryColors.Blue100, shape))
@@ -564,11 +623,16 @@ private fun UnhappyBody(
     ) {
         BrandDot()
         Spacer(modifier = Modifier.height(Spacing.md))
+        HeardText(phase.heardText)
+        if (phase.heardText.isNotBlank()) Spacer(modifier = Modifier.height(Spacing.sm))
         // Title: the apology, whose invite line is personalized from the category the backend drew the
         // suggestions from ("Relacionado a 'lámpara' te podría interesar…") or the generic invite.
-        val invite = phase.suggestedFromCategory
-            ?.let { stringResource(R.string.ps_unhappy_invite_category, it) }
-            ?: stringResource(R.string.ps_unhappy_invite)
+        // Without alternatives there is nothing to invite to: suggest other words or the catalog.
+        val invite = when {
+            phase.alternatives.isEmpty() -> stringResource(R.string.ps_unhappy_no_alternatives)
+            phase.suggestedFromCategory != null -> stringResource(R.string.ps_unhappy_invite_category, phase.suggestedFromCategory)
+            else -> stringResource(R.string.ps_unhappy_invite)
+        }
         Text(
             text = "${stringResource(R.string.ps_unhappy_message)}\n$invite",
             style = MaterialTheme.typography.titleMedium,
@@ -576,6 +640,15 @@ private fun UnhappyBody(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 576.dp),
         )
+        if (phase.heardText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = stringResource(R.string.ps_heard_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         if (phase.alternatives.isNotEmpty()) {
             Spacer(modifier = Modifier.height(Spacing.lg))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -655,7 +728,7 @@ private fun BottomBar(
                 modifier = Modifier.size(28.dp),
             )
             Text(
-                text = stringResource(R.string.ps_prompt),
+                text = stringResource(UiR.string.discovery_search_prompt),
                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp),
                 color = DiscoveryColors.Blue800,
             )

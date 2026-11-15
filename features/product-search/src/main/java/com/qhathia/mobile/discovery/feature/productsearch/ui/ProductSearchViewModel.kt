@@ -359,6 +359,7 @@ class ProductSearchViewModel @Inject constructor(
             it.copy(
                 source = source,
                 query = "",
+                searchingQuery = if (source == SearchSource.Text && !isRefinement) query else "",
                 phase = ProductSearchPhase.Searching,
                 selectedFilters = selectedFilters.toImmutableSet(),
                 selectedSuggestion = selectedSuggestion,
@@ -376,14 +377,14 @@ class ProductSearchViewModel @Inject constructor(
                         !search.noResults -> settleResults(source, search, query, isRefinement)
                         // Chips that leave no product keep the results view and the chips (F-37).
                         isRefinement && filters != null -> settleNoFilterMatch(source)
-                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory)
+                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory, heard(source, query, isRefinement))
                     }
                 },
                 onFailure = { error ->
                     when ((error as? SearchException)?.category ?: SearchErrorCategory.SearchApi) {
                         SearchErrorCategory.Network -> settleNetworkError(source)
                         // A real API error carries no usable suggestions: show the apology alone.
-                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null)
+                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null, heard(source, query, isRefinement))
                     }
                 },
             )
@@ -409,6 +410,7 @@ class ProductSearchViewModel @Inject constructor(
             filters = baseFilters.toImmutableList(),
             suggestions = baseSuggestions.toImmutableList(),
             missingCategory = result.missingCategory?.takeIf { result.alternativesOnly && it.isNotBlank() },
+            heardText = heard(source, query, isRefinement),
         )
         settle(source, phase, baseQuery)
     }
@@ -429,10 +431,12 @@ class ProductSearchViewModel @Inject constructor(
         source: SearchSource,
         alternatives: List<Product>,
         suggestedFromCategory: String?,
+        heardText: String = "",
     ) {
         val phase = ProductSearchPhase.Unhappy(
             alternatives = alternatives.take(ProductSearchConstants.ALTERNATIVES_COUNT).toImmutableList(),
             suggestedFromCategory = suggestedFromCategory,
+            heardText = heardText,
         )
         settle(source, phase, baseQuery)
         startIdleTimer()
@@ -459,12 +463,22 @@ class ProductSearchViewModel @Inject constructor(
         performSearch(last.query, last.source, last.isRefinement, last.filters)
     }
 
+    /** What a voice search understood; empty for typed searches and refinements. */
+    private fun heard(source: SearchSource, query: String, isRefinement: Boolean): String =
+        if (source == SearchSource.Voice && !isRefinement) query else ""
+
     private fun settle(source: SearchSource, phase: ProductSearchPhase, query: String) {
         history += HistoryEntry(source, phase, query, selectedFilters.toList(), selectedSuggestion)
+        // A voice search leaves what it understood in the field, ready to correct (UX-T-02).
+        val heardText = (phase as? ProductSearchPhase.Results)?.heardText
+            ?: (phase as? ProductSearchPhase.Unhappy)?.heardText
+            ?: ""
         _uiState.update {
             it.copy(
                 source = source,
                 phase = phase,
+                searchingQuery = "",
+                query = heardText.ifBlank { it.query },
                 canGoBack = history.size > 1,
                 selectedFilters = selectedFilters.toImmutableSet(),
                 selectedSuggestion = selectedSuggestion,

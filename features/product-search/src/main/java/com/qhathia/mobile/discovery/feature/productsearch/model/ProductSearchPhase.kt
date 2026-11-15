@@ -43,6 +43,8 @@ sealed interface ProductSearchPhase {
      *   the chips stay selected (F-37).
      * @property missingCategory the requested product the store does not sell, when the results are
      *   alternatives only (`alternativesOnly`); `null` otherwise.
+     * @property heardText what a voice search understood, shown so the customer can correct it; empty
+     *   for typed searches and refinements.
      */
     data class Results(
         val products: ImmutableList<Product>,
@@ -51,6 +53,7 @@ sealed interface ProductSearchPhase {
         val suggestions: ImmutableList<String> = persistentListOf(),
         val noFilterMatch: Boolean = false,
         val missingCategory: String? = null,
+        val heardText: String = "",
     ) : ProductSearchPhase
 
     /**
@@ -61,6 +64,8 @@ sealed interface ProductSearchPhase {
     data class Unhappy(
         val alternatives: ImmutableList<Product>,
         val suggestedFromCategory: String? = null,
+        /** What a voice search understood; empty for typed searches. */
+        val heardText: String = "",
     ) : ProductSearchPhase
 
     /** The search failed due to lost/unstable connectivity; the screen is kept with a connection message. */

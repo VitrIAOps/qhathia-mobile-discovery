@@ -3,13 +3,29 @@
     <string name="home_store_name_placeholder">TIENDA</string>
 
     <!-- Idle hero copy -->
-    <string name="home_title">Encuentra lo que necesitas</string>
-    <string name="home_subtitle">Presiona aquí y describe lo que buscas, por nombre o detalles</string>
+    <string name="home_title">¿Qué estás buscando hoy?</string>
+    <string name="home_subtitle">Toca el micrófono y dime qué buscas, o escríbelo abajo</string>
+    <!-- Under the microphone, only while voice search is on. -->
+    <string name="home_mic_hint">Toca y habla, te escucho</string>
     <!-- Voice assistant turned off remotely: there is no microphone, so the hero invites typing. -->
     <string name="home_subtitle_voice_off">Escribe lo que buscas, por nombre o detalles</string>
 
     <!-- Search (feature-specific placeholder; shared search-icon CD lives in core:ui) -->
-    <string name="home_search_placeholder">Describe lo que buscas (taladro de la marca bosch)</string>
+    <!-- Neutral example, used without a store category or for a category without its own example. -->
+    <string name="home_search_placeholder">Escribe qué necesitas o para qué lo usarás</string>
+    <!-- Examples by store category (StoreCategory). Draft for product review. -->
+    <string name="home_example_tools">Ej.: taladro para concreto, llave de tubo</string>
+    <string name="home_example_lighting">Ej.: foco LED para exterior, lámpara de mesa</string>
+    <string name="home_example_electronics">Ej.: audífonos inalámbricos, cargador rápido</string>
+    <string name="home_example_textile">Ej.: tela para cortinas, polo de algodón</string>
+    <string name="home_example_food">Ej.: café en grano, galletas sin azúcar</string>
+    <string name="home_example_beauty">Ej.: crema hidratante, shampoo sin sal</string>
+    <string name="home_example_jewelry">Ej.: anillo de plata, aretes pequeños</string>
+    <string name="home_example_furniture">Ej.: silla de escritorio, mesa plegable</string>
+    <string name="home_example_decoration">Ej.: cuadro para sala, florero de vidrio</string>
+    <string name="home_example_sports">Ej.: zapatillas para correr, pelota de fútbol</string>
+    <string name="home_example_books">Ej.: novela juvenil, libro para colorear</string>
+    <string name="home_example_toys">Ej.: rompecabezas de 500 piezas, bloques para armar</string>
 
     <!-- Controls -->
     <string name="home_catalog">Ir al catálogo</string>
@@ -17,9 +33,7 @@
     <string name="home_settings_cd">Ajustes</string>
 
     <!-- Microphone content descriptions (shared "Buscar por voz" CD lives in core:ui) -->
-    <string name="home_mic_listening_cd">Escuchando, toca para detener</string>
     <string name="home_mic_retry_cd">Toca para intentar de nuevo</string>
-    <string name="home_mic_processing_cd">Procesando, toca para cancelar</string>
 
     <!-- Microphone permission -->
 

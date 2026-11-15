@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.core.data.session
 
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
 import com.qhathia.mobile.discovery.core.domain.repository.StoreSessionRepository
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +18,9 @@ class StoreSessionRepositoryImpl @Inject constructor(
 
     override suspend fun updateStoreName(storeName: String?) =
         localDataSource.updateStoreName(storeName)
+
+    override suspend fun updateStoreCategory(category: StoreCategory?) =
+        localDataSource.updateStoreCategory(category)
 
     override suspend fun deviceAccessToken(): String? = localDataSource.deviceAccessToken()
 

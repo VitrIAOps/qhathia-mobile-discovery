@@ -98,8 +98,9 @@ fun ProductCard(
                     text = name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
-                    minLines = 2,
-                    maxLines = 2,
+                    // Three lines keep the detail that tells products apart ("…DeWalt 12V").
+                    minLines = 3,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = if (onCardClick != null) Modifier.clearAndSetSemantics {} else Modifier,
                 )
@@ -163,7 +164,8 @@ private fun CartButton(
 
 private val CARD_WIDTH = 156.dp
 private const val DISABLED_ALPHA = 0.38f
-private val IMAGE_HEIGHT = 140.dp
+// 112 dp keeps two rows of cards with three-line names above the bottom bar at 1280×800 dp.
+private val IMAGE_HEIGHT = 112.dp
 
 @Preview(name = "ProductCard — light", showBackground = true, backgroundColor = 0xFFF8F8F8)
 @Composable

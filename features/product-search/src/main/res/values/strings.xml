@@ -2,8 +2,10 @@
 <resources>
     <!-- Processing messages (animated 3-dot indicator appends the dots; base text only here).
          Shared voice copy (Escuchando / Organizando ideas / slow response) lives in core:ui. -->
-    <string name="ps_searching">Revisando catálogo</string>
-    <string name="ps_slow_search">Buscando minuciosamente</string>
+    <string name="ps_searching">Buscando en el catálogo</string>
+    <!-- A typed search, while searching: %1$s = the text. -->
+    <string name="ps_searching_query">Buscando «%1$s»</string>
+    <string name="ps_slow_search">Sigo buscando, dame un momento</string>
 
     <!-- Results headline — count is filled in client-side. -->
     <plurals name="ps_results_headline">
@@ -19,8 +21,6 @@
     <string name="ps_refine_title">Afina tu búsqueda</string>
     <string name="ps_refine_subtitle">Usa los filtros para encontrar exactamente lo que necesitas.</string>
     <string name="ps_suggestions_title">Sugerencias</string>
-    <string name="ps_refine_icon_cd">Filtros</string>
-    <string name="ps_suggestions_icon_cd">Sugerencias</string>
     <!-- Per-criterion clear control. -->
     <string name="ps_filter_clear">Limpiar</string>
     <!-- %1$s = criterion. -->
@@ -32,11 +32,12 @@
     <!-- Unhappy (no results / search error) screen. The apology, then an invite line that is generic
          or personalized from the category (%1$s = category, verbatim from the API). -->
     <string name="ps_unhappy_message">Lo siento, no pude encontrar lo que estás buscando.</string>
-    <string name="ps_unhappy_invite">De pronto te interesaría…</string>
-    <string name="ps_unhappy_invite_category">Relacionado a \'%1$s\' te podría interesar…</string>
-
-    <!-- Bottom search bar (feature-specific prompt). -->
-    <string name="ps_prompt">Cuéntame más</string>
+    <string name="ps_unhappy_invite">Quizás te interese…</string>
+    <string name="ps_unhappy_no_alternatives">Prueba con otras palabras o mira el catálogo.</string>
+    <!-- What a voice search understood (%1$s), and how to fix it. -->
+    <string name="ps_heard_text">Entendí: «%1$s»</string>
+    <string name="ps_heard_hint">¿No es lo que dijiste? Corrígelo abajo o vuelve a hablar.</string>
+    <string name="ps_unhappy_invite_category">Relacionado con «%1$s», te podría interesar…</string>
 
     <!-- Close-current-search confirmation dialog (feature-specific title/message). -->
     <string name="ps_close_dialog_title">¿Empezar una nueva búsqueda?</string>

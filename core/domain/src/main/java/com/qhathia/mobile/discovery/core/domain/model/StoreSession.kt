@@ -13,6 +13,7 @@ package com.qhathia.mobile.discovery.core.domain.model
  *   paired before the code was saved).
  * @property unlinkedNotice `true` after the merchant unlinked this tablet and the session was revoked,
  *   until the Welcome notice is dismissed.
+ * @property storeCategory the store's line of business, or `null` when unknown.
  */
 data class StoreSession(
     val storeName: String? = null,
@@ -20,6 +21,7 @@ data class StoreSession(
     val deviceName: String? = null,
     val pairingCode: String? = null,
     val unlinkedNotice: Boolean = false,
+    val storeCategory: StoreCategory? = null,
 ) {
     /** Whether the device has completed pairing (a device token is persisted). */
     val isPaired: Boolean

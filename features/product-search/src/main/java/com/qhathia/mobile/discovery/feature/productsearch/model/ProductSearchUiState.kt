@@ -26,6 +26,8 @@ data class ProductSearchUiState(
     val cartItemCount: Int = 0,
     val selectedFilters: ImmutableSet<SearchFilterOption> = persistentSetOf(),
     val selectedSuggestion: String? = null,
+    /** The typed text being searched, shown while searching ("Buscando «taladro»"); empty otherwise. */
+    val searchingQuery: String = "",
 ) {
     /** True while voice is being captured or a search is in flight. */
     val isProcessing: Boolean

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -31,6 +32,12 @@ class StoreSessionLocalDataSource @Inject constructor(
         }
     }
 
+    suspend fun updateStoreCategory(category: StoreCategory?) {
+        dataStore.edit { preferences ->
+            if (category == null) preferences.remove(KEY_STORE_CATEGORY) else preferences[KEY_STORE_CATEGORY] = category.name
+        }
+    }
+
     /** Reads the persisted DEVICE access token, or `null` when not paired. */
     suspend fun deviceAccessToken(): String? = dataStore.data.first()[KEY_DEVICE_TOKEN]
 
@@ -49,6 +56,7 @@ class StoreSessionLocalDataSource @Inject constructor(
             preferences.remove(KEY_DEVICE_TOKEN)
             preferences.remove(KEY_DEVICE_NAME)
             preferences.remove(KEY_PAIRING_CODE)
+            preferences.remove(KEY_STORE_CATEGORY)
         }
     }
 
@@ -62,6 +70,7 @@ class StoreSessionLocalDataSource @Inject constructor(
             preferences.remove(KEY_DEVICE_NAME)
             preferences.remove(KEY_PAIRING_CODE)
             preferences.remove(KEY_STORE_NAME)
+            preferences.remove(KEY_STORE_CATEGORY)
             preferences[KEY_UNLINKED_NOTICE] = true
         }
     }
@@ -81,6 +90,7 @@ class StoreSessionLocalDataSource @Inject constructor(
         deviceName = this[KEY_DEVICE_NAME],
         pairingCode = this[KEY_PAIRING_CODE],
         unlinkedNotice = this[KEY_UNLINKED_NOTICE] == true,
+        storeCategory = StoreCategory.fromApi(this[KEY_STORE_CATEGORY]),
     )
 
     private companion object {
@@ -89,5 +99,6 @@ class StoreSessionLocalDataSource @Inject constructor(
         val KEY_DEVICE_NAME = stringPreferencesKey("device_name")
         val KEY_PAIRING_CODE = stringPreferencesKey("pairing_code")
         val KEY_UNLINKED_NOTICE = booleanPreferencesKey("unlinked_notice")
+        val KEY_STORE_CATEGORY = stringPreferencesKey("store_category")
     }
 }

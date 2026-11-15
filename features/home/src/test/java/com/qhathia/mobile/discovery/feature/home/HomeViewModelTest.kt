@@ -1,5 +1,8 @@
 package com.qhathia.mobile.discovery.feature.home
 
+import com.qhathia.mobile.discovery.core.testing.FakeDevicePairingRepository
+import com.qhathia.mobile.discovery.core.domain.usecase.GetPairedDeviceUseCase
+import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.VoiceSearchConstants
 import com.qhathia.mobile.discovery.core.domain.audio.AudioLevel
@@ -40,10 +43,33 @@ class HomeViewModelTest {
         repository: FakeStoreSessionRepository = FakeStoreSessionRepository(),
         recorder: FakeAudioRecorder = FakeAudioRecorder(),
         stt: FakeLiveTranscriptionRepository = FakeLiveTranscriptionRepository(),
+        pairing: FakeDevicePairingRepository = FakeDevicePairingRepository(),
     ) = HomeViewModel(
         observeStoreSession = ObserveStoreSessionUseCase(repository),
         runVoiceSearchSession = RunVoiceSearchSessionUseCase(recorder, stt),
+        getPairedDevice = GetPairedDeviceUseCase(pairing),
     )
+
+    @Test
+    fun given_paired_without_category_when_opened_then_device_info_asked_once() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository()
+            viewModel(FakeStoreSessionRepository(StoreSession(deviceAccessToken = "t")), pairing = pairing)
+
+            assertEquals(1, pairing.pairedCount)
+        }
+
+    @Test
+    fun given_category_known_when_opened_then_no_device_info_call() =
+        runTest(mainDispatcher.dispatcher) {
+            val pairing = FakeDevicePairingRepository()
+            val session = StoreSession(deviceAccessToken = "t", storeCategory = StoreCategory.LIGHTING)
+
+            val vm = viewModel(FakeStoreSessionRepository(session), pairing = pairing)
+
+            assertEquals(0, pairing.pairedCount)
+            assertEquals(StoreCategory.LIGHTING, vm.uiState.value.storeCategory)
+        }
 
     @Test
     fun given_store_session_has_name_when_observed_then_store_name_surfaces() =
