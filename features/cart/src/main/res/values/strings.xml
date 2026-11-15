@@ -33,7 +33,7 @@
     <string name="cart_name_error">Ingresa al menos un nombre</string>
     <string name="cart_phone_label">Número de celular</string>
     <string name="cart_phone_placeholder">Ej. 987 654 321</string>
-    <string name="cart_phone_error">Ingresa un número de celular válido</string>
+    <string name="cart_phone_error">Ingresa un celular de 9 dígitos que empiece con 9</string>
 
     <!-- Totals (receipt). -->
     <plurals name="cart_subtotal_label">
@@ -53,7 +53,7 @@
     <string name="cart_sharing_cd">Enviando tu cotización…</string>
 
     <!-- Order submission — success. -->
-    <string name="cart_success_title">¡Pedido generado con éxito!</string>
+    <string name="cart_success_title">¡Listo! Recibimos tu pedido</string>
     <string name="cart_success_subtitle">Acércate al vendedor para recibir tu pedido y realizar el pago.</string>
     <!-- Order code from the server, shown large on the success screen. -->
     <!-- No "N.º": Urbanist has no ordinal indicator and draws "N.o". -->
@@ -61,7 +61,7 @@
     <string name="cart_success_code_hint">Muéstrale este número al vendedor para que te atienda.</string>
     <string name="cart_success_check_phone">Revisa tu celular para ver el detalle de tu pedido.</string>
     <!-- Order created but the WhatsApp quote could not be delivered after retrying. -->
-    <string name="cart_success_share_failed_subtitle">Se generó tu pedido. Acércate al vendedor e indícale tu nombre para revisar tu orden.</string>
+    <string name="cart_success_share_failed_subtitle">Recibimos tu pedido. Acércate al vendedor y dile tu nombre para atenderte.</string>
     <plurals name="cart_success_qty">
         <item quantity="one">Cantidad: %d</item>
         <item quantity="other">Cantidad: %d</item>
@@ -70,7 +70,7 @@
 
     <!-- "Compartir por WhatsApp" — quote delivered (status SENT). No order exists. -->
     <string name="cart_share_success_title">¡Cotización enviada!</string>
-    <string name="cart_share_success_subtitle">Acércate al vendedor para recibir tus productos y realizar el pago.</string>
+    <string name="cart_share_success_subtitle">Te la enviamos por WhatsApp. Si quieres comprar, acércate al vendedor.</string>
     <string name="cart_share_success_check_phone">Revisa tu celular para ver la cotización.</string>
 
     <!-- "Compartir por WhatsApp" — the server answered but WhatsApp did not receive the quote. -->
@@ -89,15 +89,15 @@
     <string name="cart_unavailable_message">Algunos productos ya no están disponibles. Quítalos del carrito para continuar.</string>
 
     <!-- Order submission — error. -->
-    <string name="cart_error_title">Algo salió mal</string>
-    <string name="cart_error_message">Hubo un problema generando la orden. Inténtalo de nuevo en unos momentos.</string>
+    <string name="cart_error_title">No pudimos completar tu pedido</string>
+    <string name="cart_error_message">No pudimos registrar tu pedido. Inténtalo de nuevo en un momento.</string>
     <string name="cart_error_understood">Entendido</string>
-    <string name="cart_error_cancel">Cancelar orden</string>
+    <string name="cart_error_cancel">Vaciar carrito y salir</string>
     <!-- Order error by cause (order-price-check). -->
     <string name="cart_error_network_message">No pudimos enviar tu pedido porque la tablet no tiene internet. Tu carrito sigue guardado; inténtalo de nuevo en un momento.</string>
     <string name="cart_error_back_to_cart">Volver al carrito</string>
     <string name="cart_error_timeout_message">No pudimos confirmar si tu pedido se registró. Pregúntale al vendedor antes de intentarlo de nuevo.</string>
-    <string name="cart_error_validation_name">Revisa tu nombre (máximo 200 caracteres).</string>
+    <string name="cart_error_validation_name">Tu nombre es muy largo. Escríbelo más corto.</string>
     <string name="cart_error_validation_phone">Revisa tu número de celular.</string>
     <string name="cart_error_validation_items">Tu carrito está vacío o tiene demasiados productos.</string>
 
@@ -105,16 +105,16 @@
     <string name="cart_share_error_network_message">No pudimos enviar la cotización porque la tablet no tiene internet. Tu carrito sigue guardado; inténtalo de nuevo en un momento.</string>
 
     <!-- Basket changes made on the customer's behalf (order-price-check). %1$s product, %2$s old price, %3$s new price. -->
-    <string name="cart_notice_price_changed">El precio de «%1$s» cambió de %2$s a %3$s. Revisa el total antes de hacer tu pedido.</string>
+    <string name="cart_notice_price_changed">El precio de «%1$s» cambió de %2$s a %3$s. Revisa el total antes de realizar tu pedido.</string>
     <plurals name="cart_notice_price_more">
-        <item quantity="one">y %d producto más cambió de precio.</item>
-        <item quantity="other">y %d productos más cambiaron de precio.</item>
+        <item quantity="one">Otro producto cambió de precio.</item>
+        <item quantity="other">Otros %d productos cambiaron de precio.</item>
     </plurals>
     <string name="cart_notice_items_removed">Quitamos de tu carrito lo que ya no está disponible: %1$s.</string>
     <!-- %1$d units left, %2$s product. -->
-    <string name="cart_notice_quantity_capped">Solo quedan %1$d de «%2$s»; ajustamos la cantidad.</string>
+    <string name="cart_notice_quantity_capped">Solo quedan %1$d unidades de «%2$s»; ajustamos la cantidad.</string>
 
     <!-- Success with what the store recorded (order-price-check). %1$s formatted amount. -->
-    <string name="cart_success_total_label">Total del pedido  %1$s</string>
+    <string name="cart_success_total_label">Total del pedido: %1$s</string>
     <string name="cart_success_total_mismatch">El total registrado por la tienda es %1$s, distinto del que viste en el carrito. Confírmalo con el vendedor.</string>
 </resources>

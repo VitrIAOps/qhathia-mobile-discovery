@@ -9,8 +9,8 @@
 
     <!-- Results headline — count is filled in client-side. -->
     <plurals name="ps_results_headline">
-        <item quantity="one">Encontré %1$d producto para ti:</item>
-        <item quantity="other">Encontré %1$d productos para ti:</item>
+        <item quantity="one">Encontré %1$d producto para ti</item>
+        <item quantity="other">Encontré %1$d productos para ti</item>
     </plurals>
     <!-- The selected chips left no product (F-37); the chips stay selected. -->
     <string name="ps_filters_no_match">No hay productos con esos filtros. Quita alguno para ver más.</string>
@@ -42,4 +42,6 @@
     <!-- Close-current-search confirmation dialog (feature-specific title/message). -->
     <string name="ps_close_dialog_title">¿Empezar una nueva búsqueda?</string>
     <string name="ps_close_dialog_message">Volverás al inicio.</string>
+    <!-- Voice search without internet, shown as one sentence (UX-T-06). -->
+    <string name="ps_voice_network">Sin internet. Escribe tu búsqueda o inténtalo en un momento.</string>
 </resources>

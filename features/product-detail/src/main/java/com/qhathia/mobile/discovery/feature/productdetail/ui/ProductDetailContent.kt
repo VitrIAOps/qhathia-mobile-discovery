@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
+import com.qhathia.mobile.discovery.core.ui.format.formatPrice
 import com.qhathia.mobile.discovery.core.ui.component.discountPercent
 import com.qhathia.mobile.discovery.core.ui.component.DiscountBadge
 import com.qhathia.mobile.discovery.core.ui.component.goToCartDescription
@@ -425,12 +426,10 @@ private fun RelatedProductsSection(
                             ProductRowCard(
                                 name = product.name,
                                 categoryName = product.categoryName,
-                                priceText = stringResource(
-                                    UiR.string.discovery_price_format,
-                                    product.discountedPrice ?: product.price,
+                                priceText = formatPrice(product.discountedPrice ?: product.price,
                                 ),
                                 originalPriceText = product.discountedPrice?.let {
-                                    stringResource(UiR.string.discovery_price_format, product.price)
+                                    formatPrice(product.price)
                                 },
                                 imageUrl = product.imageUrl,
                                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
@@ -617,13 +616,13 @@ private fun DetailPrice(
             DiscountBadge(percent = percent, modifier = Modifier.align(Alignment.CenterVertically))
         }
         Text(
-            text = stringResource(UiR.string.discovery_price_format, discountedPrice ?: price),
+            text = formatPrice(discountedPrice ?: price),
             style = MaterialTheme.typography.headlineMedium,
             color = if (discountedPrice != null) DiscoveryColors.AccentOrange else DiscoveryColors.CatalogText,
         )
         if (discountedPrice != null) {
             Text(
-                text = stringResource(UiR.string.discovery_price_format, price),
+                text = formatPrice(price),
                 style = MaterialTheme.typography.bodyLarge,
                 color = DiscoveryColors.Neutral500,
                 textDecoration = TextDecoration.LineThrough,

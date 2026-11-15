@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.cart.ui
 
+import com.qhathia.mobile.discovery.core.ui.format.formatPrice
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.role
@@ -102,10 +103,10 @@ fun CartDialogContent(
                     ?.let { stringResource(R.string.cart_success_code, it) },
                 summary = submission.summary.toSubmissionLines(),
                 totalText = submission.total?.let {
-                    stringResource(R.string.cart_success_total_label, stringResource(UiR.string.discovery_price_format, it))
+                    stringResource(R.string.cart_success_total_label, formatPrice(it))
                 },
                 note = if (submission.totalMismatch && submission.total != null) {
-                    stringResource(R.string.cart_success_total_mismatch, stringResource(UiR.string.discovery_price_format, submission.total))
+                    stringResource(R.string.cart_success_total_mismatch, formatPrice(submission.total))
                 } else {
                     null
                 },
@@ -225,7 +226,7 @@ private fun ImmutableList<OrderedLine>.toSubmissionLines(): ImmutableList<Submis
             imageUrl = it.imageUrl,
             name = it.name,
             quantity = it.quantity,
-            priceText = it.lineTotal?.let { total -> stringResource(UiR.string.discovery_price_format, total) },
+            priceText = it.lineTotal?.let { total -> formatPrice(total) },
         )
     }.toImmutableList()
 
@@ -378,13 +379,13 @@ private fun CartLineCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    val unitPrice = stringResource(UiR.string.discovery_price_format, item.priceUnit)
+                    val unitPrice = formatPrice(item.priceUnit)
                     Text(
                         text = if (item.quantity > 1) {
                             stringResource(
                                 R.string.cart_line_price_each,
                                 unitPrice,
-                                stringResource(UiR.string.discovery_price_format, item.priceUnit * item.quantity),
+                                formatPrice(item.priceUnit * item.quantity),
                             )
                         } else {
                             unitPrice
@@ -515,8 +516,8 @@ private fun NoticeBox(notice: CartNotice) {
                     stringResource(
                         R.string.cart_notice_price_changed,
                         it.productName,
-                        stringResource(UiR.string.discovery_price_format, it.oldUnitPrice),
-                        stringResource(UiR.string.discovery_price_format, it.newUnitPrice),
+                        formatPrice(it.oldUnitPrice),
+                        formatPrice(it.newUnitPrice),
                     ),
                 )
             }
@@ -597,7 +598,7 @@ private fun TotalsSection(total: Double) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = stringResource(UiR.string.discovery_price_format, total),
+            text = formatPrice(total),
             style = MaterialTheme.typography.headlineMedium,
             color = DiscoveryColors.CatalogText,
         )
