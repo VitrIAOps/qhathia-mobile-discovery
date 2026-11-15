@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.feature.productsearch.ui
 
+import androidx.compose.ui.platform.LocalResources
+import com.qhathia.mobile.discovery.feature.productsearch.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
@@ -51,12 +53,11 @@ fun ProductSearchScreen(
     val lineLimitMessage = stringResource(UiR.string.discovery_cart_line_limit)
     val limitOk = stringResource(UiR.string.discovery_cart_limit_ok)
     val viewCart = stringResource(UiR.string.discovery_cart_view)
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val cartFeedback = remember { CartFeedbackState() }
     val feedbackScope = rememberCoroutineScope()
     // F-17: a Toast, like the microphone-permission notice (VOZ-008), so it outlives a NavigateBack.
-    val voiceNetworkMessage = stringResource(UiR.string.discovery_error_network_title) + " " +
-        stringResource(UiR.string.discovery_error_network_message)
+    val voiceNetworkMessage = stringResource(R.string.ps_voice_network)
     val voiceFailedMessage = stringResource(UiR.string.discovery_voice_failed)
 
     LaunchedEffect(viewModel) {

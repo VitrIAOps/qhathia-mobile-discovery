@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productdetail.ui
 
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
@@ -15,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,7 +44,7 @@ fun ProductDetailScreen(
     val lineLimitMessage = stringResource(UiR.string.discovery_cart_line_limit)
     val limitOk = stringResource(UiR.string.discovery_cart_limit_ok)
     val viewCart = stringResource(UiR.string.discovery_cart_view)
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val cartFeedback = remember { CartFeedbackState() }
     val feedbackScope = rememberCoroutineScope()
 
