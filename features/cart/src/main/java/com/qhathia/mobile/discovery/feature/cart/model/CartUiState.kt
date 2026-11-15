@@ -37,7 +37,15 @@ data class CartUiState(
     val submission: OrderSubmission = OrderSubmission.Idle,
     val unavailableIds: ImmutableSet<String> = persistentSetOf(),
     val notice: CartNotice? = null,
+    /** The request in flight is a quote ("Cotizar por WhatsApp"), not an order: picks the button that spins and what screen readers hear. */
+    val submittingShare: Boolean = false,
 ) {
+    /** Distinct products in the basket; [totalItemCount] counts units. */
+    val lineCount: Int get() = items.size
+
+    /** The actions are disabled only because the consumer data is missing or invalid. */
+    val needsConsumerData: Boolean get() = !isEmpty && !isOrderEnabled && !hasUnavailableLines
+
     /** True when the basket has no lines. */
     val isEmpty: Boolean get() = items.isEmpty()
 

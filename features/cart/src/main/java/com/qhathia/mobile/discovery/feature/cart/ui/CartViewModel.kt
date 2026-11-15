@@ -146,6 +146,7 @@ class CartViewModel @Inject constructor(
             CartUiEvent.PlaceOrder -> placeOrder()
             CartUiEvent.RetryOrder -> retryOrder()
             CartUiEvent.ShareWhatsApp -> share()
+            CartUiEvent.RetryShare -> retryShare()
             CartUiEvent.AcceptSuccess, CartUiEvent.CancelOrder -> finishAndReturnHome()
             CartUiEvent.DismissError -> _uiState.update { it.copy(submission = OrderSubmission.Idle) }
             CartUiEvent.Opened -> onOpened()
@@ -248,7 +249,7 @@ class CartViewModel @Inject constructor(
      * other failure resolves to [OrderSubmission.ShareError], saying so when the network was the cause.
      */
     private fun share() {
-        if (!beginSubmission()) return
+        if (!beginSubmission(isShare = true)) return
         viewModelScope.launch {
             if (runningRefreshChangedBasket()) {
                 backToCart()
@@ -288,11 +289,22 @@ class CartViewModel @Inject constructor(
      * overlap between the two buttons), clears the notice and flips the phase to
      * [OrderSubmission.Submitting]. Returns `false` when the submission must not start.
      */
-    private fun beginSubmission(): Boolean {
+    private fun beginSubmission(isShare: Boolean = false): Boolean {
         val state = _uiState.value
         if (!state.canSubmit || state.submission != OrderSubmission.Idle) return false
-        _uiState.update { it.copy(submission = OrderSubmission.Submitting, notice = null) }
+        _uiState.update { it.copy(submission = OrderSubmission.Submitting, notice = null, submittingShare = isShare) }
         return true
+    }
+
+    /**
+     * "Intentar de nuevo" after a quote that failed (network, server): one more attempt with the same
+     * data. A quote the provider reported as not delivered is never resent here: it may duplicate
+     * messages, so that state only offers to check the number.
+     */
+    private fun retryShare() {
+        if (_uiState.value.submission !is OrderSubmission.ShareError) return
+        _uiState.update { it.copy(submission = OrderSubmission.Idle) }
+        share()
     }
 
     private fun showError(reason: OrderFailure) {
@@ -365,6 +377,7 @@ class CartViewModel @Inject constructor(
             shareDelivered = shareDelivered,
             total = total,
             totalMismatch = total.toMoney() != state.totalAmount.toMoney(),
+            orderCode = orderCode,
         )
     }
 

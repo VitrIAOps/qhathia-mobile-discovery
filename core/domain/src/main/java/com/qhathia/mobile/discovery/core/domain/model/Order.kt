@@ -21,4 +21,6 @@ data class Order(
     val customerName: String,
     val customerPhone: String,
     val items: List<OrderItem>,
+    /** Code the customer shows the seller; null when the server did not send one. */
+    val orderCode: String? = null,
 )

@@ -418,10 +418,14 @@ private fun CloseConfirmDialog(
     ConfirmationDialog(
         title = stringResource(R.string.catalog_close_dialog_title),
         message = closeDialogMessage(cartItemCount, R.string.catalog_close_dialog_message),
-        confirmLabel = stringResource(UiR.string.discovery_dialog_confirm_close),
+        // With products in the cart, confirming empties it: say so and make it the action that stands out.
+        confirmLabel = stringResource(
+            if (cartItemCount > 0) UiR.string.discovery_dialog_confirm_restart_with_cart else UiR.string.discovery_dialog_confirm_close,
+        ),
         dismissLabel = stringResource(UiR.string.discovery_dialog_cancel),
         onConfirm = onConfirm,
         onDismiss = onDismiss,
+        destructive = cartItemCount > 0,
     )
 }
 

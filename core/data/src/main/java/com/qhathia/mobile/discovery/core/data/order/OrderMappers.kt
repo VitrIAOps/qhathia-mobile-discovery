@@ -53,6 +53,7 @@ internal fun OrderResponseDto.toDomain(): Order = Order(
     customerName = customerName,
     customerPhone = customerPhone,
     items = items.map { it.toDomain() },
+    orderCode = orderCode?.takeIf { it.isNotBlank() },
 )
 
 /** Maps an order-item response DTO to the domain [OrderItem]. */

@@ -220,6 +220,69 @@ class CartViewModelTest {
         }
 
     @Test
+    fun given_share_error_when_retry_then_same_quote_sent_again() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository().apply { failWith(CartShareErrorCategory.Network) }
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+        val failedCalls = shareRepository.callCount
+        shareRepository.outcome = ShareOutcome.Delivered(FakeCartShareRepository.PDF_URL)
+
+        vm.onEvent(CartUiEvent.RetryShare)
+
+        val submission = vm.uiState.value.submission
+        assertTrue(submission is OrderSubmission.Success && submission.isQuoteOnly)
+        assertEquals(failedCalls + 1, shareRepository.callCount)
+        assertEquals(vm.uiState.value.name, shareRepository.lastCall?.name)
+    }
+
+    @Test
+    fun given_quote_not_delivered_when_retry_then_nothing_resent() = runTest(mainDispatcher.dispatcher) {
+        val shareRepository = FakeCartShareRepository().apply { notDelivered("FAILED") }
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+        vm.enterValidData()
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        vm.onEvent(CartUiEvent.RetryShare)
+
+        assertEquals(OrderSubmission.QuoteNotDelivered, vm.uiState.value.submission)
+        assertEquals(1, shareRepository.callCount)
+    }
+
+    @Test
+    fun given_share_in_flight_then_state_marks_a_quote() = runTest(mainDispatcher.dispatcher) {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val shareRepository = FakeCartShareRepository().apply { awaitBeforeAnswer = gate }
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)
+        vm.enterValidData()
+
+        vm.onEvent(CartUiEvent.ShareWhatsApp)
+
+        assertTrue(vm.uiState.value.isSubmitting)
+        assertTrue(vm.uiState.value.submittingShare)
+        gate.complete(Unit)
+    }
+
+    @Test
+    fun given_order_with_code_when_place_order_then_success_carries_the_code() = runTest(mainDispatcher.dispatcher) {
+        val orderRepository = FakeOrderRepository()
+        val vm = viewModel(FakeCartRepository(CartFixtures.cart()), orderRepository)
+        vm.enterValidData()
+        orderRepository.result = Result.success(
+            com.qhathia.mobile.discovery.core.domain.model.Order(
+                id = "o1", status = "PENDING", subtotal = 0.0, total = 0.0,
+                customerName = "Ana", customerPhone = "987654321", items = emptyList(), orderCode = "564418",
+            ),
+        )
+
+        vm.onEvent(CartUiEvent.PlaceOrder)
+
+        val submission = vm.uiState.value.submission as OrderSubmission.Success
+        assertEquals("564418", submission.orderCode)
+        assertFalse(vm.uiState.value.submittingShare)
+    }
+
+    @Test
     fun given_share_answers_stub_when_share_then_not_delivered() = runTest(mainDispatcher.dispatcher) {
         val shareRepository = FakeCartShareRepository().apply { notDelivered("STUB") }
         val vm = viewModel(FakeCartRepository(CartFixtures.cart()), shareRepository = shareRepository)

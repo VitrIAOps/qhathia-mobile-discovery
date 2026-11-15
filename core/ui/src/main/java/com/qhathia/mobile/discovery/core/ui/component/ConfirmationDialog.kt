@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
+import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 
 /**
@@ -16,9 +17,11 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
  * product-detail, product-search and settings. Domain-free — the caller passes localized copy and
  * the confirm / dismiss handlers.
  *
- * @param confirmLabel label for the confirming action (e.g. "Sí, cerrar").
+ * @param confirmLabel label for the confirming action (e.g. "Sí, empezar de nuevo").
  * @param dismissLabel label for the dismissing action (e.g. "Cancelar").
  * @param containerColor optional dialog surface color; defaults to the Material dialog container.
+ * @param destructive the confirmation loses something (it empties the cart): the confirm action is a
+ *   filled button and "Cancelar" a text button, so the two never look alike.
  */
 @Composable
 fun ConfirmationDialog(
@@ -29,6 +32,7 @@ fun ConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     containerColor: Color? = null,
+    destructive: Boolean = false,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -42,8 +46,18 @@ fun ConfirmationDialog(
         text = { Text(text = message) },
         containerColor = containerColor ?: AlertDialogDefaults.containerColor,
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(text = confirmLabel)
+            if (destructive) {
+                PrimaryActionButton(
+                    text = confirmLabel,
+                    onClick = onConfirm,
+                    containerColor = DiscoveryColors.CatalogText,
+                    contentColor = Color.White,
+                    fillMaxWidth = false,
+                )
+            } else {
+                TextButton(onClick = onConfirm) {
+                    Text(text = confirmLabel)
+                }
             }
         },
         dismissButton = {

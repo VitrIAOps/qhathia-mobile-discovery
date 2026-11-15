@@ -24,8 +24,10 @@ sealed interface CartUiEvent {
     /** Tap "Realizar pedido" — validate and submit the order to the API. */
     data object PlaceOrder : CartUiEvent
 
-    /** Tap "Compartir por WhatsApp" (render-only — no WhatsApp action until it lands). */
+    /** Tap "Cotizar por WhatsApp" — send the quote (no order). */
     data object ShareWhatsApp : CartUiEvent
+    /** "Intentar de nuevo" after a failed quote: send the same quote again, same data. */
+    data object RetryShare : CartUiEvent
 
     /** Tap "Aceptar" on the success screen — clear the session and return Home. */
     data object AcceptSuccess : CartUiEvent

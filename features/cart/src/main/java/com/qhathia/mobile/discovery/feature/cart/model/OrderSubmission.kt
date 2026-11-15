@@ -58,6 +58,7 @@ sealed interface OrderSubmission {
      *   give your name" fallback instead of "check your phone".
      * @property total the order total the server recorded, or `null` for a quote-only share.
      * @property totalMismatch whether [total] differs from the total the cart showed (by S/ 0.01 or more).
+     * @property orderCode the code the customer shows the seller, when the server sent one.
      */
     data class Success(
         val summary: ImmutableList<OrderedLine>,
@@ -65,6 +66,7 @@ sealed interface OrderSubmission {
         val shareDelivered: Boolean = true,
         val total: Double? = null,
         val totalMismatch: Boolean = false,
+        val orderCode: String? = null,
     ) : OrderSubmission
 
     /** The order failed; [reason] decides the copy and the recovery actions. */
@@ -77,8 +79,9 @@ sealed interface OrderSubmission {
     data object QuoteNotDelivered : OrderSubmission
 
     /**
-     * "Compartir por WhatsApp" was rejected or failed after its retries. Shown with share copy and a
-     * single "Entendido" that returns to the cart; a failed quote never empties the basket (CAR-033).
+     * "Cotizar por WhatsApp" was rejected or failed after its retries. Shown with share copy,
+     * "Intentar de nuevo" (sends the same quote again) and "Volver al carrito"; a failed quote never
+     * empties the basket (CAR-033).
      *
      * @property network `true` when it failed for lack of connection, which says so (F-34).
      */
