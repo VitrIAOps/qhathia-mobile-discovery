@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.data.stt
+package com.qhathia.mobile.discovery.core.voice.audio
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

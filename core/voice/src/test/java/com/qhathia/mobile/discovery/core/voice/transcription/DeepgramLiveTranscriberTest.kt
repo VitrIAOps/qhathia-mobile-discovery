@@ -1,6 +1,6 @@
-package com.qhathia.mobile.discovery.core.network.service
+package com.qhathia.mobile.discovery.core.voice.transcription
 
-import com.qhathia.mobile.discovery.core.network.KtorClientFactory
+import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respondOk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -10,9 +10,21 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /** Message decoding only: Ktor's MockEngine can't serve WebSockets, so the socket is verified on device. */
-class DeepgramLiveClientTest {
+class DeepgramLiveTranscriberTest {
 
-    private val client = DeepgramLiveClient(KtorClientFactory.create(MockEngine { respondOk() }))
+    private val client = DeepgramLiveTranscriber(
+        HttpClient(MockEngine { respondOk() }),
+        DeepgramConfig(baseUrl = "https://api.deepgram.com", model = "nova-3", language = "es"),
+    )
+
+    @Test
+    fun the_listen_url_keeps_the_live_parameters() {
+        assertEquals(
+            "wss://api.deepgram.com/v1/listen?model=nova-3&language=es&encoding=linear16" +
+                "&sample_rate=16000&channels=1&interim_results=true&smart_format=true&punctuate=true",
+            client.listenUrl,
+        )
+    }
 
     @Test
     fun given_interim_results_message_when_decoded_then_transcript_and_not_final() {

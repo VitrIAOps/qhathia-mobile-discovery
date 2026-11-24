@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.network.dto
+package com.qhathia.mobile.discovery.core.voice.transcription
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -13,7 +13,7 @@ import kotlinx.serialization.Serializable
  * endpointing — the app detects end of speech on-device).
  */
 @Serializable
-data class DeepgramLiveResultDto(
+internal data class DeepgramLiveResultDto(
     val type: String = "",
     @SerialName("is_final") val isFinal: Boolean = false,
     @SerialName("speech_final") val speechFinal: Boolean = false,
@@ -24,12 +24,12 @@ data class DeepgramLiveResultDto(
 }
 
 @Serializable
-data class DeepgramLiveChannelDto(
+internal data class DeepgramLiveChannelDto(
     val alternatives: List<DeepgramLiveAlternativeDto> = emptyList(),
 )
 
 @Serializable
-data class DeepgramLiveAlternativeDto(
+internal data class DeepgramLiveAlternativeDto(
     val transcript: String = "",
     val confidence: Double = 0.0,
 )

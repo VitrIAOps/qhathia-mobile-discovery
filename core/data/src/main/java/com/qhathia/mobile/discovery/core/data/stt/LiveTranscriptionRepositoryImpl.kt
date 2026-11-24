@@ -6,10 +6,13 @@ import com.qhathia.mobile.discovery.core.domain.model.SttErrorCategory
 import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.model.TranscriptUpdate
 import com.qhathia.mobile.discovery.core.domain.repository.LiveTranscriptionRepository
+import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
 import com.qhathia.mobile.discovery.core.network.NetworkResult
-import com.qhathia.mobile.discovery.core.network.service.DeepgramLiveClient
-import com.qhathia.mobile.discovery.core.network.service.DeepgramStreamException
 import com.qhathia.mobile.discovery.core.network.service.SttTokenApiService
+import com.qhathia.mobile.discovery.core.voice.transcription.LiveTranscriber
+import com.qhathia.mobile.discovery.core.voice.transcription.TranscriptAccumulator
+import com.qhathia.mobile.discovery.core.voice.transcription.VoiceStreamException
+import com.qhathia.mobile.discovery.core.voice.transcription.VoiceTransportFailure
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
@@ -25,7 +28,7 @@ import javax.inject.Inject
 class LiveTranscriptionRepositoryImpl @Inject constructor(
     private val sessionTokenProvider: SessionTokenProvider,
     private val sttTokenApiService: SttTokenApiService,
-    private val deepgramLiveClient: DeepgramLiveClient,
+    private val liveTranscriber: LiveTranscriber,
 ) : LiveTranscriptionRepository {
 
     override fun transcribe(audio: Flow<ByteArray>): Flow<TranscriptUpdate> = flow {
@@ -43,25 +46,36 @@ class LiveTranscriptionRepositoryImpl @Inject constructor(
         val accumulator = TranscriptAccumulator()
         val trackedAudio = audio.onCompletion { timing.markAudioEnded() }
         try {
-            deepgramLiveClient.stream(trackedAudio, deepgramToken).collect { result ->
-                accumulator.apply(result.transcript, result.isFinal)?.let { text ->
+            liveTranscriber.stream(trackedAudio, deepgramToken).collect { result ->
+                accumulator.apply(result.text, result.isFinal)?.let { text ->
                     log("STT partial: ${timing.onPartial()} '$text'")
                     emit(TranscriptUpdate.Partial(text))
                 }
             }
             log("STT timing: ${timing.summary()}")
-        } catch (stream: DeepgramStreamException) {
+        } catch (stream: VoiceStreamException) {
             log(
                 "STT session: failed closeCode=${stream.closeCode} " +
-                    "handshakeRejected=${stream.handshakeRejected} kind=${stream.kind}",
+                    "handshakeRejected=${stream.handshakeRejected} kind=${stream.transport}",
             )
-            throw failure(SttErrorMapper.fromStreamFailure(stream.closeCode, stream.handshakeRejected, stream.kind))
+            throw failure(SttErrorMapper.fromStreamFailure(
+                    stream.closeCode,
+                    stream.handshakeRejected,
+                    stream.transport?.toNetworkErrorKind(),
+                ),
+            )
         }
 
         val transcript = accumulator.transcript
         if (transcript.isBlank()) throw failure(SttErrorCategory.EmptyAudio)
         log("STT result: transcript='$transcript'")
         emit(TranscriptUpdate.Final(transcript))
+    }
+
+    private fun VoiceTransportFailure.toNetworkErrorKind(): NetworkErrorKind = when (this) {
+        VoiceTransportFailure.Timeout -> NetworkErrorKind.Timeout
+        VoiceTransportFailure.Connectivity -> NetworkErrorKind.Connectivity
+        VoiceTransportFailure.Unknown -> NetworkErrorKind.Unknown
     }
 
     private fun failure(category: SttErrorCategory): SttException {

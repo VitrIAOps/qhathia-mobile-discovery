@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.data.stt
+package com.qhathia.mobile.discovery.core.voice.audio
 
 import kotlin.math.abs
 

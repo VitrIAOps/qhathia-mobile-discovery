@@ -95,6 +95,7 @@ dependencies {
     // LiveTranscriptionRepository, AudioRecorder, HttpClient) are aggregated into the dependency graph.
     implementation(project(":core:data"))
     implementation(project(":core:network"))
+    implementation(project(":core:voice"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

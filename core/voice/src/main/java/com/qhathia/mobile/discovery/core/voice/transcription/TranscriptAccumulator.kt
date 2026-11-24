@@ -1,10 +1,10 @@
-package com.qhathia.mobile.discovery.core.data.stt
+package com.qhathia.mobile.discovery.core.voice.transcription
 
 /**
- * Builds the running transcript from Deepgram live results: final segments are confirmed and kept;
+ * Builds the running transcript from live speech results: final segments are confirmed and kept;
  * an interim segment is shown after them until the next result replaces it.
  */
-internal class TranscriptAccumulator {
+class TranscriptAccumulator {
 
     private val confirmed = mutableListOf<String>()
     private var interim = ""

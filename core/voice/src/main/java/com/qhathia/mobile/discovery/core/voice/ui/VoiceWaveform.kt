@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.ui.component
+package com.qhathia.mobile.discovery.core.voice.ui
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -18,14 +18,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
-import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import kotlin.math.PI
 import kotlin.math.sin
 
 /**
  * Animated voice waveform — a row of rounded vertical bars whose heights oscillate continuously,
- * recreating the "listening" equalizer from the Qhathia design-system animation
- * (listening-animation.gif) natively in Compose.
+ * recreating a "listening" equalizer natively in Compose.
  *
  * The motion is decorative (a fixed sinusoidal loop), not reactive to real microphone amplitude.
  * Each bar follows the same sine wave with a per-bar phase offset, producing the travelling
@@ -84,9 +82,8 @@ fun VoiceWaveform(
 }
 
 @Preview(name = "VoiceWaveform — light", showBackground = true, backgroundColor = 0xFFFF6A00)
+@Preview(name = "VoiceWaveform — dark", showBackground = true, backgroundColor = 0xFF0E1721, uiMode = 0x20)
 @Composable
 private fun VoiceWaveformPreview() {
-    DiscoveryTheme(darkTheme = false) {
-        VoiceWaveform(modifier = Modifier.size(68.dp))
-    }
+    VoiceWaveform(modifier = Modifier.size(68.dp))
 }

@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:common"))
     implementation(project(":core:network"))
+    implementation(project(":core:voice"))
 
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.coroutines)
