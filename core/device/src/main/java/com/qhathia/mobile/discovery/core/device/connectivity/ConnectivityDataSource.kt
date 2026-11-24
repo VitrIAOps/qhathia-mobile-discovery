@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
  *   it does not need the location permission, so it is the reliable "on Wi-Fi" signal.
  * @property hasInternet whether the active network (any transport) offers internet. Used to reconnect
  *   sockets as soon as the device is back online.
- * @property simAvailable whether the tablet has telephony and a ready SIM (mobile data can be used).
+ * @property simAvailable whether the device has telephony and a ready SIM (mobile data can be used).
  * @property mobileDataEnabled whether the mobile-data setting is on, even while Wi-Fi carries the
  *   traffic. Always `false` without a SIM.
  */

@@ -9,13 +9,13 @@ import android.os.Build
 import android.util.Log
 
 /**
- * Kiosk setup that only a device owner can do (F-10). Without device owner it does nothing and the
+ * Kiosk setup that only a device owner can do. Without device owner it does nothing and the
  * app keeps screen pinning with the "Pin app?" dialog.
  *
  * - Allows the app in lock task mode, so `startLockTask()` pins at once, without the dialog, and
  *   `stopLockTask()` still serves "Salir del modo kiosko".
  * - Hides the Home, Recents and notification features while pinned (API 28+).
- * - Makes `MainActivity` the home screen (F-12), so nobody has to pick "Siempre" by hand.
+ * - Makes the given activity the home screen, so nobody has to pick "Siempre" by hand.
  */
 object DeviceOwnerPolicy {
 

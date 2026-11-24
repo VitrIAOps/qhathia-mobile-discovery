@@ -7,13 +7,12 @@ import android.os.Bundle
 import android.os.Process
 
 /**
- * Trampoline for the remote `RESTART_APP` (design D7). It runs in its own `:restart` process and is
- * started by [MainActivity] into the same task, so the pinned task always keeps a live activity and
- * screen pinning holds (no "Pin app?" dialog). It kills the main process, starts [MainActivity] again
- * in this task (a new main process), and then ends its own process.
+ * Restart trampoline. The host declares a subclass in its own process and starts it from the main
+ * activity into the same task, so the pinned task always keeps a live activity and screen pinning
+ * holds (no "Pin app?" dialog). It kills the main process, starts [relaunchTarget] again in this task
+ * (a new main process), and then ends its own process.
  *
- * It must be opaque: on API 26 a translucent activity cannot fix its orientation and crashes (task
- * 1.1). It draws nothing; the app theme's background shows for a moment.
+ * It must be opaque: on API 26 a translucent activity cannot fix its orientation and crashes. It draws nothing; the app theme's background shows for a moment.
  */
 abstract class ProcessRestartActivity : Activity() {
 

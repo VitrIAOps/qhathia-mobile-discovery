@@ -14,12 +14,12 @@ internal enum class HomeLaunchAction {
 
 /**
  * Keeps a single main screen: with the default launchMode, every HOME intent (Home key with
- * kiosk mode off, the launcher chooser) creates another [MainActivity], whose timer would end the
- * customer session of the visible one. The default launchMode stays: the RESTART_APP trampoline needs it.
+ * kiosk mode off, the launcher chooser) creates another copy of the main activity. The default
+ * launchMode stays because [ProcessRestartActivity] needs it.
  *
  * @param isHomeIntent the intent is `ACTION_MAIN` with `CATEGORY_HOME`.
  * @param isTaskRoot this activity is the root of its task.
- * @param otherShellTaskExists another task of the app has [MainActivity] as its base.
+ * @param otherShellTaskExists another task of the app has the same activity as its base.
  */
 internal fun homeLaunchAction(
     isHomeIntent: Boolean,

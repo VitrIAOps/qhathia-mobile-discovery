@@ -16,7 +16,7 @@ fun Window.hideSystemBars() {
 
 /**
  * Android 10 and older clear this window's hide flags when the keyboard opens and do not restore them
- * when it closes, which left the navigation bar over the cart (QA, API 26). This hides the bars again
+ * when it closes, which left the navigation bar over app dialogs (API 26). This hides the bars again
  * [REHIDE_DELAY_MS] after the system clears the flags. While the keyboard is still up the system keeps
  * the navigation bar (it is needed to close the keyboard); the flags are back in place for when it
  * closes. On Android 11+ the insets controller keeps its behavior across the keyboard, so nothing is
