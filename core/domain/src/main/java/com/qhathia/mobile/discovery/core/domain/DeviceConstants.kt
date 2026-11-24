@@ -23,9 +23,6 @@ object DeviceConstants {
     /** Maximum length the backend accepts for the reported device `model`. */
     const val MODEL_MAX_LENGTH: Int = 100
 
-    /** Valid range for the reported battery level, in percent. */
-    val BATTERY_LEVEL_RANGE: IntRange = 0..100
-
     /** Total attempts to acknowledge one remote command before giving up (the server then expires it). */
     const val ACK_MAX_ATTEMPTS: Int = 3
 

@@ -1,11 +1,13 @@
-package com.qhathia.mobile.discovery.core.domain.usecase
+package com.qhathia.mobile.discovery.core.data.management
 
+import com.qhathia.mobile.discovery.core.device.management.HeartbeatRunner
 import com.qhathia.mobile.discovery.core.domain.model.DeviceCommand
 import com.qhathia.mobile.discovery.core.domain.model.DeviceTelemetry
 import com.qhathia.mobile.discovery.core.domain.model.HeartbeatResult
 import com.qhathia.mobile.discovery.core.domain.model.NetworkConnectivityState
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
 import com.qhathia.mobile.discovery.core.domain.repository.DeviceHeartbeatRepository
+import com.qhathia.mobile.discovery.core.domain.usecase.SendHeartbeatUseCase
 import com.qhathia.mobile.discovery.core.testing.DeviceHeartbeatFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceHeartbeatRepository
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceTelemetryProvider
@@ -24,7 +26,7 @@ import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class RunDeviceHeartbeatUseCaseTest {
+class HeartbeatRunnerTest {
 
     private val interval = 60.seconds
     private val paired = StoreSession(deviceAccessToken = "device-jwt", deviceName = "Tablet 1")
@@ -35,14 +37,11 @@ class RunDeviceHeartbeatUseCaseTest {
     private val retryDelays = listOf(5.seconds, 10.seconds, 20.seconds, 40.seconds)
 
     private fun TestScope.start(session: FakeStoreSessionRepository, repo: DeviceHeartbeatRepository = repository) {
-        val useCase = RunDeviceHeartbeatUseCase(
-            session,
-            SendHeartbeatUseCase(telemetry, repo),
-            network,
-            interval,
-            retryDelays,
+        val runner = HeartbeatRunner(
+            HeartbeatDeviceReporter(session, network, SendHeartbeatUseCase(telemetry, repo)),
+            DiscoveryDeviceManagementConfig.copy(heartbeatInterval = interval, heartbeatRetryDelays = retryDelays),
         )
-        backgroundScope.launch { useCase() }
+        backgroundScope.launch { runner.run() }
         runCurrent()
     }
 

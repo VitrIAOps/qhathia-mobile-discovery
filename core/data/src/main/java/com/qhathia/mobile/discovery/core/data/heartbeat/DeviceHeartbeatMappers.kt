@@ -34,5 +34,5 @@ internal fun PendingCommandDto.toDomain(): DeviceCommand = DeviceCommand(
     },
 )
 
-private const val COMMAND_REFRESH_CATALOG = "REFRESH_CATALOG"
-private const val COMMAND_RESTART_APP = "RESTART_APP"
+internal const val COMMAND_REFRESH_CATALOG = "REFRESH_CATALOG"
+internal const val COMMAND_RESTART_APP = "RESTART_APP"

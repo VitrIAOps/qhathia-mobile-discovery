@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.domain.usecase
+package com.qhathia.mobile.discovery.core.data.management
 
 import com.qhathia.mobile.discovery.core.domain.model.DeviceCommand
 import com.qhathia.mobile.discovery.core.domain.model.DeviceCommandType
@@ -29,7 +29,7 @@ import java.time.ZoneOffset
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ProcessDeviceCommandsUseCaseTest {
+class RemoteCommandProcessorTest {
 
     private val heartbeat = FakeDeviceHeartbeatRepository()
     private val commands = FakeDeviceCommandRepository()
@@ -41,10 +41,15 @@ class ProcessDeviceCommandsUseCaseTest {
     private val retryDelay = 2.seconds
 
     private fun TestScope.start(signal: CatalogRefreshSignal = refresh) {
-        val useCase = ProcessDeviceCommandsUseCase(
-            heartbeat, commands, signal, restarter, pending, clock, retryDelay,
+        val processor = discoveryCommandProcessor(
+            BackendDeviceCommandSource(heartbeat, commands),
+            signal,
+            AppDeviceRestarter(restarter),
+            PendingRestartAckStore(pending),
+            clock,
+            DiscoveryDeviceManagementConfig.copy(ackRetryDelay = retryDelay),
         )
-        backgroundScope.launch { useCase() }
+        backgroundScope.launch { processor.run() }
         runCurrent()
     }
 

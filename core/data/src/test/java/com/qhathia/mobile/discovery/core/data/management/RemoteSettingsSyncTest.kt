@@ -1,6 +1,8 @@
-package com.qhathia.mobile.discovery.core.domain.usecase
+package com.qhathia.mobile.discovery.core.data.management
 
+import com.qhathia.mobile.discovery.core.device.management.RemoteSettingsSync
 import com.qhathia.mobile.discovery.core.domain.model.DeviceSettings
+import com.qhathia.mobile.discovery.core.domain.usecase.ObserveHeartbeatUseCase
 import com.qhathia.mobile.discovery.core.testing.DeviceHeartbeatFixtures
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceHeartbeatRepository
 import com.qhathia.mobile.discovery.core.testing.FakeDeviceSettingsRepository
@@ -13,14 +15,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class SyncDeviceSettingsUseCaseTest {
+class RemoteSettingsSyncTest {
 
     private val heartbeat = FakeDeviceHeartbeatRepository()
     private val settings = FakeDeviceSettingsRepository()
 
     private fun TestScope.start() {
-        val useCase = SyncDeviceSettingsUseCase(ObserveHeartbeatUseCase(heartbeat), settings)
-        backgroundScope.launch { useCase() }
+        val sync = RemoteSettingsSync(BackendRemoteSettingsSource(ObserveHeartbeatUseCase(heartbeat), settings))
+        backgroundScope.launch { sync.run() }
         runCurrent()
     }
 

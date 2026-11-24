@@ -2,11 +2,11 @@ package com.qhathia.mobile.discovery
 
 import android.app.Application
 import android.os.Build
+import com.qhathia.mobile.discovery.core.device.management.HeartbeatRunner
+import com.qhathia.mobile.discovery.core.device.management.RemoteCommandProcessor
+import com.qhathia.mobile.discovery.core.device.management.RemoteSettingsSync
 import com.qhathia.mobile.discovery.core.domain.usecase.CancelAbandonedPairingUseCase
 import com.qhathia.mobile.discovery.core.domain.usecase.HandleDeviceUnlinkedUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.ProcessDeviceCommandsUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.RunDeviceHeartbeatUseCase
-import com.qhathia.mobile.discovery.core.domain.usecase.SyncDeviceSettingsUseCase
 import com.qhathia.mobile.discovery.di.ApplicationScope
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -23,7 +23,7 @@ import javax.inject.Inject
  * process left on screen (F-02).
  *
  * Only the main process runs them. The short-lived `:restart` process ([RestartActivity]) also
- * creates this Application; the use cases are injected lazily so it builds none of them.
+ * creates this Application; everything here is injected lazily so it builds none of it.
  */
 @HiltAndroidApp
 class DiscoveryApp : Application() {
@@ -33,13 +33,13 @@ class DiscoveryApp : Application() {
     lateinit var applicationScope: CoroutineScope
 
     @Inject
-    lateinit var runDeviceHeartbeat: Lazy<RunDeviceHeartbeatUseCase>
+    lateinit var heartbeatRunner: Lazy<HeartbeatRunner>
 
     @Inject
-    lateinit var processDeviceCommands: Lazy<ProcessDeviceCommandsUseCase>
+    lateinit var remoteCommandProcessor: Lazy<RemoteCommandProcessor>
 
     @Inject
-    lateinit var syncDeviceSettings: Lazy<SyncDeviceSettingsUseCase>
+    lateinit var remoteSettingsSync: Lazy<RemoteSettingsSync>
 
     @Inject
     lateinit var handleDeviceUnlinked: Lazy<HandleDeviceUnlinkedUseCase>
@@ -52,9 +52,9 @@ class DiscoveryApp : Application() {
         if (!isMainProcess()) return
         // Subscribed first, so a 401 DEVICE_UNLINKED from the very first heartbeat is not missed.
         applicationScope.launch { handleDeviceUnlinked.get()() }
-        applicationScope.launch { runDeviceHeartbeat.get()() }
-        applicationScope.launch { processDeviceCommands.get()() }
-        applicationScope.launch { syncDeviceSettings.get()() }
+        applicationScope.launch { heartbeatRunner.get().run() }
+        applicationScope.launch { remoteCommandProcessor.get().run() }
+        applicationScope.launch { remoteSettingsSync.get().run() }
         applicationScope.launch { cancelAbandonedPairing.get()() }
     }
 
