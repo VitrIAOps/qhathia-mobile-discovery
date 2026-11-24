@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Intentionally empty: the host app declares RECORD_AUDIO and INTERNET. -->
+<manifest />

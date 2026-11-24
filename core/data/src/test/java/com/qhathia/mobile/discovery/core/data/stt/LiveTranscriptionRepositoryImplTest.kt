@@ -5,13 +5,12 @@ import com.qhathia.mobile.discovery.core.domain.model.SttException
 import com.qhathia.mobile.discovery.core.domain.model.TranscriptUpdate
 import com.qhathia.mobile.discovery.core.network.NetworkErrorKind
 import com.qhathia.mobile.discovery.core.network.NetworkResult
-import com.qhathia.mobile.discovery.core.network.dto.DeepgramLiveAlternativeDto
-import com.qhathia.mobile.discovery.core.network.dto.DeepgramLiveChannelDto
-import com.qhathia.mobile.discovery.core.network.dto.DeepgramLiveResultDto
 import com.qhathia.mobile.discovery.core.network.dto.SttTokenResponseDto
-import com.qhathia.mobile.discovery.core.network.service.DeepgramLiveClient
-import com.qhathia.mobile.discovery.core.network.service.DeepgramStreamException
 import com.qhathia.mobile.discovery.core.network.service.SttTokenApiService
+import com.qhathia.mobile.discovery.core.voice.transcription.LiveTranscriber
+import com.qhathia.mobile.discovery.core.voice.transcription.TranscriptResult
+import com.qhathia.mobile.discovery.core.voice.transcription.VoiceStreamException
+import com.qhathia.mobile.discovery.core.voice.transcription.VoiceTransportFailure
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -32,17 +31,13 @@ class LiveTranscriptionRepositoryImplTest {
 
     private val sessionTokenProvider = mockk<SessionTokenProvider>()
     private val sttTokenApiService = mockk<SttTokenApiService>()
-    private val deepgramLiveClient = mockk<DeepgramLiveClient>()
+    private val liveTranscriber = mockk<LiveTranscriber>()
     private val audio: Flow<ByteArray> = emptyFlow()
 
     private fun repository() =
-        LiveTranscriptionRepositoryImpl(sessionTokenProvider, sttTokenApiService, deepgramLiveClient)
+        LiveTranscriptionRepositoryImpl(sessionTokenProvider, sttTokenApiService, liveTranscriber)
 
-    private fun result(transcript: String, isFinal: Boolean) = DeepgramLiveResultDto(
-        type = "Results",
-        isFinal = isFinal,
-        channel = DeepgramLiveChannelDto(listOf(DeepgramLiveAlternativeDto(transcript, 0.9))),
-    )
+    private fun result(transcript: String, isFinal: Boolean) = TranscriptResult(transcript, isFinal)
 
     private fun givenToken() {
         coEvery { sessionTokenProvider.accessToken() } returns Result.success("jwt")
@@ -55,7 +50,7 @@ class LiveTranscriptionRepositoryImplTest {
     @Test
     fun given_stream_results_then_partials_then_final_transcript() = runTest {
         givenToken()
-        every { deepgramLiveClient.stream(any(), "dg") } returns flowOf(
+        every { liveTranscriber.stream(any(), "dg") } returns flowOf(
             result("taladro", isFinal = false),
             result("taladro de la marca", isFinal = true),
             result("bosch", isFinal = false),
@@ -78,7 +73,7 @@ class LiveTranscriptionRepositoryImplTest {
     @Test
     fun given_blank_final_transcript_then_empty_audio() = runTest {
         givenToken()
-        every { deepgramLiveClient.stream(any(), "dg") } returns flowOf(result("  ", isFinal = true))
+        every { liveTranscriber.stream(any(), "dg") } returns flowOf(result("  ", isFinal = true))
 
         assertEquals(SttErrorCategory.EmptyAudio, failureOf { repository().transcribe(audio).toList() })
     }
@@ -89,7 +84,7 @@ class LiveTranscriptionRepositoryImplTest {
         coEvery { sttTokenApiService.getToken("jwt") } returns NetworkResult.HttpError(503, "Unavailable")
 
         assertEquals(SttErrorCategory.TranscriptionResponse, failureOf { repository().transcribe(audio).toList() })
-        verify(exactly = 0) { deepgramLiveClient.stream(any(), any()) }
+        verify(exactly = 0) { liveTranscriber.stream(any(), any()) }
     }
 
     @Test
@@ -112,9 +107,9 @@ class LiveTranscriptionRepositoryImplTest {
     @Test
     fun given_socket_drops_mid_stream_then_partials_emitted_then_network() = runTest {
         givenToken()
-        every { deepgramLiveClient.stream(any(), "dg") } returns flow {
+        every { liveTranscriber.stream(any(), "dg") } returns flow {
             emit(result("taladro", isFinal = false))
-            throw DeepgramStreamException(kind = NetworkErrorKind.Connectivity)
+            throw VoiceStreamException(transport = VoiceTransportFailure.Connectivity)
         }
         val updates = mutableListOf<TranscriptUpdate>()
 
@@ -127,8 +122,8 @@ class LiveTranscriptionRepositoryImplTest {
     @Test
     fun given_handshake_rejected_then_transcription_response() = runTest {
         givenToken()
-        every { deepgramLiveClient.stream(any(), "dg") } returns flow {
-            throw DeepgramStreamException(handshakeRejected = true)
+        every { liveTranscriber.stream(any(), "dg") } returns flow {
+            throw VoiceStreamException(handshakeRejected = true)
         }
 
         assertEquals(SttErrorCategory.TranscriptionResponse, failureOf { repository().transcribe(audio).toList() })

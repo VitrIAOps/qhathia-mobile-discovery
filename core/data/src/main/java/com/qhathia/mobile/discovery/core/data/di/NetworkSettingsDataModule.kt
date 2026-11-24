@@ -1,14 +1,17 @@
 package com.qhathia.mobile.discovery.core.data.di
 
-import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
-import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSourceImpl
+import android.content.Context
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivityDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivityDataSourceImpl
 import com.qhathia.mobile.discovery.core.data.network.NetworkSettingsRepositoryImpl
-import com.qhathia.mobile.discovery.core.data.network.WifiDataSource
-import com.qhathia.mobile.discovery.core.data.network.WifiDataSourceImpl
+import com.qhathia.mobile.discovery.core.device.connectivity.WifiDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.WifiDataSourceImpl
 import com.qhathia.mobile.discovery.core.domain.repository.NetworkSettingsRepository
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -23,11 +26,15 @@ abstract class NetworkSettingsDataModule {
         impl: NetworkSettingsRepositoryImpl,
     ): NetworkSettingsRepository
 
-    @Binds
-    @Singleton
-    abstract fun bindWifiDataSource(impl: WifiDataSourceImpl): WifiDataSource
+    companion object {
+        @Provides
+        @Singleton
+        fun provideWifiDataSource(@ApplicationContext context: Context): WifiDataSource =
+            WifiDataSourceImpl(context)
 
-    @Binds
-    @Singleton
-    abstract fun bindConnectivityDataSource(impl: ConnectivityDataSourceImpl): ConnectivityDataSource
+        @Provides
+        @Singleton
+        fun provideConnectivityDataSource(@ApplicationContext context: Context): ConnectivityDataSource =
+            ConnectivityDataSourceImpl(context)
+    }
 }
