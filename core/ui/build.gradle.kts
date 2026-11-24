@@ -23,6 +23,7 @@ android {
 
 dependencies {
     implementation(project(":core:voice"))
+    implementation(project(":core:device"))
 
     implementation(libs.androidx.core.ktx)
     implementation(platform(libs.compose.bom))

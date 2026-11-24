@@ -1,8 +1,8 @@
-package com.qhathia.mobile.discovery
+package com.qhathia.mobile.discovery.core.device.kiosk
 
 /**
- * Limits how often pinning is requested from Home (design D8): at most once per [minIntervalMillis],
- * so a customer who refused "Pin app?" is not shown it in a loop. Times are monotonic milliseconds.
+ * Limits how often pinning is requested: at most once per [minIntervalMillis],
+ * so someone who refused "Pin app?" is not shown it in a loop. Times are monotonic milliseconds.
  */
 internal class PinningRequestThrottle(private val minIntervalMillis: Long) {
 

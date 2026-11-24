@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery
+package com.qhathia.mobile.discovery.core.device.kiosk
 
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
