@@ -1,6 +1,6 @@
 package com.qhathia.mobile.discovery.core.data.heartbeat
 
-import com.qhathia.mobile.discovery.core.data.network.ConnectivitySnapshot
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivitySnapshot
 import com.qhathia.mobile.discovery.core.domain.model.DeviceNetworkStatus
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull

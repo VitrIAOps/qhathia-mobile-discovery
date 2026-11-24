@@ -1,5 +1,9 @@
 package com.qhathia.mobile.discovery.core.data.network
 
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivityDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivitySnapshot
+import com.qhathia.mobile.discovery.core.device.connectivity.WifiDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.WifiScanResult
 import com.qhathia.mobile.discovery.core.domain.model.NetworkConnectivityState
 import com.qhathia.mobile.discovery.core.domain.model.WifiNetwork
 import com.qhathia.mobile.discovery.core.domain.repository.NetworkSettingsRepository

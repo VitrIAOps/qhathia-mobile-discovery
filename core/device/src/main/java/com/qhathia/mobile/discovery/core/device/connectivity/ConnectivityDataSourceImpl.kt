@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.data.network
+package com.qhathia.mobile.discovery.core.device.connectivity
 
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -12,21 +12,17 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.provider.Settings
 import android.telephony.TelephonyManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * [ConnectivityDataSource] backed by `ConnectivityManager`, `WifiManager`, and the airplane-mode
  * global setting. Connectivity transitions arrive through a default-network callback; airplane-mode
  * changes through the `ACTION_AIRPLANE_MODE_CHANGED` broadcast. Each event re-reads a fresh snapshot.
  */
-@Singleton
-class ConnectivityDataSourceImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ConnectivityDataSourceImpl(
+    private val context: Context,
 ) : ConnectivityDataSource {
 
     private val connectivityManager: ConnectivityManager
@@ -39,7 +35,7 @@ class ConnectivityDataSourceImpl @Inject constructor(
     private val telephonyManager: TelephonyManager?
         get() = context.applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
 
-    // ACCESS_NETWORK_STATE is declared in :app; this library is only consumed there.
+    // ACCESS_NETWORK_STATE is declared by the host app.
     @SuppressLint("MissingPermission")
     override fun observe(): Flow<ConnectivitySnapshot> = callbackFlow {
         fun pushCurrent() {
@@ -69,7 +65,7 @@ class ConnectivityDataSourceImpl @Inject constructor(
         }
     }
 
-    // ACCESS_NETWORK_STATE is declared in :app; this library is only consumed there.
+    // ACCESS_NETWORK_STATE is declared by the host app.
     @SuppressLint("MissingPermission")
     private fun snapshot(): ConnectivitySnapshot {
         val capabilities = runCatching {

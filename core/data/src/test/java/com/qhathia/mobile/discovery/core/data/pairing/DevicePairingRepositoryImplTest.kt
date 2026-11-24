@@ -1,7 +1,7 @@
 package com.qhathia.mobile.discovery.core.data.pairing
 
-import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
-import com.qhathia.mobile.discovery.core.data.network.ConnectivitySnapshot
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivityDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivitySnapshot
 import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeError
 import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeException
 import com.qhathia.mobile.discovery.core.domain.model.PairingStatus

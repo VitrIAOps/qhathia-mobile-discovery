@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.data.network
+package com.qhathia.mobile.discovery.core.device.connectivity
 
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -9,14 +9,11 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.launch
 
 /**
@@ -27,9 +24,8 @@ import kotlinx.coroutines.launch
  * the UI. From API 29 the OS forbids non-privileged apps from toggling Wi-Fi and from silently
  * joining networks, so those paths use the supported suggestion API or return an explicit failure.
  */
-@Singleton
-class WifiDataSourceImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class WifiDataSourceImpl(
+    private val context: Context,
 ) : WifiDataSource {
 
     private val wifiManager: WifiManager
@@ -84,7 +80,7 @@ class WifiDataSourceImpl @Inject constructor(
             )
         }
 
-    @SuppressLint("MissingPermission") // CHANGE_WIFI_STATE is declared in :app; this library is only consumed there.
+    @SuppressLint("MissingPermission") // CHANGE_WIFI_STATE is declared by the host app.
     override suspend fun connect(ssid: String, password: String?): Result<Unit> = runCatching {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val suggestion = WifiNetworkSuggestion.Builder()

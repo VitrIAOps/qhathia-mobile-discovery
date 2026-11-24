@@ -1,7 +1,7 @@
 package com.qhathia.mobile.discovery.core.data.pairing
 
 import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
-import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivityDataSource
 import com.qhathia.mobile.discovery.core.domain.model.PairedDevice
 import com.qhathia.mobile.discovery.core.domain.model.PairingCode
 import com.qhathia.mobile.discovery.core.domain.model.PairingExchangeError

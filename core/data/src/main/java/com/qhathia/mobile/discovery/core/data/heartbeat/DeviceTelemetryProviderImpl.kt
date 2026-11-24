@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.BatteryManager
 import android.os.Build
 import android.os.SystemClock
-import com.qhathia.mobile.discovery.core.data.network.ConnectivityDataSource
+import com.qhathia.mobile.discovery.core.device.connectivity.ConnectivityDataSource
 import com.qhathia.mobile.discovery.core.domain.model.DeviceTelemetry
 import com.qhathia.mobile.discovery.core.domain.repository.DeviceTelemetryProvider
 import dagger.hilt.android.qualifiers.ApplicationContext

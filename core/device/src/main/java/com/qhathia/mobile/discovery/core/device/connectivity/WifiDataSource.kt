@@ -1,4 +1,4 @@
-package com.qhathia.mobile.discovery.core.data.network
+package com.qhathia.mobile.discovery.core.device.connectivity
 
 import kotlinx.coroutines.flow.Flow
 
