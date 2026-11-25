@@ -1,0 +1,72 @@
+name: PR checks
+
+# Runs on every pull request to develop or main: all unit tests (Android modules and the pure-Kotlin
+# core:domain), the debug lint, the infrastructure boundary check and the debug build. Needs no
+# signing or backend secrets: secrets.properties is optional and the build falls back to defaults.
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+
+# Only keep the latest run for a given PR — cancel superseded pushes.
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Gradle 9.x / AGP 9.x require JDK 21.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # The obsolete "tools" package in the action's default no longer exists.
+          packages: platform-tools
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # testDebugUnitTest covers the Android modules; core:domain is Kotlin/JVM and runs with `test`.
+      # --continue reports every failing module, not only the first.
+      - name: Unit tests, lint, boundaries and debug build
+        run: >
+          ./gradlew --continue --stacktrace
+          testDebugUnitTest :core:domain:test
+          lintDebug
+          verifyInfrastructureBoundaries
+          assembleDebug
+
+      - name: Upload test and lint reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-check-reports
+          path: |
+            **/build/reports/tests/
+            **/build/reports/lint-results-*.html
+            **/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
