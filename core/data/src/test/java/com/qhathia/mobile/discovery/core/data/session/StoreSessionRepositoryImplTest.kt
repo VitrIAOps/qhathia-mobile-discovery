@@ -25,7 +25,7 @@ class StoreSessionRepositoryImplTest {
         val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
             scope = this,
         ) { File(tempDir, "store_session.preferences_pb") }
-        return StoreSessionRepositoryImpl(StoreSessionLocalDataSource(dataStore))
+        return StoreSessionRepositoryImpl(StoreSessionLocalDataSource(dataStore, FakeTokenCipher()))
     }
 
     @Test
