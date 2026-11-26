@@ -128,6 +128,12 @@ class ProductSearchViewModel @Inject constructor(
     /** The last search request, repeated by "Reintentar" after a network error (F-38). */
     private var lastSearch: LastSearch? = null
 
+    /**
+     * The filters and the product ids of the last results settled with no suggestion selected: a
+     * suggestion that brings back the same set for the same filters did not filter anything (F-37).
+     */
+    private var resultsWithoutSuggestion: Pair<StructuredSearchFilters?, Set<String>>? = null
+
     init {
         // The Catalog microphone opens this screen with source Voice and no query: listen here
         // instead of sending an empty search (design D11, CAT-030).
@@ -357,7 +363,10 @@ class ProductSearchViewModel @Inject constructor(
         searchJob?.cancel()
         lastSearch = LastSearch(query, source, isRefinement, filters)
         // A fresh (non-refinement) search starts a new results view, so it resets the selection.
-        if (!isRefinement) clearSelection()
+        if (!isRefinement) {
+            clearSelection()
+            resultsWithoutSuggestion = null
+        }
         _uiState.update {
             it.copy(
                 source = source,
@@ -377,17 +386,17 @@ class ProductSearchViewModel @Inject constructor(
                 // already returns up to 3 store suggestions — no second (generalized) request.
                 onSuccess = { search ->
                     when {
-                        !search.noResults -> settleResults(source, search, query, isRefinement)
+                        !search.noResults -> settleResults(source, search, query, isRefinement, filters)
                         // Chips that leave no product keep the results view and the chips (F-37).
                         isRefinement && filters != null -> settleNoFilterMatch(source)
-                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory, heard(source, query, isRefinement))
+                        else -> settleUnhappy(source, search.products, search.suggestedFromCategory, heard(query, isRefinement))
                     }
                 },
                 onFailure = { error ->
                     when ((error as? SearchException)?.category ?: SearchErrorCategory.SearchApi) {
                         SearchErrorCategory.Network -> settleNetworkError(source)
                         // A real API error carries no usable suggestions: show the apology alone.
-                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null, heard(source, query, isRefinement))
+                        SearchErrorCategory.SearchApi -> settleUnhappy(source, emptyList(), null, heard(query, isRefinement))
                     }
                 },
             )
@@ -399,7 +408,14 @@ class ProductSearchViewModel @Inject constructor(
         result: ProductSearchResult,
         query: String,
         isRefinement: Boolean,
+        filters: StructuredSearchFilters? = null,
     ) {
+        val productIds = result.products.map { it.id }.toSet()
+        val suggestion = selectedSuggestion
+        val suggestionNoEffect = suggestion?.takeIf {
+            isRefinement && resultsWithoutSuggestion == (filters to productIds)
+        }
+        if (suggestion == null) resultsWithoutSuggestion = filters to productIds
         // A fresh search settling into results fixes the text base and the chip panel for refinements:
         // the backend builds a refined response's panel from the filtered results, which would shrink it.
         if (!isRefinement) {
@@ -413,7 +429,9 @@ class ProductSearchViewModel @Inject constructor(
             filters = baseFilters.toImmutableList(),
             suggestions = baseSuggestions.toImmutableList(),
             missingCategory = result.missingCategory?.takeIf { result.alternativesOnly && it.isNotBlank() },
-            heardText = heard(source, query, isRefinement),
+            heardText = heard(query, isRefinement),
+            alternativesOnly = result.alternativesOnly,
+            suggestionNoEffect = suggestionNoEffect,
         )
         settle(source, phase, baseQuery)
     }
@@ -466,13 +484,16 @@ class ProductSearchViewModel @Inject constructor(
         performSearch(last.query, last.source, last.isRefinement, last.filters)
     }
 
-    /** What a voice search understood; empty for typed searches and refinements. */
-    private fun heard(source: SearchSource, query: String, isRefinement: Boolean): String =
-        if (source == SearchSource.Voice && !isRefinement) query else ""
+    /**
+     * What a search was for: what a voice search understood or what was typed (D17-04). Empty for
+     * refinements, whose text is the base query plus a suggestion.
+     */
+    private fun heard(query: String, isRefinement: Boolean): String =
+        if (!isRefinement) query else ""
 
     private fun settle(source: SearchSource, phase: ProductSearchPhase, query: String) {
         history += HistoryEntry(source, phase, query, selectedFilters.toList(), selectedSuggestion)
-        // A voice search leaves what it understood in the field, ready to correct (UX-T-02).
+        // A search leaves what it understood or what was typed in the field, ready to correct (UX-T-02, D17-04).
         val heardText = (phase as? ProductSearchPhase.Results)?.heardText
             ?: (phase as? ProductSearchPhase.Unhappy)?.heardText
             ?: ""

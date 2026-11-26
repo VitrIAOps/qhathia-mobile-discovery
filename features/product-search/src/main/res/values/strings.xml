@@ -16,6 +16,10 @@
     <string name="ps_filters_no_match">No hay productos con esos filtros. Quita alguno para ver más.</string>
     <!-- The store does not sell the requested product; the results are alternatives. %1$s product. -->
     <string name="ps_alternatives_only">No tenemos «%1$s»; te mostramos alternativas.</string>
+    <!-- alternativesOnly without a missingCategory: never claim a match (D17-01). -->
+    <string name="ps_alternatives_only_generic">No tengo exactamente eso. Te muestro lo más parecido:</string>
+    <!-- A suggestion that brought back the same products as without it (F-37). -->
+    <string name="ps_suggestion_no_effect">No pude filtrar por «%1$s»; estos son los mismos productos.</string>
 
     <!-- Filters & suggestions refine section (results screen). -->
     <string name="ps_refine_title">Afina tu búsqueda</string>
@@ -36,6 +40,8 @@
     <string name="ps_unhappy_no_alternatives">Prueba con otras palabras o mira el catálogo.</string>
     <!-- What a voice search understood (%1$s), and how to fix it. -->
     <string name="ps_heard_text">Entendí: «%1$s»</string>
+    <!-- What a typed search was for, where voice shows ps_heard_text (D17-04). -->
+    <string name="ps_results_for">Resultados para «%1$s»</string>
     <string name="ps_heard_hint">¿No es lo que dijiste? Corrígelo abajo o vuelve a hablar.</string>
     <string name="ps_unhappy_invite_category">Relacionado con «%1$s», te podría interesar…</string>
 
