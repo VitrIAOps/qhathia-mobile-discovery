@@ -1,5 +1,7 @@
 package com.qhathia.mobile.discovery.feature.catalog
 
+import com.qhathia.mobile.discovery.core.testing.CartFixtures
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.CatalogConstants
@@ -389,5 +391,40 @@ class CatalogViewModelTest {
             assertEquals(CatalogUiEffect.NavigateHomeIdle, awaitItem())
         }
         assertEquals(2, repository.callCount)
+    }
+
+    private fun fullBasket(vararg inBasket: String) = CartFixtures.cart(
+        (inBasket.toList() + (1..CartConstants.MAX_DISTINCT_LINES - inBasket.size).map { "other$it" })
+            .map { CartFixtures.cartItem(productId = it) },
+    )
+
+    @Test
+    fun add_whenBasketHas20OtherLines_emitsLineLimitReached() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository(fullBasket())
+        val vm = viewModel(cartRepository = cartRepository)
+
+        vm.uiEffect.test {
+            vm.onEvent(CatalogUiEvent.CartTapped("l1"))
+            assertEquals(CatalogUiEffect.LineLimitReached, awaitItem())
+        }
+        assertEquals(CartConstants.MAX_DISTINCT_LINES, cartRepository.current.items.size)
+        assertTrue(vm.uiState.value.isBasketFull)
+    }
+
+    @Test
+    fun add_existingLineInFullBasket_addsUnit() = runTest(mainDispatcher.dispatcher) {
+        val cartRepository = FakeCartRepository(fullBasket("l1"))
+        val vm = viewModel(cartRepository = cartRepository)
+
+        vm.onEvent(CatalogUiEvent.CartTapped("l1"))
+
+        assertEquals(2, cartRepository.current.items.single { it.productId == "l1" }.quantity)
+    }
+
+    @Test
+    fun isBasketFull_onlyAt20DistinctLines() = runTest(mainDispatcher.dispatcher) {
+        val nineteen = CartFixtures.cart((1..19).map { CartFixtures.cartItem(productId = "other$it") })
+        assertFalse(viewModel(cartRepository = FakeCartRepository(nineteen)).uiState.value.isBasketFull)
+        assertTrue(viewModel(cartRepository = FakeCartRepository(fullBasket())).uiState.value.isBasketFull)
     }
 }

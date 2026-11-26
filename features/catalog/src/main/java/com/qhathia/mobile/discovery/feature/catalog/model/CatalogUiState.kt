@@ -44,6 +44,9 @@ data class CatalogUiState(
     fun canAddToCart(productId: String): Boolean =
         productId in cartProductIds || cartProductIds.size < CartConstants.MAX_DISTINCT_LINES
 
+    /** The basket holds the most distinct products it can: the screen says so above the cards (D17-03). */
+    val isBasketFull: Boolean get() = cartProductIds.size >= CartConstants.MAX_DISTINCT_LINES
+
     /** The microphone animation is retained when the catalog was entered from a voice/chat context. */
     val showMicAnimation: Boolean get() = source == SearchSource.Voice
 

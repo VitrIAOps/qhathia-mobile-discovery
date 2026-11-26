@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -47,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.usecase.isOrderable
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
@@ -57,6 +59,7 @@ import com.qhathia.mobile.discovery.core.ui.component.closeDialogMessage
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
+import com.qhathia.mobile.discovery.core.ui.component.BasketFullNotice
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
@@ -74,6 +77,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.collections.immutable.toImmutableSet
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
@@ -112,6 +116,7 @@ fun ProductSearchContent(
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 TopBar(
                     cartItemCount = uiState.cartItemCount,
+                    isBasketFull = uiState.isBasketFull,
                     onBack = { onEvent(ProductSearchUiEvent.Back) },
                     onGoToCatalog = { onEvent(ProductSearchUiEvent.GoToCatalog) },
                     onNewSearch = { onEvent(ProductSearchUiEvent.NewSearch) },
@@ -174,6 +179,7 @@ private fun TopBar(
     onGoToCatalog: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
+    isBasketFull: Boolean = false,
 ) {
     Column {
         Row(
@@ -189,7 +195,14 @@ private fun TopBar(
                 onClick = onBack,
                 leadingIcon = true,
             )
-            Spacer(modifier = Modifier.weight(1f))
+            if (isBasketFull) {
+                BasketFullNotice(
+                    onOpenCart = onCart,
+                    modifier = Modifier.weight(1f).padding(horizontal = Spacing.md).wrapContentWidth(Alignment.End),
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
             IconTextButton(
                 iconRes = UiR.drawable.ic_catalog,
                 text = stringResource(UiR.string.discovery_action_go_to_catalog),
@@ -397,7 +410,9 @@ private fun ResultsBody(
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                cartEnabled = product.isOrderable && canAddToCart(product.id),
+                cartEnabled = product.isOrderable,
+                // A full basket answers with the limit message instead of a dead button (F-33).
+                cartDimmed = !canAddToCart(product.id),
                 discountPercent = discountPercent(product.price, product.discountedPrice),
             )
         }
@@ -670,7 +685,9 @@ private fun UnhappyBody(
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                         onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                        cartEnabled = product.isOrderable && canAddToCart(product.id),
+                        cartEnabled = product.isOrderable,
+                        // A full basket answers with the limit message instead of a dead button (F-33).
+                        cartDimmed = !canAddToCart(product.id),
                         discountPercent = discountPercent(product.price, product.discountedPrice),
                     )
                 }
@@ -1084,6 +1101,38 @@ private fun CloseDialogWithCartDarkPreview() {
                 phase = ProductSearchPhase.Results(sampleProducts(4).toImmutableList(), "Encontré 4 taladros para ti"),
                 cartItemCount = 2,
                 showCloseConfirmDialog = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Results full basket — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsFullBasketLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Results(sampleProducts(8).toImmutableList(), "Encontré 8 taladros para ti"),
+                canGoBack = true,
+                cartProductIds = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toPersistentSet(),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Results full basket — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsFullBasketDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Results(sampleProducts(8).toImmutableList(), "Encontré 8 taladros para ti"),
+                canGoBack = true,
+                cartProductIds = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toPersistentSet(),
             ),
             onEvent = {},
         )

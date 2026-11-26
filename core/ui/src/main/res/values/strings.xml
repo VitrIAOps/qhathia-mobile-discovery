@@ -80,4 +80,6 @@
         <item quantity="other">Ir al carrito, %d productos</item>
     </plurals>
     <string name="discovery_cart_line_limit">Tu carrito ya tiene 20 productos distintos. Realiza tu pedido o quita alguno para agregar más.</string>
+    <!-- Top-bar notice while the basket is full (D17-03); the long reason is discovery_cart_line_limit. -->
+    <string name="discovery_cart_full_short">Carrito lleno: 20 productos distintos</string>
 </resources>

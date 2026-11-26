@@ -886,4 +886,31 @@ class ProductDetailViewModelTest {
         assertEquals(0, shareRepository.callCount)
         assertTrue(vm.uiState.value.share.submission is ProductDetailUiState.ShareSubmission.Unavailable)
     }
+
+    @Test
+    fun add_whenBasketHas20OtherLines_emitsLineLimitReached() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "new")))
+        val full = CartFixtures.cart((0 until CartConstants.MAX_DISTINCT_LINES).map { CartFixtures.cartItem(productId = "p$it") })
+        val cartRepository = FakeCartRepository(full)
+        val vm = viewModel(productId = "new", repository = repository, cartRepository = cartRepository)
+        assertFalse(vm.uiState.value.canAddToCart("new"))
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductDetailUiEvent.AddToCart)
+            assertEquals(ProductDetailUiEffect.LineLimitReached, awaitItem())
+        }
+        assertEquals(CartConstants.MAX_DISTINCT_LINES, cartRepository.current.items.size)
+    }
+
+    @Test
+    fun add_existingLineInFullBasket_addsUnit() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductDetailRepository(result = Result.success(ProductDetailFixtures.productDetail(id = "p1")))
+        val full = CartFixtures.cart((0 until CartConstants.MAX_DISTINCT_LINES).map { CartFixtures.cartItem(productId = "p$it") })
+        val cartRepository = FakeCartRepository(full)
+        val vm = viewModel(productId = "p1", repository = repository, cartRepository = cartRepository)
+
+        vm.onEvent(ProductDetailUiEvent.AddToCart)
+
+        assertEquals(2, cartRepository.current.items.single { it.productId == "p1" }.quantity)
+    }
 }

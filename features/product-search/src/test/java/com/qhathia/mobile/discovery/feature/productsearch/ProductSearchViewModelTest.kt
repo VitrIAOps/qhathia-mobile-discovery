@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productsearch
 
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
@@ -964,5 +965,36 @@ class ProductSearchViewModelTest {
         assertEquals(2, repository.callCount)
         assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
         assertEquals("taladro", vm.uiState.value.query)
+    }
+
+    private fun fullSearchBasket(vararg inBasket: String) = CartFixtures.cart(
+        (inBasket.toList() + (1..CartConstants.MAX_DISTINCT_LINES - inBasket.size).map { "other$it" })
+            .map { CartFixtures.cartItem(productId = it) },
+    )
+
+    @Test
+    fun add_whenBasketHas20OtherLines_emitsLineLimitReached() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))
+        val cartRepository = FakeCartRepository(fullSearchBasket())
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.CartTapped("p1"))
+            assertEquals(ProductSearchUiEffect.LineLimitReached, awaitItem())
+        }
+        assertEquals(CartConstants.MAX_DISTINCT_LINES, cartRepository.current.items.size)
+        assertTrue(vm.uiState.value.isBasketFull)
+    }
+
+    @Test
+    fun add_existingLineInFullBasket_addsUnit() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))
+        val cartRepository = FakeCartRepository(fullSearchBasket("p1"))
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.onEvent(ProductSearchUiEvent.CartTapped("p1"))
+
+        assertEquals(2, cartRepository.current.items.single { it.productId == "p1" }.quantity)
+        assertFalse(vm.uiState.value.canAddToCart("p2"))
     }
 }

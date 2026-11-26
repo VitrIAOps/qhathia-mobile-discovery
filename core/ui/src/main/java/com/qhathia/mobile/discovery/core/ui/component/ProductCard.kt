@@ -52,6 +52,8 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  *   struck through above [priceText], which is highlighted.
  * @param cartEnabled `false` for a product that cannot be ordered: the cart button is dimmed and does
  *   nothing. The card itself stays tappable, so the detail can still be opened.
+ * @param cartDimmed the button only looks dimmed and still takes the tap: the basket is full and the
+ *   screen answers with the limit message (F-33).
  */
 @Composable
 fun ProductCard(
@@ -64,6 +66,7 @@ fun ProductCard(
     onCardClick: (() -> Unit)? = null,
     originalPriceText: String? = null,
     cartEnabled: Boolean = true,
+    cartDimmed: Boolean = false,
     discountPercent: Int? = null,
 ) {
     Surface(
@@ -136,7 +139,12 @@ fun ProductCard(
                             },
                         )
                     }
-                    CartCircleButton(contentDescription = cartContentDescription, onClick = onCartClick, enabled = cartEnabled)
+                    CartCircleButton(
+                        contentDescription = cartContentDescription,
+                        onClick = onCartClick,
+                        enabled = cartEnabled,
+                        dimmed = cartDimmed,
+                    )
                 }
             }
         }
@@ -246,6 +254,36 @@ private fun ProductCardNotOrderableDarkPreview() {
             cartContentDescription = "Agregar al carrito",
             onCartClick = {},
             cartEnabled = false,
+        )
+    }
+}
+
+@Preview(name = "ProductCard — full basket (light)", showBackground = true, backgroundColor = 0xFFF8F8F8)
+@Composable
+private fun ProductCardBasketFullLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductCard(
+            name = "Taladro Percutor Bosch GSB 13 RE Professional",
+            priceText = "S/ 380.00",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+            cartDimmed = true,
+        )
+    }
+}
+
+@Preview(name = "ProductCard — full basket (dark)", showBackground = true, backgroundColor = 0xFF122842)
+@Composable
+private fun ProductCardBasketFullDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductCard(
+            name = "Taladro Percutor Bosch GSB 13 RE Professional",
+            priceText = "S/ 380.00",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onCartClick = {},
+            cartDimmed = true,
         )
     }
 }

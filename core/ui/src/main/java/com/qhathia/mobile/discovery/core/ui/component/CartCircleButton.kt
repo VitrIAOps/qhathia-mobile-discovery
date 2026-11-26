@@ -20,6 +20,10 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryColors
 /**
  * The round "Agregar al carrito" button of the product cards: a 48 dp touch target around a 40 dp
  * circle, so a tap near its edge adds to the cart instead of opening the detail below it (UX-X-03).
+ *
+ * @param enabled `false` when the product cannot be ordered: dimmed and does nothing.
+ * @param dimmed only looks dimmed (a full basket, F-33): it still takes the tap, so the screen can say
+ *   why the product was not added, and it is not announced as disabled.
  */
 @Composable
 internal fun CartCircleButton(
@@ -27,6 +31,7 @@ internal fun CartCircleButton(
     onClick: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    dimmed: Boolean = false,
 ) {
     Box(
         modifier = modifier
@@ -39,7 +44,7 @@ internal fun CartCircleButton(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
+                .alpha(if (enabled && !dimmed) 1f else DISABLED_ALPHA)
                 .clip(CircleShape)
                 .background(DiscoveryColors.CatalogText),
             contentAlignment = Alignment.Center,

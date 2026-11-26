@@ -32,12 +32,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -68,6 +71,7 @@ import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiE
 import com.qhathia.mobile.discovery.feature.productdetail.model.ProductDetailUiState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentSet
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
@@ -316,6 +320,15 @@ private fun ProductInfo(
                 color = DiscoveryColors.TextMuted,
             )
         }
+        // Says why "Agregar al carrito" looks unavailable before any tap (D17-03).
+        if (detail.isOrderable && !canAdd) {
+            Text(
+                text = stringResource(UiR.string.discovery_cart_line_limit),
+                style = MaterialTheme.typography.bodySmall,
+                color = DiscoveryColors.TextMuted,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }
 
@@ -367,8 +380,10 @@ private fun ActionRow(
                 text = stringResource(UiR.string.discovery_action_add_to_cart),
                 iconRes = UiR.drawable.ic_cart,
                 container = DiscoveryColors.Blue700,
-                // A full basket only takes more units of products already in it (UX-X-07).
-                enabled = orderable && canAdd,
+                // A full basket only takes more units of products already in it (UX-X-07); the button
+                // stays enabled so a tap answers with the limit message (F-33).
+                enabled = orderable,
+                dimmed = !canAdd,
                 onClick = { onEvent(ProductDetailUiEvent.AddToCart) },
             )
             ActionButton(
@@ -389,10 +404,12 @@ private fun ActionButton(
     container: Color,
     enabled: Boolean,
     onClick: () -> Unit,
+    dimmed: Boolean = false,
 ) {
     PrimaryActionButton(
         text = text,
         onClick = onClick,
+        modifier = if (dimmed) Modifier.alpha(DIMMED_ALPHA) else Modifier,
         enabled = enabled,
         containerColor = if (enabled) container else DiscoveryColors.Divider,
         contentColor = if (enabled) Color.White else DiscoveryColors.TextDisabled,
@@ -435,7 +452,9 @@ private fun RelatedProductsSection(
                                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                                 onClick = { onEvent(ProductDetailUiEvent.RelatedProductTapped(product.id)) },
                                 onAddToCart = { onEvent(ProductDetailUiEvent.RelatedProductAddToCart(product.id)) },
-                                cartEnabled = product.isOrderable && canAddToCart(product.id),
+                                cartEnabled = product.isOrderable,
+                                // A full basket answers with the limit message instead of a dead button (F-33).
+                                cartDimmed = !canAddToCart(product.id),
                             )
                         }
                     }
@@ -460,6 +479,9 @@ private fun RelatedProductsPlaceholderBox(content: @Composable () -> Unit) {
 }
 
 private val RELATED_STRIP_HEIGHT = 120.dp
+
+/** "Agregar al carrito" with a full basket: looks unavailable but still answers with the reason (F-33). */
+private const val DIMMED_ALPHA = 0.5f
 
 @Composable
 private fun ErrorBody(
@@ -669,12 +691,17 @@ private fun loadedState(
     active: Boolean? = true,
     cartItemCount: Int = 0,
     stock: Int? = null,
+    cartProductIds: Set<String> = emptySet(),
 ): ProductDetailUiState = ProductDetailUiState(
     status = ProductDetailUiState.Status.Loaded(sampleDetail(imageCount, discountedPrice, active = active, stock = stock)),
     relatedProducts = related,
     showCloseConfirmDialog = showCloseConfirmDialog,
     cartItemCount = cartItemCount,
+    cartProductIds = cartProductIds.toPersistentSet(),
 )
+
+/** 20 other products in the basket: this one and the related ones cannot be added (F-33). */
+private val fullBasket: Set<String> = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toSet()
 
 @Preview(name = "Detail loaded (related) — light", showBackground = true, widthDp = 1024, heightDp = 720)
 @Composable
@@ -835,5 +862,21 @@ private fun DetailCloseDialogWithCartDarkPreview() {
             uiState = loadedState(imageCount = 2, showCloseConfirmDialog = true, cartItemCount = 1),
             onEvent = {},
         )
+    }
+}
+
+@Preview(name = "Detail full basket — light", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailFullBasketLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductDetailContent(uiState = loadedState(imageCount = 2, cartItemCount = 27, cartProductIds = fullBasket), onEvent = {})
+    }
+}
+
+@Preview(name = "Detail full basket — dark", showBackground = true, widthDp = 1024, heightDp = 720)
+@Composable
+private fun DetailFullBasketDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductDetailContent(uiState = loadedState(imageCount = 2, cartItemCount = 27, cartProductIds = fullBasket), onEvent = {})
     }
 }
