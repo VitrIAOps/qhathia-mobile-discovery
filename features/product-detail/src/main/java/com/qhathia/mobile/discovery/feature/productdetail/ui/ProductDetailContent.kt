@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -527,6 +528,8 @@ private fun BottomBar(
 ) {
     Row(
         modifier = Modifier
+            // Rises above the keyboard so the field being typed in stays visible (D17-02).
+            .imePadding()
             .fillMaxWidth()
             .padding(horizontal = Spacing.xl),
         verticalAlignment = Alignment.CenterVertically,
