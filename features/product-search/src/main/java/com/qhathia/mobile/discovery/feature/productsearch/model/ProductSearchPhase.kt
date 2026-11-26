@@ -54,6 +54,10 @@ sealed interface ProductSearchPhase {
         val noFilterMatch: Boolean = false,
         val missingCategory: String? = null,
         val heardText: String = "",
+        /** The response only has alternatives; with no [missingCategory] the headline stays generic (D17-01). */
+        val alternativesOnly: Boolean = false,
+        /** The selected suggestion left the same products as without it: the screen says so (F-37). */
+        val suggestionNoEffect: String? = null,
     ) : ProductSearchPhase
 
     /**
