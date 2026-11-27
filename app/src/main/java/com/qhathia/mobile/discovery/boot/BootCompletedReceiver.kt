@@ -3,8 +3,9 @@ package com.qhathia.mobile.discovery.boot
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import com.qhathia.mobile.discovery.MainActivity
+import com.qhathia.mobile.discovery.core.device.kiosk.BootLaunchPolicy
+import com.qhathia.mobile.discovery.core.device.kiosk.isDefaultHomeApp
 import com.qhathia.mobile.discovery.core.domain.usecase.ObserveStoreSessionUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +31,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val isPaired = observeStoreSession().first().isPaired
-                if (BootLaunchPolicy.shouldOpen(isPaired, isDefaultHome(context))) {
+                if (BootLaunchPolicy.shouldOpen(canOpen = isPaired, isDefaultHome = context.isDefaultHomeApp())) {
                     context.startActivity(
                         Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     )
@@ -42,9 +43,4 @@ class BootCompletedReceiver : BroadcastReceiver() {
     }
 
     /** Whether Discovery is the home screen the installer chose ("Siempre"). */
-    private fun isDefaultHome(context: Context): Boolean {
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val resolved = context.packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
-        return resolved?.activityInfo?.packageName == context.packageName
-    }
 }

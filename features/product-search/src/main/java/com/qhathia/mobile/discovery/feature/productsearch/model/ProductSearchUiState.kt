@@ -39,6 +39,9 @@ data class ProductSearchUiState(
     fun canAddToCart(productId: String): Boolean =
         productId in cartProductIds || cartProductIds.size < CartConstants.MAX_DISTINCT_LINES
 
+    /** The basket holds the most distinct products it can: the screen says so above the cards (D17-03). */
+    val isBasketFull: Boolean get() = cartProductIds.size >= CartConstants.MAX_DISTINCT_LINES
+
     /** True while voice is being captured or a search is in flight. */
     val isProcessing: Boolean
         get() = phase is ProductSearchPhase.VoiceListening ||

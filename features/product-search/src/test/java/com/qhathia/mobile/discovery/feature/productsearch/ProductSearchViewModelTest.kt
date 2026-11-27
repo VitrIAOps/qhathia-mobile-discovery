@@ -1,5 +1,6 @@
 package com.qhathia.mobile.discovery.feature.productsearch
 
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.qhathia.mobile.discovery.core.domain.ProductSearchConstants
@@ -135,12 +136,37 @@ class ProductSearchViewModelTest {
     }
 
     @Test
-    fun textSearch_whenResults_showsNoHeardText() = runTest(mainDispatcher.dispatcher) {
+    fun textSearch_results_showQueryAndKeepField() = runTest(mainDispatcher.dispatcher) {
+        // D17-04: a typed search says what was searched ("Resultados para") and keeps it in the field.
         val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(3))))
         val vm = viewModel(query = "taladro", source = SearchSource.Text, repository = repository)
 
         val phase = vm.uiState.value.phase as ProductSearchPhase.Results
-        assertEquals("", phase.heardText)
+        assertEquals("taladro", phase.heardText)
+        assertEquals("taladro", vm.uiState.value.query)
+        assertEquals(SearchSource.Text, vm.uiState.value.source)
+    }
+
+    @Test
+    fun textSearch_noResults_showQueryWithoutHint() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(result = Result.success(ProductFixtures.noResults()))
+        val vm = viewModel(query = "refrigeradora", source = SearchSource.Text, repository = repository)
+
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Unhappy
+        assertEquals("refrigeradora", phase.heardText)
+        assertEquals("refrigeradora", vm.uiState.value.query)
+        // The "¿No es lo que dijiste?" hint is drawn only for voice; the source tells the screen.
+        assertEquals(SearchSource.Text, vm.uiState.value.source)
+    }
+
+    @Test
+    fun refinement_showsNoQueryLine() = runTest(mainDispatcher.dispatcher) {
+        val repository = searchWith(ProductFixtures.result(), ProductFixtures.result(products = ProductFixtures.products(1)))
+        val vm = viewModel(query = "taladro", source = SearchSource.Text, repository = repository)
+
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+
+        assertEquals("", (vm.uiState.value.phase as ProductSearchPhase.Results).heardText)
     }
 
     @Test
@@ -964,5 +990,98 @@ class ProductSearchViewModelTest {
         assertEquals(2, repository.callCount)
         assertEquals(ProductSearchPhase.NetworkError, vm.uiState.value.phase)
         assertEquals("taladro", vm.uiState.value.query)
+    }
+
+    private fun fullSearchBasket(vararg inBasket: String) = CartFixtures.cart(
+        (inBasket.toList() + (1..CartConstants.MAX_DISTINCT_LINES - inBasket.size).map { "other$it" })
+            .map { CartFixtures.cartItem(productId = it) },
+    )
+
+    @Test
+    fun add_whenBasketHas20OtherLines_emitsLineLimitReached() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))
+        val cartRepository = FakeCartRepository(fullSearchBasket())
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.uiEffect.test {
+            vm.onEvent(ProductSearchUiEvent.CartTapped("p1"))
+            assertEquals(ProductSearchUiEffect.LineLimitReached, awaitItem())
+        }
+        assertEquals(CartConstants.MAX_DISTINCT_LINES, cartRepository.current.items.size)
+        assertTrue(vm.uiState.value.isBasketFull)
+    }
+
+    @Test
+    fun add_existingLineInFullBasket_addsUnit() = runTest(mainDispatcher.dispatcher) {
+        val repository = FakeProductSearchRepository(Result.success(ProductFixtures.result(ProductFixtures.products(8))))
+        val cartRepository = FakeCartRepository(fullSearchBasket("p1"))
+        val vm = viewModel(repository = repository, cartRepository = cartRepository)
+
+        vm.onEvent(ProductSearchUiEvent.CartTapped("p1"))
+
+        assertEquals(2, cartRepository.current.items.single { it.productId == "p1" }.quantity)
+        assertFalse(vm.uiState.value.canAddToCart("p2"))
+    }
+
+    // --- F-37: a suggestion that does not change the results -----------------------------------------
+
+    private val threeDrills = ProductFixtures.result(products = ProductFixtures.products(3))
+    private val oneBosch = ProductFixtures.result(products = ProductFixtures.products(1))
+
+    @Test
+    fun suggestion_withoutEffect_showsNote() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(query = "taladro", repository = searchWith(threeDrills, oneBosch))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        assertNull((vm.uiState.value.phase as ProductSearchPhase.Results).suggestionNoEffect)
+
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Results
+        assertEquals("Percutor", phase.suggestionNoEffect)
+        assertEquals("Percutor", vm.uiState.value.selectedSuggestion)
+    }
+
+    @Test
+    fun suggestion_changingProducts_showsNoNote() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(query = "taladro", repository = searchWith(threeDrills, oneBosch))
+
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        assertNull((vm.uiState.value.phase as ProductSearchPhase.Results).suggestionNoEffect)
+    }
+
+    @Test
+    fun suggestion_removed_clearsNote() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(query = "taladro", repository = searchWith(threeDrills, oneBosch))
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        assertNull(vm.uiState.value.selectedSuggestion)
+        assertNull((vm.uiState.value.phase as ProductSearchPhase.Results).suggestionNoEffect)
+    }
+
+    @Test
+    fun suggestion_afterFilterChange_withoutBaseline_showsNoNote() = runTest(mainDispatcher.dispatcher) {
+        val vm = viewModel(query = "taladro", repository = searchWith(threeDrills, oneBosch))
+        vm.onEvent(ProductSearchUiEvent.SuggestionSelected("Percutor"))
+
+        // Bosch is added while the suggestion is on: no result without the suggestion for these filters.
+        vm.onEvent(ProductSearchUiEvent.FilterToggled("Marca", "Bosch"))
+
+        assertNull((vm.uiState.value.phase as ProductSearchPhase.Results).suggestionNoEffect)
+    }
+
+    // --- D17-01: alternatives without a name for what is missing --------------------------------------
+
+    @Test
+    fun alternativesOnly_blankCategory_showsGenericHeadline() = runTest(mainDispatcher.dispatcher) {
+        val alternatives = threeDrills.copy(alternativesOnly = true, missingCategory = "  ")
+        val vm = viewModel(query = "sierra circular makita", repository = searchWith(alternatives))
+
+        val phase = vm.uiState.value.phase as ProductSearchPhase.Results
+        assertTrue(phase.alternativesOnly)
+        assertNull(phase.missingCategory)
     }
 }

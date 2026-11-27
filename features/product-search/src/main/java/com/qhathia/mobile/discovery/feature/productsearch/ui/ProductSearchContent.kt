@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -38,8 +40,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +51,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.domain.usecase.isOrderable
 import com.qhathia.mobile.discovery.core.domain.model.Product
 import com.qhathia.mobile.discovery.core.domain.model.SearchFilter
@@ -57,6 +62,7 @@ import com.qhathia.mobile.discovery.core.ui.component.closeDialogMessage
 import com.qhathia.mobile.discovery.core.ui.component.ConfirmationDialog
 import com.qhathia.mobile.discovery.core.ui.component.DiscoveryDivider
 import com.qhathia.mobile.discovery.core.ui.component.DiscoverySearchBar
+import com.qhathia.mobile.discovery.core.ui.component.BasketFullNotice
 import com.qhathia.mobile.discovery.core.ui.component.HorizontalRowsGrid
 import com.qhathia.mobile.discovery.core.ui.component.MicButton
 import com.qhathia.mobile.discovery.core.ui.component.ListeningMessage
@@ -74,6 +80,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.collections.immutable.toImmutableSet
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
@@ -112,6 +119,7 @@ fun ProductSearchContent(
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 TopBar(
                     cartItemCount = uiState.cartItemCount,
+                    isBasketFull = uiState.isBasketFull,
                     onBack = { onEvent(ProductSearchUiEvent.Back) },
                     onGoToCatalog = { onEvent(ProductSearchUiEvent.GoToCatalog) },
                     onNewSearch = { onEvent(ProductSearchUiEvent.NewSearch) },
@@ -135,12 +143,14 @@ fun ProductSearchContent(
                             phase = phase,
                             onEvent = onEvent,
                             canAddToCart = uiState::canAddToCart,
+                            source = uiState.source,
                         )
 
                         is ProductSearchPhase.Unhappy -> UnhappyBody(
                             phase = phase,
                             onEvent = onEvent,
                             canAddToCart = uiState::canAddToCart,
+                            source = uiState.source,
                             modifier = Modifier.align(Alignment.Center),
                         )
 
@@ -174,6 +184,7 @@ private fun TopBar(
     onGoToCatalog: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
+    isBasketFull: Boolean = false,
 ) {
     Column {
         Row(
@@ -189,7 +200,14 @@ private fun TopBar(
                 onClick = onBack,
                 leadingIcon = true,
             )
-            Spacer(modifier = Modifier.weight(1f))
+            if (isBasketFull) {
+                BasketFullNotice(
+                    onOpenCart = onCart,
+                    modifier = Modifier.weight(1f).padding(horizontal = Spacing.md).wrapContentWidth(Alignment.End),
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
             IconTextButton(
                 iconRes = UiR.drawable.ic_catalog,
                 text = stringResource(UiR.string.discovery_action_go_to_catalog),
@@ -342,12 +360,18 @@ private fun VoiceCancelControls(isListening: Boolean, onCancel: () -> Unit) {
     )
 }
 
-/** "Entendí: «…»" above a voice search's result, so the customer sees what the tablet understood. */
+/**
+ * What the search was for, above its result: "Entendí: «…»" for voice (what the tablet understood),
+ * "Resultados para «…»" for a typed search (D17-04).
+ */
 @Composable
-private fun HeardText(heardText: String, modifier: Modifier = Modifier) {
+private fun HeardText(heardText: String, source: SearchSource, modifier: Modifier = Modifier) {
     if (heardText.isBlank()) return
     Text(
-        text = stringResource(R.string.ps_heard_text, heardText),
+        text = stringResource(
+            if (source == SearchSource.Voice) R.string.ps_heard_text else R.string.ps_results_for,
+            heardText,
+        ),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
@@ -359,9 +383,10 @@ private fun ResultsBody(
     phase: ProductSearchPhase.Results,
     onEvent: (ProductSearchUiEvent) -> Unit,
     canAddToCart: (String) -> Boolean = { true },
+    source: SearchSource = SearchSource.Voice,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        HeardText(phase.heardText, modifier = Modifier.padding(start = Spacing.lg, top = Spacing.sm))
+        HeardText(phase.heardText, source, modifier = Modifier.padding(start = Spacing.lg, top = Spacing.sm))
         Row(
             modifier = Modifier
                 .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
@@ -373,6 +398,8 @@ private fun ResultsBody(
                 text = when {
                     phase.noFilterMatch -> stringResource(R.string.ps_filters_no_match)
                     phase.missingCategory != null -> stringResource(R.string.ps_alternatives_only, phase.missingCategory)
+                    // Only alternatives and no name for what is missing: never claim a match (D17-01).
+                    phase.alternativesOnly -> stringResource(R.string.ps_alternatives_only_generic)
                     else -> pluralStringResource(R.plurals.ps_results_headline, phase.products.size, phase.products.size)
                 },
                 style = MaterialTheme.typography.titleSmall,
@@ -380,6 +407,17 @@ private fun ResultsBody(
             )
         }
         if (phase.noFilterMatch) return@Column
+        // The suggestion brought back the same products: do not present them as matching it (F-37).
+        if (phase.suggestionNoEffect != null) {
+            Text(
+                text = stringResource(R.string.ps_suggestion_no_effect, phase.suggestionNoEffect),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.sm)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         HorizontalRowsGrid(
             items = phase.products,
             rows = 2,
@@ -397,7 +435,9 @@ private fun ResultsBody(
                 cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                 onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                 onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                cartEnabled = product.isOrderable && canAddToCart(product.id),
+                cartEnabled = product.isOrderable,
+                // A full basket answers with the limit message instead of a dead button (F-33).
+                cartDimmed = !canAddToCart(product.id),
                 discountPercent = discountPercent(product.price, product.discountedPrice),
             )
         }
@@ -622,6 +662,7 @@ private fun UnhappyBody(
     onEvent: (ProductSearchUiEvent) -> Unit,
     modifier: Modifier = Modifier,
     canAddToCart: (String) -> Boolean = { true },
+    source: SearchSource = SearchSource.Voice,
 ) {
     Column(
         modifier = modifier.padding(horizontal = Spacing.lg),
@@ -629,7 +670,7 @@ private fun UnhappyBody(
     ) {
         BrandDot()
         Spacer(modifier = Modifier.height(Spacing.md))
-        HeardText(phase.heardText)
+        HeardText(phase.heardText, source)
         if (phase.heardText.isNotBlank()) Spacer(modifier = Modifier.height(Spacing.sm))
         // Title: the apology, whose invite line is personalized from the category the backend drew the
         // suggestions from ("Relacionado a 'lámpara' te podría interesar…") or the generic invite.
@@ -646,7 +687,8 @@ private fun UnhappyBody(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 576.dp),
         )
-        if (phase.heardText.isNotBlank()) {
+        // "¿No es lo que dijiste?" only makes sense for what the tablet heard, not for typed text.
+        if (phase.heardText.isNotBlank() && source == SearchSource.Voice) {
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = stringResource(R.string.ps_heard_hint),
@@ -670,7 +712,9 @@ private fun UnhappyBody(
                         cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                         onCartClick = { onEvent(ProductSearchUiEvent.CartTapped(product.id)) },
                         onCardClick = { onEvent(ProductSearchUiEvent.ProductTapped(product.id)) },
-                        cartEnabled = product.isOrderable && canAddToCart(product.id),
+                        cartEnabled = product.isOrderable,
+                        // A full basket answers with the limit message instead of a dead button (F-33).
+                        cartDimmed = !canAddToCart(product.id),
                         discountPercent = discountPercent(product.price, product.discountedPrice),
                     )
                 }
@@ -716,6 +760,8 @@ private fun BottomBar(
 ) {
     Row(
         modifier = Modifier
+            // Rises above the keyboard so the field being typed in stays visible (D17-02).
+            .imePadding()
             .fillMaxWidth()
             .padding(horizontal = Spacing.xl)
             .padding(bottom = Spacing.sm),
@@ -1089,3 +1135,139 @@ private fun CloseDialogWithCartDarkPreview() {
         )
     }
 }
+
+@Preview(name = "Results full basket — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsFullBasketLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Results(sampleProducts(8).toImmutableList(), "Encontré 8 taladros para ti"),
+                canGoBack = true,
+                cartProductIds = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toPersistentSet(),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Results full basket — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun ResultsFullBasketDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(
+            uiState = ProductSearchUiState(
+                source = SearchSource.Text,
+                phase = ProductSearchPhase.Results(sampleProducts(8).toImmutableList(), "Encontré 8 taladros para ti"),
+                canGoBack = true,
+                cartProductIds = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toPersistentSet(),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+private fun suggestionNoEffectState(): ProductSearchUiState = resultsWithRefine(
+    count = 1,
+    selectedFilters = setOf(SearchFilterOption("Marca", "Bosch")),
+    selectedSuggestion = "Inalámbrico 12V",
+).let { state ->
+    state.copy(phase = (state.phase as ProductSearchPhase.Results).copy(suggestionNoEffect = "Inalámbrico 12V"))
+}
+
+private fun alternativesGenericState(): ProductSearchUiState = ProductSearchUiState(
+    source = SearchSource.Text,
+    phase = ProductSearchPhase.Results(
+        products = sampleProducts(3).toImmutableList(),
+        displayText = "",
+        alternativesOnly = true,
+        heardText = "sierra circular makita",
+    ),
+)
+
+private fun typedResultsState(): ProductSearchUiState = ProductSearchUiState(
+    source = SearchSource.Text,
+    phase = ProductSearchPhase.Results(
+        products = sampleProducts(8).toImmutableList(),
+        displayText = "Encontré 8 taladros para ti",
+        heardText = "taladro",
+    ),
+    query = "taladro",
+    canGoBack = true,
+)
+
+private fun typedUnhappyState(): ProductSearchUiState = ProductSearchUiState(
+    source = SearchSource.Text,
+    phase = ProductSearchPhase.Unhappy(
+        alternatives = sampleProducts(3).toImmutableList(),
+        suggestedFromCategory = null,
+        heardText = "refrigeradora",
+    ),
+    query = "refrigeradora",
+)
+
+@Preview(name = "Results suggestion without effect — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun SuggestionNoEffectLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(uiState = suggestionNoEffectState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results suggestion without effect — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun SuggestionNoEffectDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(uiState = suggestionNoEffectState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results alternatives (generic) — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun AlternativesGenericLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(uiState = alternativesGenericState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results alternatives (generic) — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun AlternativesGenericDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(uiState = alternativesGenericState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results typed query — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun TypedResultsLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(uiState = typedResultsState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Results typed query — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun TypedResultsDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(uiState = typedResultsState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Unhappy typed query — light", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun TypedUnhappyLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductSearchContent(uiState = typedUnhappyState(), onEvent = {})
+    }
+}
+
+@Preview(name = "Unhappy typed query — dark", showBackground = true, widthDp = 1024, heightDp = 640)
+@Composable
+private fun TypedUnhappyDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductSearchContent(uiState = typedUnhappyState(), onEvent = {})
+    }
+}
+

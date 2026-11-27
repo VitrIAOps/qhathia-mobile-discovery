@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -57,11 +59,14 @@ import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
 import com.qhathia.mobile.discovery.feature.catalog.R
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogTab
+import com.qhathia.mobile.discovery.core.ui.component.BasketFullNotice
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiEvent
 import com.qhathia.mobile.discovery.feature.catalog.model.CatalogUiState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentSet
+import com.qhathia.mobile.discovery.core.domain.CartConstants
 import com.qhathia.mobile.discovery.core.ui.R as UiR
 
 /**
@@ -80,6 +85,7 @@ fun CatalogContent(
         Column(modifier = Modifier.fillMaxSize()) {
             TopBar(
                 cartItemCount = uiState.cartItemCount,
+                isBasketFull = uiState.isBasketFull,
                 onBack = { onEvent(CatalogUiEvent.Back) },
                 onNewSearch = { onEvent(CatalogUiEvent.NewSearch) },
                 onCart = { onEvent(CatalogUiEvent.OpenCart) },
@@ -130,7 +136,9 @@ fun CatalogContent(
                             cartContentDescription = stringResource(UiR.string.discovery_cd_add_to_cart),
                             onCartClick = { onEvent(CatalogUiEvent.CartTapped(product.id)) },
                             onCardClick = { onEvent(CatalogUiEvent.ProductTapped(product.id)) },
-                            cartEnabled = product.isOrderable && uiState.canAddToCart(product.id),
+                            cartEnabled = product.isOrderable,
+                            // A full basket answers with the limit message instead of a dead button (F-33).
+                            cartDimmed = !uiState.canAddToCart(product.id),
                             discountPercent = discountPercent(product.price, product.discountedPrice),
                         )
                     }
@@ -162,6 +170,7 @@ private fun TopBar(
     onBack: () -> Unit,
     onNewSearch: () -> Unit,
     onCart: () -> Unit,
+    isBasketFull: Boolean = false,
 ) {
     Row(
         modifier = Modifier
@@ -177,7 +186,14 @@ private fun TopBar(
             onClick = onBack,
             leadingIcon = true,
         )
-        Spacer(modifier = Modifier.weight(1f))
+        if (isBasketFull) {
+            BasketFullNotice(
+                onOpenCart = onCart,
+                modifier = Modifier.weight(1f).padding(horizontal = Spacing.md).wrapContentWidth(Alignment.End),
+            )
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
+        }
         IconTextButton(
             iconRes = UiR.drawable.ic_refresh,
             text = stringResource(UiR.string.discovery_action_new_search),
@@ -388,6 +404,8 @@ private fun BottomBar(
 ) {
     Row(
         modifier = Modifier
+            // Rises above the keyboard so the field being typed in stays visible (D17-02).
+            .imePadding()
             .fillMaxWidth()
             .padding(horizontal = Spacing.xl)
             .padding(bottom = Spacing.sm),
@@ -599,6 +617,42 @@ private fun CatalogCloseDialogWithCartDarkPreview() {
                 visibleProducts = sampleProducts(8),
                 cartItemCount = 2,
                 showCloseConfirmDialog = true,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Catalog full basket — light", showBackground = true, widthDp = 1280, heightDp = 800)
+@Composable
+private fun CatalogFullBasketLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        CatalogContent(
+            uiState = CatalogUiState(
+                isLoading = false,
+                tabs = sampleTabs(),
+                selectedTabId = CatalogTab.ALL_ID,
+                visibleProducts = sampleProducts(12),
+                cartItemCount = 27,
+                cartProductIds = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toPersistentSet(),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(name = "Catalog full basket — dark", showBackground = true, widthDp = 1280, heightDp = 800)
+@Composable
+private fun CatalogFullBasketDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        CatalogContent(
+            uiState = CatalogUiState(
+                isLoading = false,
+                tabs = sampleTabs(),
+                selectedTabId = CatalogTab.ALL_ID,
+                visibleProducts = sampleProducts(12),
+                cartItemCount = 27,
+                cartProductIds = (1..CartConstants.MAX_DISTINCT_LINES).map { "other$it" }.toPersistentSet(),
             ),
             onEvent = {},
         )

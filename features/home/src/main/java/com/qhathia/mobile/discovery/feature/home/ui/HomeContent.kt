@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -68,6 +72,7 @@ import com.qhathia.mobile.discovery.core.ui.R as UiR
  * the [SttErrorContent] screen. The search bar, catalog link, and gear are hidden whenever a
  * voice-search attempt is active or an error screen is shown ([HomeUiState.areControlsVisible]).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeContent(
     uiState: HomeUiState,
@@ -84,6 +89,8 @@ fun HomeContent(
     Box(
         modifier = modifier
             .fillMaxSize()
+            // Lifts the hero above the keyboard so the field being typed in stays visible (D17-02).
+            .imePadding()
             .graphicsLayer { alpha = entranceAlpha },
     ) {
         TopBar(
@@ -99,8 +106,10 @@ fun HomeContent(
             modifier = Modifier.align(Alignment.Center),
         )
 
+        // While typing, the bottom corner and footer would rise with the keyboard over the field (D17-02).
+        val imeVisible = WindowInsets.isImeVisible
         AnimatedVisibility(
-            visible = uiState.areControlsVisible,
+            visible = uiState.areControlsVisible && !imeVisible,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -122,11 +131,16 @@ fun HomeContent(
             }
         }
 
-        PoweredByFooter(
+        AnimatedVisibility(
+            visible = !imeVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = Spacing.xl),
-        )
+        ) {
+            PoweredByFooter()
+        }
     }
 }
 
@@ -273,6 +287,7 @@ private fun ProcessingHero(
     VoiceCancelControls(isListening = isListening, onCancel = onCancel)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IdleHero(
     micState: MicState,
@@ -297,22 +312,28 @@ private fun IdleHero(
         textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(max = 576.dp),
     )
-    MicButton(
-        isListening = false,
-        contentDescription = stringResource(
-            if (isRetry) R.string.home_mic_retry_cd else UiR.string.discovery_cd_voice_search,
-        ),
-        onClick = { onEvent(if (isRetry) HomeUiEvent.RetryMic else HomeUiEvent.ActivateMic) },
-    )
-    // Says out loud what the big circle is for; only when the microphone is drawn.
-    if (!isRetry && LocalVoiceAssistantEnabled.current) {
-        Text(
-            text = stringResource(R.string.home_mic_hint),
-            style = MaterialTheme.typography.titleSmall,
-            color = DiscoveryColors.Blue600,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(Spacing.md))
+    // With the keyboard up the whole hero does not fit: the microphone and its line step aside so the
+    // title and the field stay in view, and come back when the keyboard closes (D17-02).
+    AnimatedVisibility(visible = !WindowInsets.isImeVisible, enter = fadeIn(), exit = fadeOut()) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MicButton(
+                isListening = false,
+                contentDescription = stringResource(
+                    if (isRetry) R.string.home_mic_retry_cd else UiR.string.discovery_cd_voice_search,
+                ),
+                onClick = { onEvent(if (isRetry) HomeUiEvent.RetryMic else HomeUiEvent.ActivateMic) },
+            )
+            // Says out loud what the big circle is for; only when the microphone is drawn.
+            if (!isRetry && LocalVoiceAssistantEnabled.current) {
+                Text(
+                    text = stringResource(R.string.home_mic_hint),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = DiscoveryColors.Blue600,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+        }
     }
     DiscoverySearchBar(
         query = query,

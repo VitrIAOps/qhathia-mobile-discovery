@@ -8,19 +8,24 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.qhathia.mobile.discovery.core.domain.model.StoreCategory
 import com.qhathia.mobile.discovery.core.domain.model.StoreSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
  * Reads and writes the [StoreSession] to a Preferences DataStore. An absent key maps to
- * [StoreSession.EMPTY], so callers always get a well-defined value.
+ * [StoreSession.EMPTY], so callers always get a well-defined value. The device access token is
+ * stored encrypted by [cipher] and never in plain text; [DeviceTokenMigration] upgrades older values.
  */
 class StoreSessionLocalDataSource @Inject constructor(
     private val dataStore: DataStore<Preferences>,
+    private val cipher: TokenCipher,
 ) {
-    fun observe(): Flow<StoreSession> = dataStore.data.map { it.toStoreSession() }
+    fun observe(): Flow<StoreSession> = dataStore.data.map { it.toStoreSession() }.flowOn(Dispatchers.IO)
 
     suspend fun updateStoreName(storeName: String?) {
         dataStore.edit { preferences ->
@@ -39,12 +44,13 @@ class StoreSessionLocalDataSource @Inject constructor(
     }
 
     /** Reads the persisted DEVICE access token, or `null` when not paired. */
-    suspend fun deviceAccessToken(): String? = dataStore.data.first()[KEY_DEVICE_TOKEN]
+    suspend fun deviceAccessToken(): String? = withContext(Dispatchers.IO) { dataStore.data.first().deviceToken() }
 
     /** Persists the DEVICE access token, device name and pairing code produced by pairing. */
     suspend fun saveDeviceSession(deviceAccessToken: String, deviceName: String?, pairingCode: String?) {
+        val encrypted = withContext(Dispatchers.IO) { DeviceTokenStorage.encode(cipher, deviceAccessToken) }
         dataStore.edit { preferences ->
-            preferences[KEY_DEVICE_TOKEN] = deviceAccessToken
+            preferences[KEY_DEVICE_TOKEN] = encrypted
             preferences.putOrRemove(KEY_DEVICE_NAME, deviceName)
             preferences.putOrRemove(KEY_PAIRING_CODE, pairingCode)
         }
@@ -84,9 +90,12 @@ class StoreSessionLocalDataSource @Inject constructor(
         if (value.isNullOrBlank()) remove(key) else this[key] = value
     }
 
+    private fun Preferences.deviceToken(): String? =
+        this[KEY_DEVICE_TOKEN]?.let { DeviceTokenStorage.decodeOrNull(cipher, it) }
+
     private fun Preferences.toStoreSession(): StoreSession = StoreSession(
         storeName = this[KEY_STORE_NAME],
-        deviceAccessToken = this[KEY_DEVICE_TOKEN],
+        deviceAccessToken = deviceToken(),
         deviceName = this[KEY_DEVICE_NAME],
         pairingCode = this[KEY_PAIRING_CODE],
         unlinkedNotice = this[KEY_UNLINKED_NOTICE] == true,
@@ -95,7 +104,7 @@ class StoreSessionLocalDataSource @Inject constructor(
 
     private companion object {
         val KEY_STORE_NAME = stringPreferencesKey("store_name")
-        val KEY_DEVICE_TOKEN = stringPreferencesKey("device_access_token")
+        val KEY_DEVICE_TOKEN = DeviceTokenStorage.KEY_DEVICE_TOKEN
         val KEY_DEVICE_NAME = stringPreferencesKey("device_name")
         val KEY_PAIRING_CODE = stringPreferencesKey("pairing_code")
         val KEY_UNLINKED_NOTICE = booleanPreferencesKey("unlinked_notice")

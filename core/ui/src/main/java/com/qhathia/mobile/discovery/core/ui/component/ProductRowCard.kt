@@ -57,6 +57,8 @@ import com.qhathia.mobile.discovery.core.ui.tokens.Spacing
  *   struck through next to [priceText], which is highlighted.
  * @param cartEnabled `false` for a product that cannot be ordered: the add button is dimmed and does
  *   nothing. The card itself stays tappable, so the detail can still be opened.
+ * @param cartDimmed the button only looks dimmed and still takes the tap: the basket is full and the
+ *   screen answers with the limit message (F-33).
  */
 @Composable
 fun ProductRowCard(
@@ -70,6 +72,7 @@ fun ProductRowCard(
     modifier: Modifier = Modifier,
     originalPriceText: String? = null,
     cartEnabled: Boolean = true,
+    cartDimmed: Boolean = false,
 ) {
     Box(modifier = modifier.width(CARD_WIDTH).height(CARD_HEIGHT)) {
         // The card's own tap lives on a background layer labelled with the name and price, so the
@@ -146,6 +149,7 @@ fun ProductRowCard(
                         contentDescription = cartContentDescription,
                         onClick = onAddToCart,
                         enabled = cartEnabled,
+                        dimmed = cartDimmed,
                     )
                 }
             }
@@ -252,6 +256,40 @@ private fun ProductRowCardNotOrderableDarkPreview() {
             onClick = {},
             onAddToCart = {},
             cartEnabled = false,
+        )
+    }
+}
+
+@Preview(name = "ProductRowCard — full basket (light)", showBackground = true, backgroundColor = 0xFFF8F8F8)
+@Composable
+private fun ProductRowCardBasketFullLightPreview() {
+    DiscoveryTheme(darkTheme = false) {
+        ProductRowCard(
+            name = "Set de brocas (5 piezas)",
+            categoryName = "Accesorios",
+            priceText = "S/ 49.90",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onClick = {},
+            onAddToCart = {},
+            cartDimmed = true,
+        )
+    }
+}
+
+@Preview(name = "ProductRowCard — full basket (dark)", showBackground = true, backgroundColor = 0xFF122842)
+@Composable
+private fun ProductRowCardBasketFullDarkPreview() {
+    DiscoveryTheme(darkTheme = true) {
+        ProductRowCard(
+            name = "Set de brocas (5 piezas)",
+            categoryName = "Accesorios",
+            priceText = "S/ 49.90",
+            imageUrl = "",
+            cartContentDescription = "Agregar al carrito",
+            onClick = {},
+            onAddToCart = {},
+            cartDimmed = true,
         )
     }
 }

@@ -1,11 +1,8 @@
 package com.qhathia.mobile.discovery
 
-import android.app.ActivityManager
-import android.content.Intent
-import android.os.Build
+import android.content.ComponentName
 import android.os.Bundle
 import android.os.Process
-import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -37,16 +34,16 @@ import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
-import com.qhathia.mobile.discovery.kiosk.DeviceOwnerKiosk
+import com.qhathia.mobile.discovery.core.device.kiosk.DeviceOwnerPolicy
+import com.qhathia.mobile.discovery.core.device.kiosk.HomeLaunchGuard
+import com.qhathia.mobile.discovery.core.device.kiosk.KioskWindowController
+import com.qhathia.mobile.discovery.kiosk.KioskDeviceAdminReceiver
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import android.util.Log
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.flowWithLifecycle
@@ -60,8 +57,6 @@ import com.qhathia.mobile.discovery.core.domain.model.SearchSource
 import com.qhathia.mobile.discovery.core.ui.component.LocalKioskImmersive
 import com.qhathia.mobile.discovery.core.ui.component.LocalUserActivity
 import com.qhathia.mobile.discovery.core.ui.component.LocalVoiceAssistantEnabled
-import com.qhathia.mobile.discovery.core.ui.component.hideSystemBars
-import com.qhathia.mobile.discovery.core.ui.component.keepSystemBarsHidden
 import com.qhathia.mobile.discovery.core.ui.theme.DiscoveryTheme
 import com.qhathia.mobile.discovery.feature.cart.ui.CartDialog
 import com.qhathia.mobile.discovery.feature.catalog.navigation.catalogRoute
@@ -83,112 +78,40 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    /** Whether the kiosk lock is applied, so focus changes hide the system bars again. */
-    private var kioskImmersive = false
-
-    /** Stops re-hiding the bars after the keyboard (Android 10 and older); set while locked. */
-    private var stopKeepingBarsHidden: (() -> Unit)? = null
-
-    private val pinningThrottle = PinningRequestThrottle(
-        DeviceConstants.PINNING_REQUEST_MIN_INTERVAL.inWholeMilliseconds,
-    )
+    private val kioskWindow by lazy(LazyThreadSafetyMode.NONE) {
+        KioskWindowController(this, DeviceConstants.PINNING_REQUEST_MIN_INTERVAL.inWholeMilliseconds)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // A HOME intent with the showcase already open must not leave a second one (F-35).
-        if (yieldToOpenShowcase()) return
+        if (HomeLaunchGuard.yieldToOpenTask(this)) return
         // Device owner (F-10): pin without the "Pin app?" dialog and stay the home screen.
-        DeviceOwnerKiosk.configure(this)
+        DeviceOwnerPolicy.configure(
+            activity = this,
+            admin = ComponentName(this, KioskDeviceAdminReceiver::class.java),
+            homeActivity = ComponentName(this, MainActivity::class.java),
+        )
         enableEdgeToEdge()
         setContent {
             DiscoveryAppRoot()
         }
     }
 
-    /** The keyboard closing or a system dialog (e.g. "Pin app?") going away shows the bars: hide them. */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && kioskImmersive) window.hideSystemBars()
+        kioskWindow.onWindowFocusChanged(hasFocus)
     }
 
-    /**
-     * Applies the kiosk lock (design D5/D8): screen pinning without Device Owner, hidden system bars
-     * (a swipe shows them transiently) and screen kept on. Pinning is always asked here (resume).
-     */
-    fun applyKioskLock(active: Boolean) {
-        kioskImmersive = active
-        if (active) {
-            requestPinning(throttled = false)
-            window.hideSystemBars()
-            if (stopKeepingBarsHidden == null) stopKeepingBarsHidden = window.keepSystemBarsHidden()
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            if (isPinned()) runCatching { stopLockTask() }
-            stopKeepingBarsHidden?.invoke()
-            stopKeepingBarsHidden = null
-            WindowCompat.getInsetsController(window, window.decorView)
-                .show(WindowInsetsCompat.Type.systemBars())
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
+    /** Applies the kiosk lock (design D5/D8). */
+    fun applyKioskLock(active: Boolean) = kioskWindow.applyLock(active)
 
-    /**
-     * Asks for screen pinning when the task is not pinned yet. [throttled] requests (from Home) are
-     * dropped when one was made less than [DeviceConstants.PINNING_REQUEST_MIN_INTERVAL] ago, so a
-     * refused "Pin app?" is not shown in a loop.
-     */
-    fun requestPinning(throttled: Boolean) {
-        if (isPinned()) return
-        val now = SystemClock.elapsedRealtime()
-        if (throttled) {
-            if (!pinningThrottle.tryAcquire(now)) return
-        } else {
-            pinningThrottle.record(now)
-        }
-        try {
-            startLockTask()
-        } catch (e: Exception) {
-            // API 26 rejects it while the task is not in the foreground; keep it visible in logcat.
-            Log.w(TAG, "startLockTask rejected", e)
-        }
-    }
+    /** Asks for screen pinning; [throttled] requests (from Home) keep to the minimum interval. */
+    fun requestPinning(throttled: Boolean) = kioskWindow.requestPinning(throttled)
 
     /** Carries out a remote restart from inside the pinned task (design D7). */
     fun restartInTask() {
         startActivity(RestartActivity.intent(this, Process.myPid()))
-    }
-
-    /**
-     * Applies [homeLaunchAction] to the intent that created this activity. Returns `true` when this
-     * activity is finishing because another showcase is already open.
-     */
-    private fun yieldToOpenShowcase(): Boolean {
-        val isHomeIntent = intent?.action == Intent.ACTION_MAIN && intent?.hasCategory(Intent.CATEGORY_HOME) == true
-        if (!isHomeIntent) return false
-        val otherShellTask = getSystemService(ActivityManager::class.java).appTasks.firstOrNull { task ->
-            val info = runCatching { task.taskInfo }.getOrNull() ?: return@firstOrNull false
-            val id = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) info.taskId else @Suppress("DEPRECATION") info.id
-            id != taskId && info.baseActivity?.className == MainActivity::class.java.name
-        }
-        return when (homeLaunchAction(isHomeIntent, isTaskRoot, otherShellTaskExists = otherShellTask != null)) {
-            HomeLaunchAction.Proceed -> false
-            HomeLaunchAction.FinishOnTop -> {
-                finish()
-                true
-            }
-            HomeLaunchAction.BringExistingToFront -> {
-                otherShellTask?.let { runCatching { it.moveToFront() } }
-                finishAndRemoveTask()
-                true
-            }
-        }
-    }
-
-    private fun isPinned(): Boolean =
-        getSystemService(ActivityManager::class.java).lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
-
-    private companion object {
-        const val TAG = "MainActivity"
     }
 }
 
