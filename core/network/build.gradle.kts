@@ -33,6 +33,8 @@ android {
         create("profile") {
             initWith(getByName("release"))
             buildConfigField("boolean", "ENABLE_NETWORK_LOGGING", "true")
+            // Library dependencies without a `profile` build type (e.g. :core:voice) resolve to release.
+            matchingFallbacks += "release"
         }
     }
     buildFeatures {
